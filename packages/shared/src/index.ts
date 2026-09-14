@@ -1,2 +1,10 @@
-// Package entry point; shared application primitives are delivered in issue #10.
-export {};
+export interface BookEditorApi {
+  project: {
+    create(): Promise<void>;
+    open(): Promise<void>;
+  };
+  dialog: {
+    selectImage(): Promise<void>;
+    selectExportLocation(): Promise<void>;
+  };
+}
