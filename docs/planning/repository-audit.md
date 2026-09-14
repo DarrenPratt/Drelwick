@@ -64,3 +64,7 @@ See [GitHub tracking register](github-tracking.md) for actual issue numbers, mil
 - Checked ignore behaviour: workspace source and synthetic `.history` fixtures are trackable; dependencies, local environment files and build outputs are ignored.
 - Ran `git diff --cached --check`; no whitespace errors after preserving Markdown hard breaks with explicit backslashes.
 - Confirmed repository remains private. No application build, lint, typecheck, tests or CI can run until the planned toolchain exists. No complete secret scan or legal review is claimed.
+
+## Follow-up: Projects access resolved
+
+After the owner authorized GitHub CLI with Projects access and linked the Project, inspection found the existing private [@BookEditor board](https://github.com/users/DarrenPratt/projects/1). It was reused with its name/link intact. The historical scope error above describes the initial audit, not a current blocker. See the [board setup record](github-tracking.md#project-board-setup) for fields, all 62 issue memberships and validation. PR #63 is merged; the follow-up documentation PR for #62 contains no application implementation.
