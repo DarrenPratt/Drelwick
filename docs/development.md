@@ -10,12 +10,12 @@ Read the [design](design.md), [technical specification](technical-spec.md), [bui
 
 Every implementation issue has one primary product classification and matching label:
 
-| Classification | Label | Meaning |
-| --- | --- | --- |
-| CORE | `product:core` | Fundamental Community functionality, including basic local authoring and publishing. Shared Community infrastructure/governance uses CORE. |
-| PRO | `product:pro` | Additional commercial professional or convenience capabilities. |
-| SERVICE | `product:service` | Hosted infrastructure or continuing operating costs. |
-| ECOSYSTEM | `product:ecosystem` | Themes, plugins or third-party extensions. The public extension API itself is CORE. |
+| Classification | Label               | Meaning                                                                                                                                    |
+| -------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| CORE           | `product:core`      | Fundamental Community functionality, including basic local authoring and publishing. Shared Community infrastructure/governance uses CORE. |
+| PRO            | `product:pro`       | Additional commercial professional or convenience capabilities.                                                                            |
+| SERVICE        | `product:service`   | Hosted infrastructure or continuing operating costs.                                                                                       |
+| ECOSYSTEM      | `product:ecosystem` | Themes, plugins or third-party extensions. The public extension API itself is CORE.                                                        |
 
 Split work that delivers independently scoped products. Basic themes are CORE, premium first-party themes are PRO, third-party theme packages are ECOSYSTEM. Optional hosted AI is SERVICE; an AI provider extension can be ECOSYSTEM. Classification is not a legal conclusion.
 

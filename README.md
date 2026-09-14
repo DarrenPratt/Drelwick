@@ -26,6 +26,8 @@ From the repository root:
 
 ```sh
 pnpm install
+pnpm lint
+pnpm format:check
 pnpm typecheck
 pnpm build
 pnpm check:workspace
@@ -75,5 +77,26 @@ narrow caught errors before accessing their properties.
 
 The existing ignore rules cover dependencies, build output, coverage, local
 environment files and TypeScript build caches while retaining workspace source.
-Lint/format tooling (#4) and application CI (#46)
-remain separate work. Their checks are not available in this bootstrap.
+Application CI (#46) remains separate work.
+
+## Linting and formatting
+
+Run `pnpm lint` and `pnpm format:check` before opening a PR. Use `pnpm format`
+to apply Prettier formatting across source, configuration and documentation.
+Git and Prettier both use LF line endings so checks are stable across platforms.
+
+The root ESLint flat config covers JavaScript, TypeScript, JSX and TSX throughout
+the workspace, including tests and tooling. It uses recommended JavaScript,
+TypeScript, React and React Hooks rules with the modern JSX runtime. TypeScript
+checks component props in TSX; JavaScript components retain React prop validation.
+ESLint 9 is pinned to match the React plugin's supported peer range. React rule
+settings target version 19 until the renderer adds its runtime dependency.
+Type-aware checks remain in `pnpm typecheck`; lint needs no prior build.
+Node globals are scoped to tooling, tests, main and preload; browser globals are
+scoped to renderer sources. Shared source receives no host globals by default.
+
+Both tools exclude dependency stores, `dist`, `build`, `out`, `coverage`,
+`generated`, `playwright-report` and `test-results` directories at any depth.
+Prettier also excludes the pnpm-managed lockfile and respects `.gitignore`.
+Keep the two tools' generated-output exclusions aligned when adding build tools.
+Prettier owns formatting; `eslint-config-prettier` disables conflicting lint rules.
