@@ -1,0 +1,79 @@
+name: Implementation task
+description: Plan focused work during private BookEditor development.
+body:
+  - type: markdown
+    attributes:
+      value: "Private development: external contribution terms are not yet approved. Do not include secrets or private manuscript text."
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What outcome is required, and which requirement or design supports it?
+    validations:
+      required: true
+  - type: dropdown
+    id: product
+    attributes:
+      label: Product Classification
+      description: Apply the matching product label when triaging. Public API infrastructure is CORE.
+      options:
+        - CORE
+        - PRO
+        - SERVICE
+        - ECOSYSTEM
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Describe the focused deliverable and its boundaries.
+    validations:
+      required: true
+  - type: textarea
+    id: components
+    attributes:
+      label: Expected Files / Components
+      description: Identify known paths and interfaces, or state what needs deciding.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Use checkboxes for observable outcomes.
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Tests
+      description: Include success, failure and data-preservation checks where relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Link actual GitHub issues; state None when independent. Do not copy plan numbers as GitHub numbers.
+    validations:
+      required: true
+  - type: input
+    id: milestone
+    attributes:
+      label: Milestone
+      description: Name the target milestone and set it during triage.
+    validations:
+      required: true
+  - type: input
+    id: labels
+    attributes:
+      label: Labels
+      description: Specify type, area, priority and product labels; apply them during triage.
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Technical Notes
+      description: Record schema/migration, security, recovery and Community/Pro boundary decisions.

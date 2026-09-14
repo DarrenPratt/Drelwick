@@ -227,7 +227,8 @@ PublishScripts/
 # NuGet Symbol Packages
 *.snupkg
 # The packages folder can be ignored because of Package Restore
-**/[Pp]ackages/*
+# Disabled: BookEditor uses tracked pnpm workspace packages.
+# **/[Pp]ackages/*
 # except build/, which is used as an MSBuild target.
 !**/[Pp]ackages/build/
 # Uncomment if necessary however generally it will be regenerated when needed
@@ -427,3 +428,17 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# BookEditor workspace build outputs
+.pnpm-store/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+.env.*
+!.env.example
+
+# Synthetic manuscript recovery fixtures must remain trackable.
+!tests/fixtures/**/.history/
+!tests/fixtures/**/.history/**
