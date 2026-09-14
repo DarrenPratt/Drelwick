@@ -8,6 +8,9 @@ export function getMainWindowOptions(preloadPath: string) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      webviewTag: false,
       preload: preloadPath,
     },
   };

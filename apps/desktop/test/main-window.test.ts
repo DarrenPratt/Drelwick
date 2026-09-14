@@ -10,6 +10,9 @@ describe("main window security", () => {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      webviewTag: false,
       preload: "preload.js",
     });
   });
