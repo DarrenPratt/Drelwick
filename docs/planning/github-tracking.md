@@ -4,7 +4,7 @@ Reconciled 14 September 2026. Plan IDs remain stable source-document identifiers
 
 The original requirements from the two build plans are retained in each issue, supplemented with missing objective/scope/components/tests and product classification. Original prerequisites and additional readiness prerequisites are explicitly separated. The combined graph is acyclic.
 
-Planning foundation: [#1](https://github.com/DarrenPratt/BookEditor/issues/1). Project board access blocker: [#62](https://github.com/DarrenPratt/BookEditor/issues/62). The board is not configured or verified: GitHub rejected Projects access for missing scope. Existing boards must be searched before creation. This does not prevent application work after review of the planning PR.
+Planning foundation: [#1](https://github.com/DarrenPratt/BookEditor/issues/1), completed by merged PR #63. Project board setup: [#62](https://github.com/DarrenPratt/BookEditor/issues/62). Projects access is now available through the account-authorized GitHub CLI; the original access blocker is resolved. The existing private [@BookEditor project](https://github.com/users/DarrenPratt/projects/1) is linked to this repository and reused; no duplicate board was created.
 
 ## Milestones
 
@@ -94,7 +94,7 @@ All rows have `product:core`. An em dash means no dependency in that column. The
 
 ## Commercial architecture backlog
 
-Tasks 51–59 are CORE governance/interfaces/release preparation. Task 60 is PRO. All legal-review decisions remain open. Task 55 classification setup is supplied by the planning PR and should close only on its reviewed merge.
+Tasks 51–59 are CORE governance/interfaces/release preparation. Task 60 is PRO. All legal-review decisions remain open. Task 55 classification setup was completed by merged PR #63; actual issue #56 is closed.
 
 | Plan ID | Actual GitHub issue | Original prerequisites | Additional readiness prerequisites |
 | --- | --- | --- | --- |
@@ -228,4 +228,25 @@ flowchart TD
 - Define session marker location/concurrency in [#38](https://github.com/DarrenPratt/BookEditor/issues/38); handle stale acknowledgements in [#31](https://github.com/DarrenPratt/BookEditor/issues/31) and recovery candidate timestamp ties in [#39](https://github.com/DarrenPratt/BookEditor/issues/39).
 - Packaging tool, runtime/tool versions and full three-platform packaging verification remain implementation decisions; document platform limitations in [#51](https://github.com/DarrenPratt/BookEditor/issues/51). CI/protection is pending [#46](https://github.com/DarrenPratt/BookEditor/issues/46), so this planning PR cannot claim application CI passed.
 - Community feature granularity, licence, contribution/dual-licensing strategy, extension security/versioning and trademark decisions remain tracked in [#52](https://github.com/DarrenPratt/BookEditor/issues/52)–[#59](https://github.com/DarrenPratt/BookEditor/issues/59). Public release requires [#60](https://github.com/DarrenPratt/BookEditor/issues/60) and the [release checklist](public-release-checklist.md).
-- Project board setup remains blocked by Projects access in [#62](https://github.com/DarrenPratt/BookEditor/issues/62). Repository visibility stays private and no Pro checkout is needed.
+- Project board access is resolved and setup is tracked in [#62](https://github.com/DarrenPratt/BookEditor/issues/62). Repository and Project visibility remain private; no Pro checkout is needed.
+
+## Project board setup
+
+The owner-created [@BookEditor](https://github.com/users/DarrenPratt/projects/1) is the build plan's development board. Its existing name and repository link are retained. The initial inspection after authorization found one private Project, already linked to BookEditor, with no items and the default Todo/In Progress/Done statuses.
+
+Configured fields:
+
+| Field | Values / source |
+| --- | --- |
+| Status | Backlog, Ready, In Progress, Review, Blocked, Done |
+| Priority | Critical, High, Normal, Low; initialized from issue priority labels |
+| Area | electron, ui, editor, project, persistence, ipc, recovery, testing, build, architecture, licensing, github |
+| Milestone | Existing native field; follows the issue milestone rather than a duplicate custom field |
+| Estimate | XS, S, M, L, XL; left unset until assessed |
+| Labels | Existing native field retains every type, area, priority and product classification |
+
+All 62 existing issues (#1?#62) are included exactly once. Closed foundation/classification issues #1 and #56 are Done. Bootstrap #2 is Ready following the planning PR merge. Board setup #62 is Review pending its documentation PR. Other open issues are Backlog. Area holds one representative area initialized from the issue's sorted area labels; the Labels field retains all applicable areas.
+
+Validation re-read the private Project, repository link, item membership and field options. A reversible status change on #62 (Review -> In Progress -> Review) confirmed field updates work. No issue was closed or reopened for that test.
+
+Automatic status transitions, dependency readiness and ongoing label-to-field synchronization are **not assumed**. Maintain Status, Priority and primary Area explicitly during triage; update status after PR review/merge and assess dependencies before marking Ready. Native labels/milestones follow their issues. Project workflow automation can be adopted after its actual behaviour is verified; this setup does not depend on it.
