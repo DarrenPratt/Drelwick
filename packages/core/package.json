@@ -14,6 +14,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@bookeditor/project-model": "workspace:*",
     "@bookeditor/shared": "workspace:*"
   }
 }

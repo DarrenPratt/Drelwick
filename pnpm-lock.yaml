@@ -84,6 +84,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@bookeditor/project-model':
+        specifier: workspace:*
+        version: link:../project-model
       '@bookeditor/shared':
         specifier: workspace:*
         version: link:../shared
