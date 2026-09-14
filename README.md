@@ -8,7 +8,7 @@ Start with the [documentation index](docs/README.md) for the design, technical s
 
 Development is private. AGPLv3 is a candidate Community licence, not a final licensing decision. External contribution terms are not yet approved. Community will build independently of the eventual private Pro product; basic authoring and publishing belong in Community.
 
-See the [development workflow](docs/development.md), [repository audit](docs/planning/repository-audit.md) and [GitHub tracking register](docs/planning/github-tracking.md). There is no runnable application or application CI yet.
+See the [development workflow](docs/development.md), [repository audit](docs/planning/repository-audit.md) and [GitHub tracking register](docs/planning/github-tracking.md). There is no runnable application yet.
 
 ## Development setup
 
@@ -77,7 +77,25 @@ narrow caught errors before accessing their properties.
 
 The existing ignore rules cover dependencies, build output, coverage, local
 environment files and TypeScript build caches while retaining workspace source.
-Application CI (#46) remains separate work.
+
+## Continuous integration
+
+[CI](.github/workflows/ci.yml) runs on every pull request and push to `main`.
+The `Quality checks` job uses Ubuntu and Node.js 24, installs the pnpm version
+declared in `package.json`, and runs frozen-lockfile install, lint, format check,
+typecheck, unit tests, build and the workspace smoke check. Main and PRs use the
+same steps, including documentation-only changes.
+
+The pnpm store is cached using `pnpm-lock.yaml`; dependencies are still installed
+on every run. Actions are pinned to commit SHAs, checkout credentials are not
+persisted, and the workflow token has only read access to repository contents.
+New PR commits cancel obsolete runs. E2E tests and platform packaging will be
+added with their implementation issues.
+
+Branch protection requires the GitHub Actions check named `Quality checks`
+and an up-to-date branch, including for administrators. Keep that required name
+aligned with the workflow job when editing CI. The first `main` run occurs after
+this workflow is merged.
 
 ## Linting and formatting
 
