@@ -38,6 +38,11 @@ Split work that delivers independently scoped products. Basic themes are CORE, p
 15. Basic local authoring works offline without an account.
 16. Community must remain independently useful; monetise added value rather than artificial restrictions.
 
+The desktop security baseline is enforced in
+`apps/desktop/src/main/windows/window-options.ts`: renderer Node integration is
+disabled, context isolation and sandboxing are enabled, insecure content and
+embedded webviews are disabled, and the deprecated remote module is not used.
+
 ## Readiness, validation and delivery
 
 An issue is Ready only when dependencies are resolved, acceptance criteria and tests are concrete, required decisions are recorded, and its scope fits a focused PR. Dependencies in the tracking register include the original plan and explicitly documented readiness additions. Begin test-framework setup early; do not postpone tests merely because their plan number is higher.
