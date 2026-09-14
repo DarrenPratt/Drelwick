@@ -92,8 +92,8 @@ persisted, and the workflow token has only read access to repository contents.
 New PR commits cancel obsolete runs. E2E tests and platform packaging will be
 added with their implementation issues.
 
-Branch protection should require the GitHub Actions check named `Quality checks`
-and an up-to-date branch. Keep that required name aligned with the workflow job
+Branch protection requires the GitHub Actions check named `Quality checks`
+and an up-to-date branch, including for administrators. Keep that required name aligned with the workflow job
 when editing CI. The first `main` run occurs after this workflow is merged.
 
 ## Linting and formatting
