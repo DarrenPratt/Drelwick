@@ -29,6 +29,8 @@ pnpm install
 pnpm typecheck
 pnpm build
 pnpm check:workspace
+pnpm test
+pnpm test:coverage
 ```
 
 Alternatively, replace `pnpm` in these commands with
@@ -57,6 +59,13 @@ package exports point to built JavaScript and declarations. This uses pnpm's
 to require local resolution. The smoke consumer demonstrates the convention
 without adding application APIs.
 
+Unit tests use Vitest 4.1.11 with its matching V8 coverage provider. `pnpm test`
+builds the workspace and runs tests once, suitable for CI; `pnpm test:watch`
+starts watch mode after the build. `pnpm test:coverage` writes text, HTML and LCOV
+reports. See [test setup and conventions](tests/README.md) for workspace discovery,
+filtering and report locations. `pnpm typecheck` also checks test files and Vitest
+configuration using the shared strict settings.
+
 The shared TypeScript configuration enables `strict`, `noUncheckedIndexedAccess`,
 `exactOptionalPropertyTypes`, `noImplicitOverride` and `useUnknownInCatchVariables`.
 Every workspace project must extend it without disabling these checks. Handle
@@ -66,5 +75,5 @@ narrow caught errors before accessing their properties.
 
 The existing ignore rules cover dependencies, build output, coverage, local
 environment files and TypeScript build caches while retaining workspace source.
-Lint/format tooling (#4), the unit-test framework (#41) and application CI (#46)
+Lint/format tooling (#4) and application CI (#46)
 remain separate work. Their checks are not available in this bootstrap.
