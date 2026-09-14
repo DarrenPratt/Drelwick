@@ -2,11 +2,11 @@
 
 Read these documents in the order below to move from product design to implementation planning.
 
-| Document | Purpose |
-| --- | --- |
-| [Software design](design.md) | Product goals, workflows, features and overall release roadmap. |
-| [Technical specification](technical-spec.md) | Repository layout, package boundaries, data models, persistence, rendering and testing architecture. |
-| [v0.1 build plan](planning/v0.1-build-plan.md) | Planned issues 1–50, dependencies, acceptance criteria and delivery workflow for the reliable manuscript editor. |
+| Document                                                                         | Purpose                                                                                                                     |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| [Software design](design.md)                                                     | Product goals, workflows, features and overall release roadmap.                                                             |
+| [Technical specification](technical-spec.md)                                     | Repository layout, package boundaries, data models, persistence, rendering and testing architecture.                        |
+| [v0.1 build plan](planning/v0.1-build-plan.md)                                   | Planned issues 1–50, dependencies, acceptance criteria and delivery workflow for the reliable manuscript editor.            |
 | [Commercial architecture addendum](planning/commercial-architecture-addendum.md) | Planned issues 51–60, Community/Pro boundaries, licensing decisions, extension architecture and public-release preparation. |
 
 These are design and planning documents, rather than a description of implemented functionality. Plan issue numbers identify stable tasks; the [GitHub tracking register](planning/github-tracking.md) maps them to actual created issues and dependencies.

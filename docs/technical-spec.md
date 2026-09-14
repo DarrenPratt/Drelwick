@@ -257,12 +257,12 @@ Security configuration:
 
 ```typescript
 new BrowserWindow({
-    webPreferences: {
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-        preload: preloadPath
-    }
+  webPreferences: {
+    contextIsolation: true,
+    nodeIntegration: false,
+    sandbox: true,
+    preload: preloadPath,
+  },
 });
 ```
 
@@ -320,36 +320,30 @@ Example:
 
 ```typescript
 export interface BookEditorApi {
-    project: {
-        create(): Promise<CreateProjectResult>;
-        open(): Promise<OpenProjectResult>;
-        loadChapter(id: string): Promise<ChapterDocument>;
-        saveChapter(
-            id: string,
-            document: ChapterDocument
-        ): Promise<SaveResult>;
-        reorderChapters(ids: string[]): Promise<void>;
-    };
+  project: {
+    create(): Promise<CreateProjectResult>;
+    open(): Promise<OpenProjectResult>;
+    loadChapter(id: string): Promise<ChapterDocument>;
+    saveChapter(id: string, document: ChapterDocument): Promise<SaveResult>;
+    reorderChapters(ids: string[]): Promise<void>;
+  };
 
-    export: {
-        epub(options: EpubExportOptions): Promise<ExportResult>;
-        pdf(options: PdfExportOptions): Promise<ExportResult>;
-    };
+  export: {
+    epub(options: EpubExportOptions): Promise<ExportResult>;
+    pdf(options: PdfExportOptions): Promise<ExportResult>;
+  };
 
-    dialog: {
-        selectImage(): Promise<FileSelectionResult>;
-        selectExportLocation(): Promise<FileSelectionResult>;
-    };
+  dialog: {
+    selectImage(): Promise<FileSelectionResult>;
+    selectExportLocation(): Promise<FileSelectionResult>;
+  };
 }
 ```
 
 Expose it using:
 
 ```typescript
-contextBridge.exposeInMainWorld(
-    "bookEditor",
-    api
-);
+contextBridge.exposeInMainWorld("bookEditor", api);
 ```
 
 The renderer should use:
@@ -370,15 +364,15 @@ Example:
 
 ```typescript
 export const IPC = {
-    PROJECT_CREATE: "project:create",
-    PROJECT_OPEN: "project:open",
-    PROJECT_LOAD_CHAPTER: "project:load-chapter",
-    PROJECT_SAVE_CHAPTER: "project:save-chapter",
+  PROJECT_CREATE: "project:create",
+  PROJECT_OPEN: "project:open",
+  PROJECT_LOAD_CHAPTER: "project:load-chapter",
+  PROJECT_SAVE_CHAPTER: "project:save-chapter",
 
-    EXPORT_EPUB: "export:epub",
-    EXPORT_PDF: "export:pdf",
+  EXPORT_EPUB: "export:epub",
+  EXPORT_PDF: "export:pdf",
 
-    DIALOG_SELECT_IMAGE: "dialog:select-image"
+  DIALOG_SELECT_IMAGE: "dialog:select-image",
 } as const;
 ```
 
@@ -396,8 +390,8 @@ For example:
 
 ```typescript
 const SaveChapterSchema = z.object({
-    chapterId: z.string().uuid(),
-    content: ChapterDocumentSchema
+  chapterId: z.string().uuid(),
+  content: ChapterDocumentSchema,
 });
 ```
 
@@ -460,11 +454,7 @@ Example:
   "modified": "2026-09-12T12:30:00Z",
   "bookFile": "book.json",
   "manuscript": {
-    "order": [
-      "chapter-001",
-      "chapter-002",
-      "chapter-003"
-    ]
+    "order": ["chapter-001", "chapter-002", "chapter-003"]
   }
 }
 ```
@@ -475,27 +465,27 @@ Example:
 
 ```typescript
 export interface BookMetadata {
-    schemaVersion: number;
+  schemaVersion: number;
 
-    title: string;
-    subtitle?: string;
+  title: string;
+  subtitle?: string;
 
-    author: string;
+  author: string;
 
-    language: string;
+  language: string;
 
-    publisher?: string;
-    isbn?: string;
+  publisher?: string;
+  isbn?: string;
 
-    description?: string;
+  description?: string;
 
-    series?: {
-        name: string;
-        number?: number;
-    };
+  series?: {
+    name: string;
+    number?: number;
+  };
 
-    created: string;
-    modified: string;
+  created: string;
+  modified: string;
 }
 ```
 
@@ -505,29 +495,20 @@ export interface BookMetadata {
 
 ```typescript
 export interface ChapterFile {
-    schemaVersion: number;
+  schemaVersion: number;
 
-    id: string;
+  id: string;
 
-    type:
-        | "chapter"
-        | "prologue"
-        | "epilogue"
-        | "frontmatter"
-        | "backmatter";
+  type: "chapter" | "prologue" | "epilogue" | "frontmatter" | "backmatter";
 
-    title: string;
+  title: string;
 
-    status:
-        | "draft"
-        | "revising"
-        | "review"
-        | "final";
+  status: "draft" | "revising" | "review" | "final";
 
-    content: ProseMirrorDocument;
+  content: ProseMirrorDocument;
 
-    created: string;
-    modified: string;
+  created: string;
+  modified: string;
 }
 ```
 
@@ -585,11 +566,7 @@ Example:
 ```json
 {
   "manuscript": {
-    "order": [
-      "ae321...",
-      "6be94...",
-      "3f289..."
-    ]
+    "order": ["ae321...", "6be94...", "3f289..."]
   }
 }
 ```
@@ -666,7 +643,7 @@ Example conceptual node:
 
 ```typescript
 {
-    type: "sceneBreak"
+  type: "sceneBreak";
 }
 ```
 
@@ -753,21 +730,18 @@ Example:
 
 ```typescript
 export interface AssetRecord {
-    id: string;
+  id: string;
 
-    type:
-        | "image"
-        | "cover"
-        | "font";
+  type: "image" | "cover" | "font";
 
-    path: string;
+  path: string;
 
-    mimeType: string;
+  mimeType: string;
 
-    width?: number;
-    height?: number;
+  width?: number;
+  height?: number;
 
-    checksum: string;
+  checksum: string;
 }
 ```
 
@@ -883,14 +857,14 @@ Each open document should track:
 
 ```typescript
 interface DocumentState {
-    id: string;
+  id: string;
 
-    savedRevision: number;
-    editorRevision: number;
+  savedRevision: number;
+  editorRevision: number;
 
-    isDirty: boolean;
+  isDirty: boolean;
 
-    lastSavedAt?: number;
+  lastSavedAt?: number;
 }
 ```
 
@@ -1010,19 +984,15 @@ Example:
 
 ```typescript
 interface HistorySnapshot {
-    id: string;
-    entityId: string;
+  id: string;
+  entityId: string;
 
-    created: string;
+  created: string;
 
-    reason:
-        | "interval"
-        | "manual"
-        | "migration"
-        | "before-import"
-        | "status-change";
+  reason:
+    "interval" | "manual" | "migration" | "before-import" | "status-change";
 
-    path: string;
+  path: string;
 }
 ```
 
@@ -1104,9 +1074,9 @@ Example:
 
 ```typescript
 logger.info("chapter.saved", {
-    projectId,
-    chapterId,
-    durationMs
+  projectId,
+  chapterId,
+  durationMs,
 });
 ```
 
@@ -1131,13 +1101,13 @@ Define application errors.
 
 ```typescript
 export class ProjectError extends Error {
-    constructor(
-        public code: ProjectErrorCode,
-        message: string,
-        public cause?: unknown
-    ) {
-        super(message);
-    }
+  constructor(
+    public code: ProjectErrorCode,
+    message: string,
+    public cause?: unknown,
+  ) {
+    super(message);
+  }
 }
 ```
 
@@ -1161,13 +1131,13 @@ For expected failures:
 
 ```typescript
 type Result<T, E = ApplicationError> =
-    | {
-        ok: true;
-        value: T;
+  | {
+      ok: true;
+      value: T;
     }
-    | {
-        ok: false;
-        error: E;
+  | {
+      ok: false;
+      error: E;
     };
 ```
 
@@ -1205,12 +1175,10 @@ Example:
 
 ```typescript
 interface Migration {
-    from: number;
-    to: number;
+  from: number;
+  to: number;
 
-    migrate(
-        projectPath: string
-    ): Promise<void>;
+  migrate(projectPath: string): Promise<void>;
 }
 ```
 
@@ -1243,21 +1211,13 @@ Example:
 
 ```typescript
 interface ProjectService {
-    create(
-        options: CreateProjectOptions
-    ): Promise<ProjectSession>;
+  create(options: CreateProjectOptions): Promise<ProjectSession>;
 
-    open(
-        projectPath: string
-    ): Promise<ProjectSession>;
+  open(projectPath: string): Promise<ProjectSession>;
 
-    getChapter(
-        id: string
-    ): Promise<ChapterFile>;
+  getChapter(id: string): Promise<ChapterFile>;
 
-    saveChapter(
-        chapter: ChapterFile
-    ): Promise<void>;
+  saveChapter(chapter: ChapterFile): Promise<void>;
 }
 ```
 
@@ -1269,13 +1229,13 @@ An open project should be represented in memory.
 
 ```typescript
 interface ProjectSession {
-    projectPath: string;
+  projectPath: string;
 
-    project: ProjectConfig;
+  project: ProjectConfig;
 
-    metadata: BookMetadata;
+  metadata: BookMetadata;
 
-    chapters: ChapterSummary[];
+  chapters: ChapterSummary[];
 }
 ```
 
@@ -1289,14 +1249,14 @@ Load content on demand.
 
 ```typescript
 interface ChapterSummary {
-    id: string;
-    title: string;
-    type: ChapterType;
-    status: ChapterStatus;
+  id: string;
+  title: string;
+  type: ChapterType;
+  status: ChapterStatus;
 
-    wordCount: number;
+  wordCount: number;
 
-    modified: string;
+  modified: string;
 }
 ```
 
@@ -1327,15 +1287,12 @@ Create a generic rendering pipeline.
 
 ```typescript
 interface BookRenderer {
-    renderChapter(
-        chapter: ChapterFile,
-        context: RenderContext
-    ): Promise<string>;
+  renderChapter(chapter: ChapterFile, context: RenderContext): Promise<string>;
 
-    renderBook(
-        project: ProjectSession,
-        context: RenderContext
-    ): Promise<RenderedBook>;
+  renderBook(
+    project: ProjectSession,
+    context: RenderContext,
+  ): Promise<RenderedBook>;
 }
 ```
 
@@ -1345,16 +1302,13 @@ interface BookRenderer {
 
 ```typescript
 interface RenderContext {
-    target:
-        | "ebook"
-        | "print"
-        | "preview";
+  target: "ebook" | "print" | "preview";
 
-    theme: BookTheme;
+  theme: BookTheme;
 
-    metadata: BookMetadata;
+  metadata: BookMetadata;
 
-    assetResolver: AssetResolver;
+  assetResolver: AssetResolver;
 }
 ```
 
@@ -1366,31 +1320,27 @@ Example:
 
 ```typescript
 interface BookTheme {
-    id: string;
-    name: string;
+  id: string;
+  name: string;
 
-    typography: {
-        bodyFamily: string;
-        headingFamily: string;
+  typography: {
+    bodyFamily: string;
+    headingFamily: string;
 
-        bodySize: string;
-        lineHeight: number;
-    };
+    bodySize: string;
+    lineHeight: number;
+  };
 
-    paragraphs: {
-        indent: string;
-        spacing: string;
-    };
+  paragraphs: {
+    indent: string;
+    spacing: string;
+  };
 
-    sceneBreak: {
-        type:
-            | "stars"
-            | "diamond"
-            | "space"
-            | "custom";
+  sceneBreak: {
+    type: "stars" | "diamond" | "space" | "custom";
 
-        value?: string;
-    };
+    value?: string;
+  };
 }
 ```
 
@@ -1475,10 +1425,10 @@ Suggested interface:
 
 ```typescript
 interface EpubExporter {
-    export(
-        project: ProjectSession,
-        options: EpubExportOptions
-    ): Promise<ExportResult>;
+  export(
+    project: ProjectSession,
+    options: EpubExportOptions,
+  ): Promise<ExportResult>;
 }
 ```
 
@@ -1486,10 +1436,10 @@ Options:
 
 ```typescript
 interface EpubExportOptions {
-    outputPath: string;
-    themeId: string;
+  outputPath: string;
+  themeId: string;
 
-    includeCover: boolean;
+  includeCover: boolean;
 }
 ```
 
@@ -1545,23 +1495,18 @@ Example:
 
 ```html
 <html>
-<head>
-    <link rel="stylesheet" href="book.css">
-    <link rel="stylesheet" href="print.css">
-</head>
+  <head>
+    <link rel="stylesheet" href="book.css" />
+    <link rel="stylesheet" href="print.css" />
+  </head>
 
-<body>
+  <body>
+    <section class="frontmatter">...</section>
 
-<section class="frontmatter">
-...</section>
+    <section class="chapter">...</section>
 
-<section class="chapter">
-...</section>
-
-<section class="chapter">
-...</section>
-
-</body>
+    <section class="chapter">...</section>
+  </body>
 </html>
 ```
 
@@ -1571,30 +1516,30 @@ Example:
 
 ```typescript
 interface PrintSettings {
-    trim: {
-        width: string;
-        height: string;
-    };
+  trim: {
+    width: string;
+    height: string;
+  };
 
-    margins: {
-        top: string;
-        bottom: string;
-        inside: string;
-        outside: string;
-    };
+  margins: {
+    top: string;
+    bottom: string;
+    inside: string;
+    outside: string;
+  };
 
-    chapters: {
-        startOnRecto: boolean;
-        hidePageNumberOnOpening: boolean;
-    };
+  chapters: {
+    startOnRecto: boolean;
+    hidePageNumberOnOpening: boolean;
+  };
 
-    headers: {
-        enabled: boolean;
-    };
+  headers: {
+    enabled: boolean;
+  };
 
-    pageNumbers: {
-        enabled: boolean;
-    };
+  pageNumbers: {
+    enabled: boolean;
+  };
 }
 ```
 
@@ -1604,25 +1549,25 @@ interface PrintSettings {
 
 ```typescript
 const trimPresets = {
-    "5x8": {
-        width: "5in",
-        height: "8in"
-    },
+  "5x8": {
+    width: "5in",
+    height: "8in",
+  },
 
-    "5.25x8": {
-        width: "5.25in",
-        height: "8in"
-    },
+  "5.25x8": {
+    width: "5.25in",
+    height: "8in",
+  },
 
-    "5.5x8.5": {
-        width: "5.5in",
-        height: "8.5in"
-    },
+  "5.5x8.5": {
+    width: "5.5in",
+    height: "8.5in",
+  },
 
-    "6x9": {
-        width: "6in",
-        height: "9in"
-    }
+  "6x9": {
+    width: "6in",
+    height: "9in",
+  },
 };
 ```
 
@@ -1638,20 +1583,20 @@ Generated CSS may include:
 
 ```css
 @page {
-    size: 6in 9in;
+  size: 6in 9in;
 
-    margin-top: 0.75in;
-    margin-bottom: 0.75in;
+  margin-top: 0.75in;
+  margin-bottom: 0.75in;
 }
 
 @page :left {
-    margin-left: 0.6in;
-    margin-right: 0.85in;
+  margin-left: 0.6in;
+  margin-right: 0.85in;
 }
 
 @page :right {
-    margin-left: 0.85in;
-    margin-right: 0.6in;
+  margin-left: 0.85in;
+  margin-right: 0.6in;
 }
 ```
 
@@ -1661,15 +1606,15 @@ Generated CSS may include:
 
 ```css
 .chapter {
-    break-before: page;
+  break-before: page;
 }
 
 .chapter.recto {
-    break-before: right;
+  break-before: right;
 }
 
 .chapter-title {
-    break-after: avoid;
+  break-after: avoid;
 }
 ```
 
@@ -1683,8 +1628,8 @@ Default:
 
 ```css
 p {
-    widows: 2;
-    orphans: 2;
+  widows: 2;
+  orphans: 2;
 }
 ```
 
@@ -1700,11 +1645,11 @@ The print package should abstract browser automation.
 
 ```typescript
 interface PdfRenderer {
-    render(
-        htmlPath: string,
-        options: PrintSettings,
-        outputPath: string
-    ): Promise<PdfRenderResult>;
+  render(
+    htmlPath: string,
+    options: PrintSettings,
+    outputPath: string,
+  ): Promise<PdfRenderResult>;
 }
 ```
 
@@ -1712,19 +1657,17 @@ Implementation concept:
 
 ```typescript
 const browser = await chromium.launch({
-    headless: true
+  headless: true,
 });
 
 const page = await browser.newPage();
 
-await page.goto(
-    pathToFileURL(htmlPath).href
-);
+await page.goto(pathToFileURL(htmlPath).href);
 
 await page.pdf({
-    path: outputPath,
-    printBackground: true,
-    preferCSSPageSize: true
+  path: outputPath,
+  printBackground: true,
+  preferCSSPageSize: true,
 });
 
 await browser.close();
@@ -1838,9 +1781,9 @@ Complete
 
 ```typescript
 interface ValidationResult {
-    valid: boolean;
+  valid: boolean;
 
-    issues: ValidationIssue[];
+  issues: ValidationIssue[];
 }
 ```
 
@@ -1850,21 +1793,18 @@ interface ValidationResult {
 
 ```typescript
 interface ValidationIssue {
-    severity:
-        | "info"
-        | "warning"
-        | "error";
+  severity: "info" | "warning" | "error";
 
-    code: string;
+  code: string;
 
-    message: string;
+  message: string;
 
-    entityId?: string;
+  entityId?: string;
 
-    location?: {
-        chapterId?: string;
-        nodeId?: string;
-    };
+  location?: {
+    chapterId?: string;
+    nodeId?: string;
+  };
 }
 ```
 
@@ -1910,22 +1850,22 @@ reference/
 
 ```typescript
 interface CharacterRecord {
-    id: string;
+  id: string;
 
-    name: string;
+  name: string;
 
-    aliases: string[];
+  aliases: string[];
 
-    role?: string;
+  role?: string;
 
-    description?: string;
-    appearance?: string;
-    personality?: string;
-    background?: string;
+  description?: string;
+  appearance?: string;
+  personality?: string;
+  background?: string;
 
-    notes?: string;
+  notes?: string;
 
-    tags: string[];
+  tags: string[];
 }
 ```
 
@@ -1935,17 +1875,17 @@ interface CharacterRecord {
 
 ```typescript
 interface LocationRecord {
-    id: string;
+  id: string;
 
-    name: string;
+  name: string;
 
-    type?: string;
+  type?: string;
 
-    description?: string;
+  description?: string;
 
-    notes?: string;
+  notes?: string;
 
-    tags: string[];
+  tags: string[];
 }
 ```
 
@@ -1955,24 +1895,24 @@ interface LocationRecord {
 
 ```typescript
 interface CanonRecord {
-    id: string;
+  id: string;
 
-    title: string;
+  title: string;
 
-    category:
-        | "character"
-        | "technology"
-        | "location"
-        | "history"
-        | "relationship"
-        | "terminology"
-        | "other";
+  category:
+    | "character"
+    | "technology"
+    | "location"
+    | "history"
+    | "relationship"
+    | "terminology"
+    | "other";
 
-    statement: string;
+  statement: string;
 
-    notes?: string;
+  notes?: string;
 
-    tags: string[];
+  tags: string[];
 }
 ```
 
@@ -1982,21 +1922,21 @@ interface CanonRecord {
 
 ```typescript
 interface TimelineEvent {
-    id: string;
+  id: string;
 
-    title: string;
+  title: string;
 
-    date?: string;
+  date?: string;
 
-    sequence?: number;
+  sequence?: number;
 
-    description?: string;
+  description?: string;
 
-    chapterIds: string[];
+  chapterIds: string[];
 
-    characterIds: string[];
+  characterIds: string[];
 
-    locationIds: string[];
+  locationIds: string[];
 }
 ```
 
@@ -2068,21 +2008,18 @@ Potential settings:
 
 ```typescript
 interface AppSettings {
-    theme:
-        | "system"
-        | "light"
-        | "dark";
+  theme: "system" | "light" | "dark";
 
-    autosaveDelayMs: number;
+  autosaveDelayMs: number;
 
-    historyEnabled: boolean;
+  historyEnabled: boolean;
 
-    defaultLanguage: string;
+  defaultLanguage: string;
 
-    editor: {
-        showWordCount: boolean;
-        typewriterMode: boolean;
-    };
+  editor: {
+    showWordCount: boolean;
+    typewriterMode: boolean;
+  };
 }
 ```
 
@@ -2228,11 +2165,9 @@ Interface:
 
 ```typescript
 interface ManuscriptImporter {
-    canImport(path: string): boolean;
+  canImport(path: string): boolean;
 
-    import(
-        path: string
-    ): Promise<ImportedManuscript>;
+  import(path: string): Promise<ImportedManuscript>;
 }
 ```
 
@@ -3106,17 +3041,13 @@ The print theme may transform:
 into:
 
 ```html
-<div class="scene-break" aria-hidden="true">
-    ◆
-</div>
+<div class="scene-break" aria-hidden="true">◆</div>
 ```
 
 while an ebook theme may transform it into:
 
 ```html
-<div class="scene-break" role="separator">
-    * * *
-</div>
+<div class="scene-break" role="separator">* * *</div>
 ```
 
 ---

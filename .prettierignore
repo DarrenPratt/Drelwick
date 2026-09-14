@@ -1,0 +1,11 @@
+**/node_modules/
+**/.pnpm-store/
+**/dist/
+**/build/
+**/out/
+**/coverage/
+**/generated/
+**/playwright-report/
+**/test-results/
+# Managed by pnpm, not by the formatter.
+pnpm-lock.yaml

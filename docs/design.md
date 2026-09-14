@@ -16,12 +16,12 @@ BookEditor is a cross-platform, local-first, open-core authoring and publishing 
 
 The dependency direction is always `BookEditor Pro -> BookEditor Community`. Community must build and test with no Pro repository present. No Pro repository is required during the v0.1 foundation. Manuscript/project files belong to the author and remain authoritative, recoverable outside the application and usable without cloud connectivity. EPUB/PDF are generated outputs, never editable master documents.
 
-| Classification | Product scope |
-| --- | --- |
-| CORE | Manuscript editing; project/chapter management; semantic formatting; autosave; recovery; history; basic themes; ebook/print preview; EPUB 3; basic publishable print PDF; open project format; public extension APIs. |
-| PRO | Potential advanced typography, KDP profiles/preflight, paperback/hardcover validation, automatic gutters, bleed/DPI analysis, advanced headers/page numbering/chapter openings, premium themes, DOCX, series management, advanced continuity and professional reports. |
-| SERVICE | Optional hosted functionality with continuing operating costs. Basic local authoring never requires it. |
-| ECOSYSTEM | Third-party themes/plugins/extensions. The Community API they use remains CORE. |
+| Classification | Product scope                                                                                                                                                                                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CORE           | Manuscript editing; project/chapter management; semantic formatting; autosave; recovery; history; basic themes; ebook/print preview; EPUB 3; basic publishable print PDF; open project format; public extension APIs.                                                  |
+| PRO            | Potential advanced typography, KDP profiles/preflight, paperback/hardcover validation, automatic gutters, bleed/DPI analysis, advanced headers/page numbering/chapter openings, premium themes, DOCX, series management, advanced continuity and professional reports. |
+| SERVICE        | Optional hosted functionality with continuing operating costs. Basic local authoring never requires it.                                                                                                                                                                |
+| ECOSYSTEM      | Third-party themes/plugins/extensions. The Community API they use remains CORE.                                                                                                                                                                                        |
 
 Community must be capable of producing a normal publishable novel. Pro monetises additional professional convenience, not artificial restrictions on authors' manuscripts. Detailed boundaries remain subject to commercial task 51; ordinary publishable PDF output and basic validation cannot require Pro. A feature appearing later in this document describes product capability, not an automatic assignment to Community or to v0.1.
 
@@ -598,19 +598,19 @@ Example:
 
 ```css
 @page {
-    size: 6in 9in;
-    margin-top: 0.75in;
-    margin-bottom: 0.75in;
+  size: 6in 9in;
+  margin-top: 0.75in;
+  margin-bottom: 0.75in;
 }
 
 @page :left {
-    margin-left: 0.65in;
-    margin-right: 0.85in;
+  margin-left: 0.65in;
+  margin-right: 0.85in;
 }
 
 @page :right {
-    margin-left: 0.85in;
-    margin-right: 0.65in;
+  margin-left: 0.85in;
+  margin-right: 0.65in;
 }
 ```
 
@@ -669,9 +669,9 @@ Conceptually:
 
 ```typescript
 await page.pdf({
-    path: outputFile,
-    printBackground: true,
-    preferCSSPageSize: true
+  path: outputFile,
+  printBackground: true,
+  preferCSSPageSize: true,
 });
 ```
 
