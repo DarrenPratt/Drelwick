@@ -57,8 +57,14 @@ package exports point to built JavaScript and declarations. This uses pnpm's
 to require local resolution. The smoke consumer demonstrates the convention
 without adding application APIs.
 
+The shared TypeScript configuration enables `strict`, `noUncheckedIndexedAccess`,
+`exactOptionalPropertyTypes`, `noImplicitOverride` and `useUnknownInCatchVariables`.
+Every workspace project must extend it without disabling these checks. Handle
+possibly missing indexed values, omit absent optional properties (or explicitly
+allow `undefined` in their types), mark overridden members with `override`, and
+narrow caught errors before accessing their properties.
+
 The existing ignore rules cover dependencies, build output, coverage, local
 environment files and TypeScript build caches while retaining workspace source.
-Lint/format tooling (#4), the unit-test framework (#41), additional strictness
-settings (#3) and application CI (#46) remain separate work. Their checks are not
-available in this bootstrap.
+Lint/format tooling (#4), the unit-test framework (#41) and application CI (#46)
+remain separate work. Their checks are not available in this bootstrap.
