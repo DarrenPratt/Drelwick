@@ -1,10 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron";
+import { IPC } from "@bookeditor/shared";
 import type { BookEditorApi } from "@bookeditor/shared";
 
 const api: BookEditorApi = {
   project: {
-    create: () => ipcRenderer.invoke("project:create"),
-    open: () => ipcRenderer.invoke("project:open"),
+    create: () => ipcRenderer.invoke(IPC.PROJECT_CREATE),
+    open: () => ipcRenderer.invoke(IPC.PROJECT_OPEN),
   },
   dialog: {
     selectImage: () => ipcRenderer.invoke("dialog:select-image"),
