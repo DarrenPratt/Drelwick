@@ -82,6 +82,12 @@ importers:
         specifier: 9.0.1
         version: 9.0.1
 
+  packages/core:
+    dependencies:
+      '@bookeditor/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/project-model:
     dependencies:
       '@bookeditor/shared':
