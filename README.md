@@ -93,8 +93,9 @@ New PR commits cancel obsolete runs. E2E tests and platform packaging will be
 added with their implementation issues.
 
 Branch protection requires the GitHub Actions check named `Quality checks`
-and an up-to-date branch, including for administrators. Keep that required name aligned with the workflow job
-when editing CI. The first `main` run occurs after this workflow is merged.
+and an up-to-date branch, including for administrators. Keep that required name
+aligned with the workflow job when editing CI. The first `main` run occurs after
+this workflow is merged.
 
 ## Linting and formatting
 
