@@ -2,7 +2,10 @@
 
 A planned cross-platform, local-first, open-core desktop editor for writing, organising and publishing books, built around a local, open project format.
 
-The repository contains design documents and a minimal pnpm/TypeScript workspace. The first planned release focuses on reliable manuscript editing, autosave and recovery; EPUB and print PDF publishing follow in later releases.
+The repository contains design documents and a pnpm/TypeScript workspace with an
+initial Electron desktop shell. The first planned release focuses on reliable
+manuscript editing, autosave and recovery; EPUB and print PDF publishing follow
+in later releases.
 
 Start with the [documentation index](docs/README.md) for the design, technical specification and build plans.
 
@@ -48,7 +51,7 @@ without a Pro checkout or proprietary dependencies.
 
 ## Workspace layout
 
-- `apps/`: future desktop application workspaces; currently documentation only.
+- `apps/desktop/`: Electron desktop application shell.
 - `packages/shared/`: empty Community package entry point for future shared types.
 - `tests/workspace-smoke/`: private consumer of the shared package for bootstrap validation.
 - `docs/`: product design, architecture and delivery plans.
