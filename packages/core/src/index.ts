@@ -3,7 +3,8 @@ import {
   isSafeRelativePath,
   joinSafeRelativePath,
 } from "@bookeditor/shared";
-import { access, mkdir, readdir } from "node:fs/promises";
+import { access, mkdir, open, readdir, rename, unlink } from "node:fs/promises";
+import type { FileHandle } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 
 export const PROJECT_DIRECTORIES = [
@@ -17,6 +18,18 @@ export const PROJECT_DIRECTORIES = [
 ] as const;
 
 export type ProjectDirectory = (typeof PROJECT_DIRECTORIES)[number];
+
+export interface AtomicWriterFileSystem {
+  open(path: string, flags: "wx"): Promise<FileHandle>;
+  rename(source: string, destination: string): Promise<void>;
+  unlink(path: string): Promise<void>;
+}
+
+const defaultAtomicWriterFileSystem: AtomicWriterFileSystem = {
+  open,
+  rename,
+  unlink,
+};
 
 export function resolveProjectPath(
   projectRoot: string,
@@ -92,4 +105,51 @@ export function projectDirectoryPath(
   directory: ProjectDirectory,
 ): string {
   return resolveProjectPath(projectRoot, directory);
+}
+
+export async function writeJsonAtomically(
+  filePath: string,
+  value: unknown,
+  fileSystem: AtomicWriterFileSystem = defaultAtomicWriterFileSystem,
+): Promise<void> {
+  const temporaryPath = `${filePath}.tmp`;
+  let fileHandle: FileHandle | undefined;
+
+  try {
+    const serialized = `${JSON.stringify(value, null, 2)}\n`;
+    fileHandle = await fileSystem.open(temporaryPath, "wx");
+    await fileHandle.writeFile(serialized, "utf8");
+    await fileHandle.sync();
+    await fileHandle.close();
+    fileHandle = undefined;
+    await fileSystem.rename(temporaryPath, filePath);
+  } catch (error) {
+    if (fileHandle) {
+      await fileHandle.close();
+    }
+
+    try {
+      await fileSystem.unlink(temporaryPath);
+    } catch (cleanupError) {
+      if (
+        !(cleanupError instanceof Error) ||
+        !("code" in cleanupError) ||
+        cleanupError.code !== "ENOENT"
+      ) {
+        throw new ApplicationError(
+          "PROJECT_TEMPORARY_FILE_CLEANUP_FAILED",
+          "Unable to clean up temporary project file",
+          { cause: cleanupError },
+        );
+      }
+    }
+
+    throw new ApplicationError(
+      "PROJECT_FILE_WRITE_FAILED",
+      `Unable to atomically write project file: ${
+        error instanceof Error ? error.message : "Unknown filesystem error"
+      }`,
+      { cause: error },
+    );
+  }
 }
