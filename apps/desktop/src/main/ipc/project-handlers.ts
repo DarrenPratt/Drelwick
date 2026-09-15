@@ -6,6 +6,7 @@ import {
 } from "electron";
 import {
   createProject,
+  createChapter,
   deleteChapter,
   openProject,
   reorderChapters,
@@ -28,6 +29,7 @@ import type { RecentProjects } from "../recent-projects.js";
 interface Dependencies {
   selectFolder(window: BrowserWindow): Promise<string | null>;
   create: typeof createProject;
+  createChapter: typeof createChapter;
   selectExistingFolder(window: BrowserWindow): Promise<string | null>;
   open: typeof openProject;
   rename: typeof renameChapter;
@@ -46,6 +48,7 @@ const dependencies: Dependencies = {
     return result.canceled ? null : (result.filePaths[0] ?? null);
   },
   create: createProject,
+  createChapter,
   selectExistingFolder: async (window) => {
     const result = await dialog.showOpenDialog(window, {
       title: "Open a BookEditor project",
@@ -615,6 +618,73 @@ export function registerProjectHandlers(
         return failure(
           "CHAPTER_REORDER_FAILED",
           "Unable to reorder chapters. The previous order was preserved.",
+        );
+      } finally {
+        busy = false;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC.CHAPTER_CREATE,
+    async (
+      event,
+      payload: unknown,
+    ): Promise<ProjectOperationResult<ProjectWorkspace>> => {
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      const parsed = IpcRequestSchemas[IPC.CHAPTER_CREATE].safeParse(payload);
+      if (!parsed.success)
+        return failure("PROJECT_INPUT_INVALID", "Enter a chapter title.");
+      if (busy)
+        return failure(
+          "PROJECT_BUSY",
+          "Please wait for the current project operation.",
+        );
+      if (!activeProjectPath)
+        return failure(
+          "PROJECT_NOT_OPEN",
+          "Open a project before creating a chapter.",
+        );
+      busy = true;
+      try {
+        const created = await services.createChapter({
+          projectPath: activeProjectPath,
+          title: parsed.data.title,
+        });
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project access is not permitted.",
+          );
+        return {
+          ok: true,
+          ...(created.warning ? { warning: created.warning } : {}),
+          value: {
+            projectId: created.session.project.projectId,
+            projectPath: created.session.projectPath,
+            title: created.session.book.title,
+            author: created.session.book.author,
+            language: created.session.book.language,
+            chapters: created.session.chapters.map(
+              ({ id, title, wordCount }) => ({ id, title, wordCount }),
+            ),
+          },
+        };
+      } catch (error) {
+        const message =
+          error instanceof ApplicationError &&
+          error.code === "CHAPTER_INPUT_INVALID"
+            ? "Enter a chapter title."
+            : "Unable to create the chapter. Please try again.";
+        return failure(
+          error instanceof ApplicationError
+            ? error.code
+            : "CHAPTER_CREATE_FAILED",
+          message,
         );
       } finally {
         busy = false;
