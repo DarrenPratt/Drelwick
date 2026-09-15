@@ -169,6 +169,36 @@ input:focus-visible {
   overflow-wrap: anywhere;
   font-size: 0.85rem;
 }
+.chapter-navigator {
+  margin: 1rem 0 0;
+  padding-left: 1.5rem;
+}
+.chapter-navigator li {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+}
+.chapter-navigator form {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  gap: 0.5rem;
+}
+.chapter-navigator form label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.chapter-navigator input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem;
+}
 .recent-projects {
   margin-top: 1.5rem;
 }

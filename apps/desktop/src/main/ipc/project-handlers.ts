@@ -4,7 +4,12 @@ import {
   type BrowserWindow,
   type IpcMainInvokeEvent,
 } from "electron";
-import { createProject, openProject } from "@bookeditor/core";
+import {
+  createProject,
+  openProject,
+  renameChapter,
+  type RenameChapterInput,
+} from "@bookeditor/core";
 import {
   ApplicationError,
   createUuid,
@@ -22,6 +27,7 @@ interface Dependencies {
   create: typeof createProject;
   selectExistingFolder(window: BrowserWindow): Promise<string | null>;
   open: typeof openProject;
+  rename: typeof renameChapter;
   recents?: RecentProjects;
 }
 
@@ -44,6 +50,7 @@ const dependencies: Dependencies = {
     return result.canceled ? null : (result.filePaths[0] ?? null);
   },
   open: openProject,
+  rename: renameChapter,
 };
 
 const failure = (code: string, message: string) => ({
@@ -62,6 +69,7 @@ export function registerProjectHandlers(
     | { owner: IpcMainInvokeEvent["senderFrame"]; token: string; path: string }
     | undefined;
   let busy = false;
+  let activeProjectPath: string | undefined;
   const trusted = (event: IpcMainInvokeEvent) => {
     const window = getWindow();
     return (
@@ -130,6 +138,7 @@ export function registerProjectHandlers(
               "Project window changed. Open the project again.",
             );
           location = undefined;
+          activeProjectPath = opened.projectPath;
           const warning = await remember(opened.projectPath, opened.book.title);
           if (!trusted(event))
             return failure(
@@ -335,6 +344,7 @@ export function registerProjectHandlers(
           projectPath: location.path,
         });
         location = undefined;
+        activeProjectPath = created.projectPath;
         const warning = await remember(created.projectPath, created.book.title);
         if (!trusted(event))
           return failure(
@@ -375,6 +385,80 @@ export function registerProjectHandlers(
         return failure(
           "PROJECT_CREATE_FAILED",
           "Unable to create the project. Check folder permissions and available disk space, then try again.",
+        );
+      } finally {
+        busy = false;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC.CHAPTER_RENAME,
+    async (
+      event,
+      payload: unknown,
+    ): Promise<ProjectOperationResult<ProjectWorkspace>> => {
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      const parsed = IpcRequestSchemas[IPC.CHAPTER_RENAME].safeParse(payload);
+      if (!parsed.success)
+        return failure("PROJECT_INPUT_INVALID", "Enter a chapter title.");
+      if (busy)
+        return failure(
+          "PROJECT_BUSY",
+          "Please wait for the current project operation.",
+        );
+      if (!activeProjectPath)
+        return failure(
+          "PROJECT_NOT_OPEN",
+          "Open a project before renaming a chapter.",
+        );
+      busy = true;
+      try {
+        const renamed = await services.rename({
+          projectPath: activeProjectPath,
+          chapterId: parsed.data.chapterId,
+          title: parsed.data.title,
+        } satisfies RenameChapterInput);
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project access is not permitted.",
+          );
+        return {
+          ok: true,
+          ...(renamed.warning ? { warning: renamed.warning } : {}),
+          value: {
+            projectId: renamed.session.project.projectId,
+            projectPath: renamed.session.projectPath,
+            title: renamed.session.book.title,
+            author: renamed.session.book.author,
+            language: renamed.session.book.language,
+            chapters: renamed.session.chapters.map(
+              ({ id, title, wordCount }) => ({ id, title, wordCount }),
+            ),
+          },
+        };
+      } catch (error) {
+        const messages: Record<string, string> = {
+          CHAPTER_NOT_FOUND: "The selected chapter is no longer available.",
+          CHAPTER_INPUT_INVALID: "Enter a chapter title.",
+          PROJECT_BUSY:
+            "Another chapter operation is in progress. Please try again.",
+          PROJECT_SCHEMA_INVALID: "The selected chapter has an invalid format.",
+          PROJECT_ORDER_INVALID: "The manuscript chapter order is invalid.",
+          PROJECT_PATH_ACCESS_FAILED: "Unable to access this project folder.",
+        };
+        const message =
+          error instanceof ApplicationError ? messages[error.code] : undefined;
+        if (error instanceof ApplicationError && message !== undefined)
+          return failure(error.code, message);
+        return failure(
+          "CHAPTER_RENAME_FAILED",
+          "Unable to rename the chapter. The previous title was preserved.",
         );
       } finally {
         busy = false;
