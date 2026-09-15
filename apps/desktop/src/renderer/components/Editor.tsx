@@ -2,6 +2,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import type { JSONContent } from "@tiptap/core";
 import { useEffect } from "react";
+import { SceneBreak } from "./SceneBreak.js";
 
 interface EditorProps {
   content: JSONContent;
@@ -10,7 +11,7 @@ interface EditorProps {
 
 export function Editor({ content, onChange }: EditorProps) {
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [StarterKit, SceneBreak],
     content,
     immediatelyRender: false,
     onUpdate: ({ editor: current }) => onChange(current.getJSON()),
@@ -41,6 +42,13 @@ export function Editor({ content, onChange }: EditorProps) {
           onClick={() => editor.chain().focus().toggleItalic().run()}
         >
           Italic
+        </button>
+        <button
+          type="button"
+          aria-label="Insert scene break"
+          onClick={() => editor.chain().focus().insertSceneBreak().run()}
+        >
+          Scene break
         </button>
         <button
           type="button"
