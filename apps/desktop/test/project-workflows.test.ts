@@ -28,6 +28,7 @@ const listRecent = vi.fn<BookEditorApi["project"]["listRecent"]>();
 const openRecent = vi.fn<BookEditorApi["project"]["openRecent"]>();
 const removeRecent = vi.fn<BookEditorApi["project"]["removeRecent"]>();
 const renameChapter = vi.fn<BookEditorApi["project"]["renameChapter"]>();
+const deleteChapter = vi.fn<BookEditorApi["project"]["deleteChapter"]>();
 let root: Root;
 let container: HTMLDivElement;
 
@@ -47,6 +48,11 @@ beforeEach(async () => {
   openRecent.mockReset().mockResolvedValue({ ok: true, value: workspace });
   removeRecent.mockReset().mockResolvedValue({ ok: true, value: [] });
   renameChapter.mockReset().mockResolvedValue({ ok: true, value: workspace });
+  deleteChapter.mockReset().mockResolvedValue({ ok: true, value: workspace });
+  vi.stubGlobal(
+    "confirm",
+    vi.fn(() => true),
+  );
   window.bookEditor = {
     project: {
       create,
@@ -56,6 +62,7 @@ beforeEach(async () => {
       openRecent,
       removeRecent,
       renameChapter,
+      deleteChapter,
     },
     dialog: { selectImage: vi.fn(), selectExportLocation: vi.fn() },
   };
@@ -444,5 +451,33 @@ describe("existing project workflow", () => {
     });
     expect(container.textContent).toContain("Renamed");
     expect(container.textContent).not.toContain("Original");
+  });
+
+  it("requires confirmation and updates the navigator after deletion", async () => {
+    const chapterWorkspace = {
+      ...workspace,
+      chapters: [
+        {
+          id: "123e4567-e89b-42d3-a456-426614174001",
+          title: "Original",
+          wordCount: 12,
+        },
+      ],
+    };
+    open.mockResolvedValueOnce({ ok: true, value: chapterWorkspace });
+    await click("Open project");
+    vi.mocked(window.confirm).mockReturnValueOnce(false);
+    await click("Delete");
+    expect(deleteChapter).not.toHaveBeenCalled();
+    vi.mocked(window.confirm).mockReturnValueOnce(true);
+    deleteChapter.mockResolvedValueOnce({
+      ok: true,
+      value: { ...chapterWorkspace, chapters: [] },
+    });
+    await click("Delete");
+    expect(deleteChapter).toHaveBeenCalledWith({
+      chapterId: "123e4567-e89b-42d3-a456-426614174001",
+    });
+    expect(container.textContent).toContain("There are no chapters yet");
   });
 });

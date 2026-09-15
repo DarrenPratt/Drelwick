@@ -110,6 +110,22 @@ export function App() {
     }
   }
 
+  async function deleteSelectedChapter(chapterId: string) {
+    if (!project || !window.confirm("Move this chapter to project recovery?"))
+      return;
+    setError("");
+    try {
+      const result = await window.bookEditor.project.deleteChapter({
+        chapterId,
+      });
+      if (result.ok) setProject(result.value);
+      else setError(result.error.message);
+      if (result.ok && result.warning) setError(result.warning);
+    } catch {
+      setError("Unable to delete the chapter. Please try again.");
+    }
+  }
+
   return (
     <main className="app-shell" aria-busy={opening}>
       <header className="app-header">
@@ -220,6 +236,14 @@ export function App() {
                             }}
                           >
                             Rename
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void deleteSelectedChapter(chapter.id);
+                            }}
+                          >
+                            Delete
                           </button>
                         </>
                       )}
