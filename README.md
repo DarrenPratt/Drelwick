@@ -11,7 +11,12 @@ Start with the [documentation index](docs/README.md) for the design, technical s
 
 Development is private. AGPLv3 is a candidate Community licence, not a final licensing decision. External contribution terms are not yet approved. Community will build independently of the eventual private Pro product; basic authoring and publishing belong in Community.
 
-See the [development workflow](docs/development.md), [repository audit](docs/planning/repository-audit.md) and [GitHub tracking register](docs/planning/github-tracking.md). There is no runnable application yet.
+See the [development workflow](docs/development.md), [repository audit](docs/planning/repository-audit.md) and [GitHub tracking register](docs/planning/github-tracking.md).
+
+The desktop shell supports creating a project through **New project**. Enter the
+book title, author and language, then choose an empty folder. Successful creation
+opens an empty project workspace; chapter editing and the existing-project open
+UI remain separate planned work. See [project creation UI](docs/project-creation-ui.md).
 
 ## Development setup
 
@@ -41,6 +46,9 @@ pnpm test:coverage
 Alternatively, replace `pnpm` in these commands with
 `npm exec --yes --package=pnpm@10.34.5 -- pnpm` to avoid a global installation.
 Use `pnpm install --frozen-lockfile` to reproduce the committed dependency graph.
+
+After `pnpm build`, run `pnpm --filter @bookeditor/desktop start`. For renderer
+development use `pnpm --filter @bookeditor/desktop dev` after the workspace build.
 
 `build` compiles packages in dependency order and emits JavaScript and declarations
 to each package's `dist/`. `typecheck` first builds the workspace so package

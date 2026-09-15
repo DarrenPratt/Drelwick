@@ -4,7 +4,8 @@ import type { BookEditorApi } from "@bookeditor/shared";
 
 const api: BookEditorApi = {
   project: {
-    create: () => ipcRenderer.invoke(IPC.PROJECT_CREATE),
+    create: (input) => ipcRenderer.invoke(IPC.PROJECT_CREATE, input),
+    selectLocation: () => ipcRenderer.invoke(IPC.PROJECT_SELECT_LOCATION),
     open: () => ipcRenderer.invoke(IPC.PROJECT_OPEN),
   },
   dialog: {

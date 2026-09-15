@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { BookEditorApi } from "@bookeditor/shared";
 
 const exposeInMainWorld = vi.fn();
 const invoke = vi.fn(() => Promise.resolve());
@@ -27,17 +28,19 @@ describe("preload API", () => {
       }),
     );
 
-    const [, api] = exposeInMainWorld.mock.calls[0] as [
-      string,
-      {
-        project: { create: () => Promise<void> };
-        dialog: { selectImage: () => Promise<void> };
-      },
-    ];
-    await api.project.create();
+    const [, api] = exposeInMainWorld.mock.calls[0] as [string, BookEditorApi];
+    const input = {
+      title: "Book",
+      author: "Author",
+      language: "en-GB",
+      locationToken: "123e4567-e89b-42d3-a456-426614174000",
+    };
+    await api.project.create(input);
     await api.dialog.selectImage();
 
-    expect(invoke).toHaveBeenNthCalledWith(1, "project:create");
+    expect(invoke).toHaveBeenNthCalledWith(1, "project:create", input);
     expect(invoke).toHaveBeenNthCalledWith(2, "dialog:select-image");
+    await api.project.selectLocation();
+    expect(invoke).toHaveBeenNthCalledWith(3, "project:select-location");
   });
 });

@@ -7,6 +7,7 @@ export * from "./paths.js";
 export * from "./result.js";
 
 export const IPC = {
+  PROJECT_SELECT_LOCATION: "project:select-location",
   PROJECT_CREATE: "project:create",
   PROJECT_OPEN: "project:open",
   PROJECT_CLOSE: "project:close",
@@ -23,8 +24,33 @@ export type IpcChannel = (typeof IPC)[keyof typeof IPC];
 const chapterId = z.string().trim().min(1);
 const chapterTitle = z.string().trim().min(1).max(200);
 
+export const CreateProjectRequestSchema = z
+  .object({
+    title: z.string().trim().min(1).max(500),
+    author: z.string().trim().min(1).max(500),
+    language: z.string().trim().min(1).max(100),
+    locationToken: z.string().uuid(),
+  })
+  .strict();
+export type CreateProjectRequest = z.infer<typeof CreateProjectRequestSchema>;
+export interface ProjectLocation {
+  token: string;
+  path: string;
+}
+export interface ProjectWorkspace {
+  projectId: string;
+  projectPath: string;
+  title: string;
+  author: string;
+  language: string;
+}
+export type ProjectOperationResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; error: { code: string; message: string } };
+
 export const IpcRequestSchemas = {
-  [IPC.PROJECT_CREATE]: z.undefined(),
+  [IPC.PROJECT_CREATE]: CreateProjectRequestSchema,
+  [IPC.PROJECT_SELECT_LOCATION]: z.undefined(),
   [IPC.PROJECT_OPEN]: z.undefined(),
   [IPC.PROJECT_CLOSE]: z.undefined(),
   [IPC.PROJECT_LOAD_CHAPTER]: z.object({ chapterId }),
@@ -51,7 +77,10 @@ export function validateIpcPayload<Channel extends IpcChannel>(
 
 export interface BookEditorApi {
   project: {
-    create(): Promise<void>;
+    create(
+      input: CreateProjectRequest,
+    ): Promise<ProjectOperationResult<ProjectWorkspace>>;
+    selectLocation(): Promise<ProjectOperationResult<ProjectLocation | null>>;
     open(): Promise<void>;
   };
   dialog: {
