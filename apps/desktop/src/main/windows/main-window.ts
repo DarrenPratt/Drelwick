@@ -1,10 +1,25 @@
 import { BrowserWindow } from "electron";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { getMainWindowOptions } from "./window-options.js";
 
 export { getMainWindowOptions };
+
+export function getRendererUrl(): string {
+  return (
+    process.env["VITE_DEV_SERVER_URL"] ??
+    pathToFileURL(
+      join(
+        dirname(fileURLToPath(import.meta.url)),
+        "..",
+        "..",
+        "renderer",
+        "index.html",
+      ),
+    ).href
+  );
+}
 
 export function createMainWindow(): BrowserWindow {
   const currentDirectory = dirname(fileURLToPath(import.meta.url));
@@ -13,17 +28,15 @@ export function createMainWindow(): BrowserWindow {
     "..",
     "..",
     "preload",
-    "preload.js",
+    "preload.cjs",
   );
   const window = new BrowserWindow(getMainWindowOptions(preloadPath));
 
-  const rendererUrl = process.env["VITE_DEV_SERVER_URL"];
-  if (rendererUrl) {
-    void window.loadURL(rendererUrl);
-  } else {
-    void window.loadFile(
-      join(currentDirectory, "..", "..", "renderer", "index.html"),
-    );
-  }
+  const rendererUrl = getRendererUrl();
+  window.webContents.on("will-navigate", (event, url) => {
+    if (url !== rendererUrl) event.preventDefault();
+  });
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  void window.loadURL(rendererUrl);
   return window;
 }

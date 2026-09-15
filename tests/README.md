@@ -35,6 +35,12 @@ settings and emits nothing. Production builds continue to include only `src/`.
 If a future suite requires TSX or a browser environment, add its corresponding
 test configuration and TypeScript settings with that implementation.
 
+The new-project dialog tests opt into jsdom using a per-file Vitest environment
+directive. They render React with `act`; native modal methods are stubbed because
+jsdom does not implement their focus/layout behavior. Test TypeScript includes
+the renderer's window API declaration, DOM types and JSX support. Desktop tests
+also execute the built sandbox preload, so build before running Vitest directly.
+
 The two initial tests verify loading the shared TypeScript entry and resolving
 the built workspace dependency through its separate consumer. They validate the
 test infrastructure; application behaviour tests arrive with their issues.
