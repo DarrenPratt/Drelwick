@@ -15,12 +15,14 @@ import {
   type ProjectOperationResult,
   type ProjectWorkspace,
 } from "@bookeditor/shared";
+import type { RecentProjects } from "../recent-projects.js";
 
 interface Dependencies {
   selectFolder(window: BrowserWindow): Promise<string | null>;
   create: typeof createProject;
   selectExistingFolder(window: BrowserWindow): Promise<string | null>;
   open: typeof openProject;
+  recents?: RecentProjects;
 }
 
 const dependencies: Dependencies = {
@@ -71,102 +73,177 @@ export function registerProjectHandlers(
     );
   };
 
-  ipcMain.handle(
-    IPC.PROJECT_OPEN,
-    async (
-      event,
-      payload: unknown,
-    ): Promise<ProjectOperationResult<ProjectWorkspace | null>> => {
+  for (const channel of [IPC.PROJECT_OPEN, IPC.RECENT_OPEN] as const)
+    ipcMain.handle(
+      channel,
+      async (
+        event,
+        payload: unknown,
+      ): Promise<ProjectOperationResult<ProjectWorkspace | null>> => {
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project access is not permitted.",
+          );
+        const parsed = IpcRequestSchemas[channel].safeParse(payload);
+        if (!parsed.success) {
+          return failure(
+            "PROJECT_INPUT_INVALID",
+            "Choose a project using the folder picker.",
+          );
+        }
+        if (busy)
+          return failure(
+            "PROJECT_BUSY",
+            "Please wait for the current project operation.",
+          );
+        const window = getWindow();
+        if (!window)
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project window is unavailable.",
+          );
+        busy = true;
+        try {
+          const recent =
+            channel === IPC.RECENT_OPEN && parsed.data
+              ? await services.recents?.find(parsed.data.id)
+              : undefined;
+          if (channel === IPC.RECENT_OPEN && !recent)
+            return failure(
+              "RECENT_NOT_FOUND",
+              "This recent entry is no longer available. Use Open project to choose its folder.",
+            );
+          const path = recent
+            ? recent.path
+            : await services.selectExistingFolder(window);
+          if (!trusted(event))
+            return failure(
+              "PROJECT_ACCESS_DENIED",
+              "Project window changed. Open the project again.",
+            );
+          if (!path) return { ok: true, value: null };
+          const opened = await services.open(path);
+          if (!trusted(event))
+            return failure(
+              "PROJECT_ACCESS_DENIED",
+              "Project window changed. Open the project again.",
+            );
+          location = undefined;
+          const warning = await remember(opened.projectPath, opened.book.title);
+          if (!trusted(event))
+            return failure(
+              "PROJECT_ACCESS_DENIED",
+              "Project access is not permitted.",
+            );
+          return {
+            ok: true,
+            ...(warning ? { warning } : {}),
+            value: {
+              projectId: opened.project.projectId,
+              projectPath: opened.projectPath,
+              title: opened.book.title,
+              author: opened.book.author,
+              language: opened.book.language,
+              chapters: opened.chapters.map(({ id, title, wordCount }) => ({
+                id,
+                title,
+                wordCount,
+              })),
+            },
+          };
+        } catch (error) {
+          const messages: Record<string, string> = {
+            PROJECT_FILE_MISSING:
+              "This folder is missing project.json or another required project file. Choose a complete BookEditor project folder.",
+            PROJECT_JSON_INVALID:
+              "A project file contains invalid JSON. Restore a valid copy before opening this project.",
+            PROJECT_SCHEMA_INVALID:
+              "A project file has an invalid format. Restore a valid copy before opening this project.",
+            PROJECT_SCHEMA_UNSUPPORTED:
+              "This project uses an unsupported format version. Open it with a compatible version of BookEditor.",
+            PROJECT_ORDER_INVALID:
+              "The manuscript chapter order is invalid or references a missing chapter. Check the project files before trying again.",
+            PROJECT_PATH_INVALID:
+              "The selected folder contains an invalid project path or a linked file. Choose a folder containing regular project files.",
+            PROJECT_PATH_ACCESS_FAILED:
+              "Unable to access this project folder. Check that it is available and that you have permission to read it.",
+            PROJECT_FILE_READ_FAILED:
+              "Unable to read a project file. Check folder permissions and try again.",
+            PROJECT_CHANGED_DURING_OPEN:
+              "A chapter changed while the project was opening. Please try again.",
+          };
+          const message =
+            error instanceof ApplicationError &&
+            Object.hasOwn(messages, error.code)
+              ? messages[error.code]
+              : undefined;
+          if (message && error instanceof ApplicationError)
+            return failure(error.code, message);
+          return failure(
+            "PROJECT_OPEN_FAILED",
+            "Unable to open the project. Check that the folder is available and try again.",
+          );
+        } finally {
+          busy = false;
+        }
+      },
+    );
+
+  async function remember(
+    path: string,
+    title: string,
+  ): Promise<string | undefined> {
+    try {
+      await services.recents?.add(path, title);
+      return undefined;
+    } catch {
+      // Settings failure must not turn a successful project operation into a failure.
+      return "The project opened, but its recent entry could not be saved. Check application settings permissions and try opening it again.";
+    }
+  }
+
+  for (const channel of [IPC.RECENT_LIST, IPC.RECENT_REMOVE] as const) {
+    ipcMain.handle(channel, async (event, payload: unknown) => {
       if (!trusted(event))
         return failure(
           "PROJECT_ACCESS_DENIED",
           "Project access is not permitted.",
         );
-      if (!IpcRequestSchemas[IPC.PROJECT_OPEN].safeParse(payload).success) {
+      const parsed = IpcRequestSchemas[channel].safeParse(payload);
+      if (!parsed.success)
         return failure(
           "PROJECT_INPUT_INVALID",
-          "Choose a project using the folder picker.",
+          "Choose a recent project entry.",
         );
-      }
-      if (busy)
+      if (busy && channel === IPC.RECENT_REMOVE)
         return failure(
           "PROJECT_BUSY",
           "Please wait for the current project operation.",
         );
-      const window = getWindow();
-      if (!window)
-        return failure(
-          "PROJECT_ACCESS_DENIED",
-          "Project window is unavailable.",
-        );
-      busy = true;
+      if (channel === IPC.RECENT_REMOVE) busy = true;
       try {
-        const path = await services.selectExistingFolder(window);
+        if (!services.recents) throw new Error("Recent projects unavailable");
+        const value =
+          channel === IPC.RECENT_REMOVE && parsed.data
+            ? await services.recents.remove(parsed.data.id)
+            : await services.recents.list();
         if (!trusted(event))
           return failure(
             "PROJECT_ACCESS_DENIED",
-            "Project window changed. Open the project again.",
+            "Project access is not permitted.",
           );
-        if (!path) return { ok: true, value: null };
-        const opened = await services.open(path);
-        if (!trusted(event))
-          return failure(
-            "PROJECT_ACCESS_DENIED",
-            "Project window changed. Open the project again.",
-          );
-        location = undefined;
-        return {
-          ok: true,
-          value: {
-            projectId: opened.project.projectId,
-            projectPath: opened.projectPath,
-            title: opened.book.title,
-            author: opened.book.author,
-            language: opened.book.language,
-            chapters: opened.chapters.map(({ id, title, wordCount }) => ({
-              id,
-              title,
-              wordCount,
-            })),
-          },
-        };
-      } catch (error) {
-        const messages: Record<string, string> = {
-          PROJECT_FILE_MISSING:
-            "This folder is missing project.json or another required project file. Choose a complete BookEditor project folder.",
-          PROJECT_JSON_INVALID:
-            "A project file contains invalid JSON. Restore a valid copy before opening this project.",
-          PROJECT_SCHEMA_INVALID:
-            "A project file has an invalid format. Restore a valid copy before opening this project.",
-          PROJECT_SCHEMA_UNSUPPORTED:
-            "This project uses an unsupported format version. Open it with a compatible version of BookEditor.",
-          PROJECT_ORDER_INVALID:
-            "The manuscript chapter order is invalid or references a missing chapter. Check the project files before trying again.",
-          PROJECT_PATH_INVALID:
-            "The selected folder contains an invalid project path or a linked file. Choose a folder containing regular project files.",
-          PROJECT_PATH_ACCESS_FAILED:
-            "Unable to access this project folder. Check that it is available and that you have permission to read it.",
-          PROJECT_FILE_READ_FAILED:
-            "Unable to read a project file. Check folder permissions and try again.",
-          PROJECT_CHANGED_DURING_OPEN:
-            "A chapter changed while the project was opening. Please try again.",
-        };
-        const message =
-          error instanceof ApplicationError &&
-          Object.hasOwn(messages, error.code)
-            ? messages[error.code]
-            : undefined;
-        if (message && error instanceof ApplicationError)
-          return failure(error.code, message);
+        return { ok: true, value };
+      } catch {
         return failure(
-          "PROJECT_OPEN_FAILED",
-          "Unable to open the project. Check that the folder is available and try again.",
+          "RECENT_SETTINGS_FAILED",
+          "Unable to load or save recent projects. Check application settings permissions and try again.",
         );
       } finally {
-        busy = false;
+        if (channel === IPC.RECENT_REMOVE) busy = false;
       }
-    },
-  );
+    });
+  }
 
   ipcMain.handle(
     IPC.PROJECT_SELECT_LOCATION,
@@ -258,8 +335,15 @@ export function registerProjectHandlers(
           projectPath: location.path,
         });
         location = undefined;
+        const warning = await remember(created.projectPath, created.book.title);
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project access is not permitted.",
+          );
         return {
           ok: true,
+          ...(warning ? { warning } : {}),
           value: {
             projectId: created.project.projectId,
             projectPath: created.projectPath,

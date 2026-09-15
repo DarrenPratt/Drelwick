@@ -7,7 +7,7 @@ import {
 
 interface Props {
   onCancel(): void;
-  onCreated(project: ProjectWorkspace): void;
+  onCreated(project: ProjectWorkspace, warning?: string): void;
 }
 
 export function NewProjectDialog({ onCancel, onCreated }: Props) {
@@ -65,7 +65,7 @@ export function NewProjectDialog({ onCancel, onCreated }: Props) {
     setError("");
     try {
       const result = await window.bookEditor.project.create(parsed.data);
-      if (result.ok) onCreated(result.value);
+      if (result.ok) onCreated(result.value, result.warning);
       else setError(result.error.message);
     } catch {
       setError("Unable to create the project. Please try again.");

@@ -24,6 +24,9 @@ const workspace = {
 const create = vi.fn<BookEditorApi["project"]["create"]>();
 const selectLocation = vi.fn<BookEditorApi["project"]["selectLocation"]>();
 const open = vi.fn<BookEditorApi["project"]["open"]>();
+const listRecent = vi.fn<BookEditorApi["project"]["listRecent"]>();
+const openRecent = vi.fn<BookEditorApi["project"]["openRecent"]>();
+const removeRecent = vi.fn<BookEditorApi["project"]["removeRecent"]>();
 let root: Root;
 let container: HTMLDivElement;
 
@@ -39,8 +42,18 @@ beforeEach(async () => {
   create.mockReset().mockResolvedValue({ ok: true, value: workspace });
   selectLocation.mockReset().mockResolvedValue({ ok: true, value: selected });
   open.mockReset().mockResolvedValue({ ok: true, value: workspace });
+  listRecent.mockReset().mockResolvedValue({ ok: true, value: [] });
+  openRecent.mockReset().mockResolvedValue({ ok: true, value: workspace });
+  removeRecent.mockReset().mockResolvedValue({ ok: true, value: [] });
   window.bookEditor = {
-    project: { create, selectLocation, open },
+    project: {
+      create,
+      selectLocation,
+      open,
+      listRecent,
+      openRecent,
+      removeRecent,
+    },
     dialog: { selectImage: vi.fn(), selectExportLocation: vi.fn() },
   };
   container = document.createElement("div");
@@ -82,6 +95,106 @@ async function completeForm() {
   await input("book-author", "Author");
   await click("Choose folder…");
 }
+
+describe("recent project workflow", () => {
+  async function showRecent() {
+    listRecent.mockResolvedValue({
+      ok: true,
+      value: [
+        { id: selected.token, path: selected.path, title: "Recent book" },
+      ],
+    });
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await act(async () => root.render(createElement(App)));
+  }
+
+  it("loads saved entries at startup, reopens by ID and refreshes the list", async () => {
+    await showRecent();
+    expect(container.textContent).toContain(selected.path);
+    await click("Recent book");
+    expect(openRecent).toHaveBeenCalledWith(selected.token);
+    expect(open).not.toHaveBeenCalled();
+    expect(container.querySelector("h1")?.textContent).toBe("Example");
+    expect(listRecent).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps the workspace and missing entry after failure, then removes only the entry", async () => {
+    await showRecent();
+    await click("Open project");
+    openRecent.mockResolvedValue({
+      ok: false,
+      error: {
+        code: "PROJECT_PATH_ACCESS_FAILED",
+        message:
+          "This folder is unavailable. Use Open project to choose its new location.",
+      },
+    });
+    await click("Recent book");
+    expect(container.querySelector("h1")?.textContent).toBe("Example");
+    expect(container.textContent).toContain("This folder is unavailable");
+    expect(button("Recent book")).toBeDefined();
+    await click("Remove");
+    expect(removeRecent).toHaveBeenCalledWith(selected.token);
+    expect(container.textContent).not.toContain("Recent book");
+    expect(container.querySelector("h1")?.textContent).toBe("Example");
+  });
+
+  it("preserves entries on removal failure and allows retry", async () => {
+    await showRecent();
+    removeRecent.mockRejectedValueOnce(new Error("private details"));
+    await click("Remove");
+    expect(container.textContent).toContain(
+      "Unable to remove the recent entry",
+    );
+    expect(button("Recent book")).toBeDefined();
+    await click("Remove");
+    expect(container.textContent).toContain("No recent projects yet");
+  });
+
+  it("blocks recent actions while a form or recent open is pending", async () => {
+    await showRecent();
+    await click("New project");
+    expect(button("Recent book").disabled).toBe(true);
+    expect(button("Remove").disabled).toBe(true);
+    await click("Cancel");
+    let finish!: (
+      value: ProjectOperationResult<ProjectWorkspace | null>,
+    ) => void;
+    openRecent.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await click("Recent book");
+    expect(button("Recent book").disabled).toBe(true);
+    expect(button("Remove").disabled).toBe(true);
+    await act(async () => finish({ ok: true, value: workspace }));
+  });
+
+  it("shows tracking warnings while still opening the project", async () => {
+    open.mockResolvedValueOnce({
+      ok: true,
+      value: workspace,
+      warning: "Recent entry could not be saved.",
+    });
+    await click("Open project");
+    expect(container.querySelector("h1")?.textContent).toBe("Example");
+    expect(container.textContent).toContain("Recent entry could not be saved.");
+  });
+
+  it("shows safe startup errors without blocking ordinary project opening", async () => {
+    listRecent.mockRejectedValue(new Error("private details"));
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await act(async () => root.render(createElement(App)));
+    expect(container.textContent).toContain("Unable to load recent projects");
+    expect(container.textContent).not.toContain("private details");
+    expect(button("Open project").disabled).toBe(false);
+    await click("Open project");
+    expect(container.querySelector("h1")?.textContent).toBe("Example");
+  });
+});
 
 describe("new project dialog", () => {
   it("validates all required fields and whitespace without making a creation request", async () => {

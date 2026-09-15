@@ -50,6 +50,9 @@ importers:
       '@bookeditor/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@bookeditor/project-model':
+        specifier: workspace:*
+        version: link:../../packages/project-model
       '@bookeditor/shared':
         specifier: workspace:*
         version: link:../../packages/shared

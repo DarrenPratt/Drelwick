@@ -1,6 +1,6 @@
 import "./app.css";
-import { useRef, useState } from "react";
-import type { ProjectWorkspace } from "@bookeditor/shared";
+import { useEffect, useRef, useState } from "react";
+import type { ProjectWorkspace, RecentProject } from "@bookeditor/shared";
 import { NewProjectDialog } from "./NewProjectDialog.js";
 
 export function App() {
@@ -9,16 +9,73 @@ export function App() {
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState("");
   const pending = useRef(false);
+  const [recents, setRecents] = useState<RecentProject[]>([]);
+  const [recentError, setRecentError] = useState("");
+  const [loadingRecents, setLoadingRecents] = useState(true);
 
-  async function openExistingProject() {
-    if (pending.current || creating) return;
+  useEffect(() => {
+    let active = true;
+    void window.bookEditor.project
+      .listRecent()
+      .then((result) => {
+        if (!active) return;
+        if (result.ok) setRecents(result.value);
+        else setRecentError(result.error.message);
+      })
+      .catch(() => {
+        if (active)
+          setRecentError("Unable to load recent projects. Please try again.");
+      })
+      .finally(() => {
+        if (active) setLoadingRecents(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function refreshRecents() {
+    try {
+      const result = await window.bookEditor.project.listRecent();
+      if (result.ok) {
+        setRecents(result.value);
+        setRecentError("");
+      } else setRecentError(result.error.message);
+    } catch {
+      setRecentError("Unable to load recent projects. Please try again.");
+    }
+  }
+
+  async function removeRecent(id: string) {
+    if (pending.current || creating || loadingRecents) return;
+    pending.current = true;
+    setLoadingRecents(true);
+    setRecentError("");
+    try {
+      const result = await window.bookEditor.project.removeRecent(id);
+      if (result.ok) setRecents(result.value);
+      else setRecentError(result.error.message);
+    } catch {
+      setRecentError("Unable to remove the recent entry. Please try again.");
+    } finally {
+      pending.current = false;
+      setLoadingRecents(false);
+    }
+  }
+
+  async function openExistingProject(id?: string) {
+    if (pending.current || creating || loadingRecents) return;
     pending.current = true;
     setOpening(true);
     setError("");
     try {
-      const result = await window.bookEditor.project.open();
+      const result = await (id
+        ? window.bookEditor.project.openRecent(id)
+        : window.bookEditor.project.open());
       if (!result.ok) setError(result.error.message);
       else if (result.value) setProject(result.value);
+      if (result.ok && result.value) await refreshRecents();
+      if (result.ok && result.warning) setRecentError(result.warning);
     } catch {
       setError("Unable to open the project. Please try again.");
     } finally {
@@ -44,7 +101,7 @@ export function App() {
         {!project && (
           <button
             className="primary-button"
-            disabled={opening || creating}
+            disabled={opening || creating || loadingRecents}
             onClick={() => {
               setError("");
               setCreating(true);
@@ -54,7 +111,7 @@ export function App() {
           </button>
         )}
         <button
-          disabled={opening || creating}
+          disabled={opening || creating || loadingRecents}
           onClick={() => {
             void openExistingProject();
           }}
@@ -94,12 +151,60 @@ export function App() {
           </p>
         </section>
       )}
+      <section
+        className="welcome-panel recent-projects"
+        aria-labelledby="recent-heading"
+        aria-busy={loadingRecents}
+      >
+        <h2 id="recent-heading">Recent projects</h2>
+        {recentError && (
+          <p className="error-message" role="alert">
+            {recentError}
+          </p>
+        )}
+        {loadingRecents ? (
+          <p>Updating recent projects…</p>
+        ) : (
+          recents.length === 0 && <p>No recent projects yet.</p>
+        )}
+        <ul>
+          {recents.map((recent) => (
+            <li key={recent.id}>
+              <div>
+                <button
+                  disabled={opening || creating || loadingRecents}
+                  onClick={() => {
+                    void openExistingProject(recent.id);
+                  }}
+                >
+                  {recent.title}
+                </button>
+                <p className="project-path">{recent.path}</p>
+              </div>
+              <button
+                aria-label={`Remove ${recent.title} from recent projects`}
+                disabled={opening || creating || loadingRecents}
+                onClick={() => {
+                  void removeRecent(recent.id);
+                }}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
       {creating && (
         <NewProjectDialog
           onCancel={() => setCreating(false)}
-          onCreated={(created) => {
+          onCreated={(created, warning) => {
             setProject(created);
             setCreating(false);
+            setLoadingRecents(true);
+            void refreshRecents().finally(() => {
+              if (warning) setRecentError(warning);
+              setLoadingRecents(false);
+            });
           }}
         />
       )}

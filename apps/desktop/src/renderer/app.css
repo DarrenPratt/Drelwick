@@ -169,6 +169,32 @@ input:focus-visible {
   overflow-wrap: anywhere;
   font-size: 0.85rem;
 }
+.recent-projects {
+  margin-top: 1.5rem;
+}
+.recent-projects ul {
+  list-style: none;
+  padding: 0;
+  margin-bottom: 0;
+}
+.recent-projects li {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-top: 1px solid #dbe2ed;
+}
+.recent-projects li > div {
+  min-width: 0;
+}
+.recent-projects li > button {
+  flex-shrink: 0;
+}
+.recent-projects li button {
+  overflow-wrap: anywhere;
+  text-align: left;
+}
 @media (max-width: 480px) {
   .project-dialog {
     padding: 1.25rem;

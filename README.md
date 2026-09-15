@@ -21,6 +21,11 @@ or failure keeps the current workspace unchanged. Chapter editing remains planne
 work. See [project creation UI](docs/project-creation-ui.md) and
 [project opening UI](docs/project-open-ui.md).
 
+The welcome screen and workspace also list **Recent projects**. Select a title
+to reopen it or **Remove** to forget the entry without deleting the project.
+The list persists in application settings across restarts; project files remain
+portable. See [recent project tracking](docs/recent-projects.md).
+
 ## Development setup
 
 Use Node.js 24.x and pnpm 10.34.5. The root manifest pins pnpm and TypeScript
