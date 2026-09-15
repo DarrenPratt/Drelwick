@@ -285,9 +285,13 @@ export function App() {
       {project ? (
         <section className="welcome-panel" aria-labelledby="manuscript-heading">
           <h2 id="manuscript-heading">Manuscript</h2>
-          {project.chapters.length === 0 ? (
-            <p>Your project is ready. There are no chapters yet.</p>
-          ) : (
+          {project.chapters.length === 0 && (
+            <p>
+              Your project is ready. There are no chapters yet. Create one to
+              begin writing.
+            </p>
+          )}
+          {project.chapters.length > 0 && (
             <>
               {editorError && (
                 <p className="error-message" role="alert">
@@ -304,146 +308,142 @@ export function App() {
                 )}{" "}
                 words
               </p>
-              <nav aria-label="Chapter navigator">
-                <div className="navigator-heading">
-                  <h3>Chapters</h3>
-                  <form onSubmit={(event) => void createNewChapter(event)}>
-                    <label htmlFor="new-chapter-title">New chapter title</label>
-                    <input
-                      id="new-chapter-title"
-                      value={newChapterTitle}
-                      onChange={(event) =>
-                        setNewChapterTitle(event.target.value)
-                      }
-                      placeholder="New chapter title"
-                      disabled={creatingChapter}
-                    />
-                    <button
-                      type="submit"
-                      disabled={creatingChapter || !newChapterTitle.trim()}
-                    >
-                      {creatingChapter ? "Creating…" : "New chapter"}
-                    </button>
-                  </form>
-                </div>
-                <ol className="chapter-navigator">
-                  {project.chapters.map((chapter) => (
-                    <li
-                      key={chapter.id}
-                      className={
-                        activeChapterId === chapter.id ? "active-chapter" : ""
-                      }
-                      draggable={!reordering}
-                      onDragStart={() => setDraggedChapterId(chapter.id)}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={() => void dropChapter(chapter.id)}
-                      onKeyDown={(event) => {
-                        if (event.altKey && event.key === "ArrowUp") {
-                          event.preventDefault();
-                          void moveChapter(chapter.id, -1);
-                        } else if (event.altKey && event.key === "ArrowDown") {
-                          event.preventDefault();
-                          void moveChapter(chapter.id, 1);
-                        }
-                      }}
-                      tabIndex={0}
-                    >
-                      <button
-                        type="button"
-                        className="chapter-select"
-                        aria-current={
-                          activeChapterId === chapter.id ? "page" : undefined
-                        }
-                        onClick={() => setActiveChapterId(chapter.id)}
-                      >
-                        <span>{chapter.title}</span>
-                        <small>draft · {chapter.wordCount} words</small>
-                      </button>
-                      {editingChapterId === chapter.id ? (
-                        <form
-                          onSubmit={(event) => {
-                            event.preventDefault();
-                            void renameSelectedChapter();
-                          }}
-                        >
-                          <label htmlFor={`chapter-title-${chapter.id}`}>
-                            Chapter title
-                          </label>
-                          <input
-                            id={`chapter-title-${chapter.id}`}
-                            value={chapterTitle}
-                            onChange={(event) =>
-                              setChapterTitle(event.target.value)
-                            }
-                            disabled={renamingChapterId === chapter.id}
-                          />
-                          <button
-                            type="submit"
-                            disabled={
-                              renamingChapterId === chapter.id ||
-                              !chapterTitle.trim()
-                            }
-                          >
-                            {renamingChapterId === chapter.id
-                              ? "Saving…"
-                              : "Save"}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={renamingChapterId === chapter.id}
-                            onClick={() => setEditingChapterId(null)}
-                          >
-                            Cancel
-                          </button>
-                        </form>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            disabled={reordering}
-                            aria-label={`Move ${chapter.title} up`}
-                            onClick={() => {
-                              void moveChapter(chapter.id, -1);
-                            }}
-                          >
-                            Up
-                          </button>
-                          <button
-                            type="button"
-                            disabled={reordering}
-                            aria-label={`Move ${chapter.title} down`}
-                            onClick={() => {
-                              void moveChapter(chapter.id, 1);
-                            }}
-                          >
-                            Down
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingChapterId(chapter.id);
-                              setChapterTitle(chapter.title);
-                              setError("");
-                            }}
-                          >
-                            Rename
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              void deleteSelectedChapter(chapter.id);
-                            }}
-                          >
-                            Delete
-                          </button>
-                        </>
-                      )}
-                    </li>
-                  ))}
-                </ol>
-              </nav>
             </>
           )}
+          <nav aria-label="Chapter navigator">
+            <div className="navigator-heading">
+              <h3>Chapters</h3>
+              <form onSubmit={(event) => void createNewChapter(event)}>
+                <label htmlFor="new-chapter-title">New chapter title</label>
+                <input
+                  id="new-chapter-title"
+                  value={newChapterTitle}
+                  onChange={(event) => setNewChapterTitle(event.target.value)}
+                  placeholder="New chapter title"
+                  disabled={creatingChapter}
+                />
+                <button
+                  type="submit"
+                  disabled={creatingChapter || !newChapterTitle.trim()}
+                >
+                  {creatingChapter ? "Creating…" : "New chapter"}
+                </button>
+              </form>
+            </div>
+            <ol className="chapter-navigator">
+              {project.chapters.map((chapter) => (
+                <li
+                  key={chapter.id}
+                  className={
+                    activeChapterId === chapter.id ? "active-chapter" : ""
+                  }
+                  draggable={!reordering}
+                  onDragStart={() => setDraggedChapterId(chapter.id)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => void dropChapter(chapter.id)}
+                  onKeyDown={(event) => {
+                    if (event.altKey && event.key === "ArrowUp") {
+                      event.preventDefault();
+                      void moveChapter(chapter.id, -1);
+                    } else if (event.altKey && event.key === "ArrowDown") {
+                      event.preventDefault();
+                      void moveChapter(chapter.id, 1);
+                    }
+                  }}
+                  tabIndex={0}
+                >
+                  <button
+                    type="button"
+                    className="chapter-select"
+                    aria-current={
+                      activeChapterId === chapter.id ? "page" : undefined
+                    }
+                    onClick={() => setActiveChapterId(chapter.id)}
+                  >
+                    <span>{chapter.title}</span>
+                    <small>draft · {chapter.wordCount} words</small>
+                  </button>
+                  {editingChapterId === chapter.id ? (
+                    <form
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void renameSelectedChapter();
+                      }}
+                    >
+                      <label htmlFor={`chapter-title-${chapter.id}`}>
+                        Chapter title
+                      </label>
+                      <input
+                        id={`chapter-title-${chapter.id}`}
+                        value={chapterTitle}
+                        onChange={(event) =>
+                          setChapterTitle(event.target.value)
+                        }
+                        disabled={renamingChapterId === chapter.id}
+                      />
+                      <button
+                        type="submit"
+                        disabled={
+                          renamingChapterId === chapter.id ||
+                          !chapterTitle.trim()
+                        }
+                      >
+                        {renamingChapterId === chapter.id ? "Saving…" : "Save"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={renamingChapterId === chapter.id}
+                        onClick={() => setEditingChapterId(null)}
+                      >
+                        Cancel
+                      </button>
+                    </form>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        disabled={reordering}
+                        aria-label={`Move ${chapter.title} up`}
+                        onClick={() => {
+                          void moveChapter(chapter.id, -1);
+                        }}
+                      >
+                        Up
+                      </button>
+                      <button
+                        type="button"
+                        disabled={reordering}
+                        aria-label={`Move ${chapter.title} down`}
+                        onClick={() => {
+                          void moveChapter(chapter.id, 1);
+                        }}
+                      >
+                        Down
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingChapterId(chapter.id);
+                          setChapterTitle(chapter.title);
+                          setError("");
+                        }}
+                      >
+                        Rename
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void deleteSelectedChapter(chapter.id);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </nav>
           <p className="project-path">Saved in {project.projectPath}</p>
         </section>
       ) : (
