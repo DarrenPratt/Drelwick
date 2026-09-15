@@ -8,7 +8,9 @@ import {
   createProject,
   deleteChapter,
   openProject,
+  reorderChapters,
   renameChapter,
+  type ReorderChaptersInput,
   type RenameChapterInput,
 } from "@bookeditor/core";
 import {
@@ -30,6 +32,7 @@ interface Dependencies {
   open: typeof openProject;
   rename: typeof renameChapter;
   delete: typeof deleteChapter;
+  reorder: typeof reorderChapters;
   recents?: RecentProjects;
 }
 
@@ -54,6 +57,7 @@ const dependencies: Dependencies = {
   open: openProject,
   rename: renameChapter,
   delete: deleteChapter,
+  reorder: reorderChapters,
 };
 
 const failure = (code: string, message: string) => ({
@@ -536,6 +540,81 @@ export function registerProjectHandlers(
         return failure(
           "CHAPTER_DELETE_FAILED",
           "Unable to delete the chapter. The original chapter was preserved.",
+        );
+      } finally {
+        busy = false;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC.CHAPTER_REORDER,
+    async (
+      event,
+      payload: unknown,
+    ): Promise<ProjectOperationResult<ProjectWorkspace>> => {
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      const parsed = IpcRequestSchemas[IPC.CHAPTER_REORDER].safeParse(payload);
+      if (!parsed.success)
+        return failure(
+          "PROJECT_INPUT_INVALID",
+          "Choose a valid chapter order.",
+        );
+      if (busy)
+        return failure(
+          "PROJECT_BUSY",
+          "Please wait for the current project operation.",
+        );
+      if (!activeProjectPath)
+        return failure(
+          "PROJECT_NOT_OPEN",
+          "Open a project before reordering chapters.",
+        );
+      busy = true;
+      try {
+        const reordered = await services.reorder({
+          projectPath: activeProjectPath,
+          chapterIds: parsed.data.chapterIds,
+        } satisfies ReorderChaptersInput);
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project access is not permitted.",
+          );
+        return {
+          ok: true,
+          ...(reordered.warning ? { warning: reordered.warning } : {}),
+          value: {
+            projectId: reordered.session.project.projectId,
+            projectPath: reordered.session.projectPath,
+            title: reordered.session.book.title,
+            author: reordered.session.book.author,
+            language: reordered.session.book.language,
+            chapters: reordered.session.chapters.map(
+              ({ id, title, wordCount }) => ({ id, title, wordCount }),
+            ),
+          },
+        };
+      } catch (error) {
+        const messages: Record<string, string> = {
+          PROJECT_ORDER_INVALID:
+            "The chapter order must include each project chapter exactly once.",
+          PROJECT_CHANGED_DURING_REORDER:
+            "The project changed while reordering chapters. Please reopen it.",
+          PROJECT_BUSY:
+            "Another chapter operation is in progress. Please try again.",
+        };
+        const message =
+          error instanceof ApplicationError ? messages[error.code] : undefined;
+        if (error instanceof ApplicationError && message !== undefined)
+          return failure(error.code, message);
+        return failure(
+          "CHAPTER_REORDER_FAILED",
+          "Unable to reorder chapters. The previous order was preserved.",
         );
       } finally {
         busy = false;

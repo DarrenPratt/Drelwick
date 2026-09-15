@@ -7,6 +7,7 @@ import {
 } from "@bookeditor/shared";
 export * from "./chapter-creation.js";
 export * from "./chapter-deletion.js";
+export * from "./chapter-ordering.js";
 export * from "./chapter-rename.js";
 import {
   BookMetadataSchema,

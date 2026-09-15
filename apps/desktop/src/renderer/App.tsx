@@ -17,6 +17,7 @@ export function App() {
   const [renamingChapterId, setRenamingChapterId] = useState<string | null>(
     null,
   );
+  const [reordering, setReordering] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -126,6 +127,34 @@ export function App() {
     }
   }
 
+  async function moveChapter(chapterId: string, direction: -1 | 1) {
+    if (!project || reordering) return;
+    const index = project.chapters.findIndex(
+      (chapter) => chapter.id === chapterId,
+    );
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= project.chapters.length) return;
+    const chapterIds = project.chapters.map((chapter) => chapter.id);
+    [chapterIds[index], chapterIds[target]] = [
+      chapterIds[target]!,
+      chapterIds[index]!,
+    ];
+    setReordering(true);
+    setError("");
+    try {
+      const result = await window.bookEditor.project.reorderChapters({
+        chapterIds,
+      });
+      if (result.ok) setProject(result.value);
+      else setError(result.error.message);
+      if (result.ok && result.warning) setError(result.warning);
+    } catch {
+      setError("Unable to reorder chapters. Please try again.");
+    } finally {
+      setReordering(false);
+    }
+  }
+
   return (
     <main className="app-shell" aria-busy={opening}>
       <header className="app-header">
@@ -227,6 +256,26 @@ export function App() {
                       ) : (
                         <>
                           <span>{chapter.title}</span>
+                          <button
+                            type="button"
+                            disabled={reordering}
+                            aria-label={`Move ${chapter.title} up`}
+                            onClick={() => {
+                              void moveChapter(chapter.id, -1);
+                            }}
+                          >
+                            Up
+                          </button>
+                          <button
+                            type="button"
+                            disabled={reordering}
+                            aria-label={`Move ${chapter.title} down`}
+                            onClick={() => {
+                              void moveChapter(chapter.id, 1);
+                            }}
+                          >
+                            Down
+                          </button>
                           <button
                             type="button"
                             onClick={() => {
