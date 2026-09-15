@@ -6,6 +6,7 @@ import {
 } from "electron";
 import {
   createProject,
+  deleteChapter,
   openProject,
   renameChapter,
   type RenameChapterInput,
@@ -28,6 +29,7 @@ interface Dependencies {
   selectExistingFolder(window: BrowserWindow): Promise<string | null>;
   open: typeof openProject;
   rename: typeof renameChapter;
+  delete: typeof deleteChapter;
   recents?: RecentProjects;
 }
 
@@ -51,6 +53,7 @@ const dependencies: Dependencies = {
   },
   open: openProject,
   rename: renameChapter,
+  delete: deleteChapter,
 };
 
 const failure = (code: string, message: string) => ({
@@ -459,6 +462,80 @@ export function registerProjectHandlers(
         return failure(
           "CHAPTER_RENAME_FAILED",
           "Unable to rename the chapter. The previous title was preserved.",
+        );
+      } finally {
+        busy = false;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC.CHAPTER_DELETE,
+    async (
+      event,
+      payload: unknown,
+    ): Promise<ProjectOperationResult<ProjectWorkspace>> => {
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      const parsed = IpcRequestSchemas[IPC.CHAPTER_DELETE].safeParse(payload);
+      if (!parsed.success)
+        return failure("PROJECT_INPUT_INVALID", "Choose a chapter to delete.");
+      if (busy)
+        return failure(
+          "PROJECT_BUSY",
+          "Please wait for the current project operation.",
+        );
+      if (!activeProjectPath)
+        return failure(
+          "PROJECT_NOT_OPEN",
+          "Open a project before deleting a chapter.",
+        );
+      busy = true;
+      try {
+        const deleted = await services.delete({
+          projectPath: activeProjectPath,
+          chapterId: parsed.data.chapterId,
+        });
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project access is not permitted.",
+          );
+        return {
+          ok: true,
+          ...(deleted.warning ? { warning: deleted.warning } : {}),
+          value: {
+            projectId: deleted.session.project.projectId,
+            projectPath: deleted.session.projectPath,
+            title: deleted.session.book.title,
+            author: deleted.session.book.author,
+            language: deleted.session.book.language,
+            chapters: deleted.session.chapters.map(
+              ({ id, title, wordCount }) => ({ id, title, wordCount }),
+            ),
+          },
+        };
+      } catch (error) {
+        const messages: Record<string, string> = {
+          CHAPTER_NOT_FOUND: "The selected chapter is no longer available.",
+          PROJECT_BUSY:
+            "Another chapter operation is in progress. Please try again.",
+          PROJECT_ORDER_INVALID: "The manuscript chapter order is invalid.",
+          PROJECT_CHANGED_DURING_DELETE:
+            "The project changed while deleting the chapter. Please reopen it.",
+          CHAPTER_DELETE_RECOVERY_FAILED:
+            "The chapter could not be restored after deletion failed. Preserve the project before retrying.",
+        };
+        const message =
+          error instanceof ApplicationError ? messages[error.code] : undefined;
+        if (error instanceof ApplicationError && message !== undefined)
+          return failure(error.code, message);
+        return failure(
+          "CHAPTER_DELETE_FAILED",
+          "Unable to delete the chapter. The original chapter was preserved.",
         );
       } finally {
         busy = false;

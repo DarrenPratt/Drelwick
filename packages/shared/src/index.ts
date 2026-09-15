@@ -102,6 +102,9 @@ export interface BookEditorApi {
     renameChapter(
       input: RenameChapterRequest,
     ): Promise<ProjectOperationResult<ProjectWorkspace>>;
+    deleteChapter(
+      input: DeleteChapterRequest,
+    ): Promise<ProjectOperationResult<ProjectWorkspace>>;
   };
   dialog: {
     selectImage(): Promise<void>;
@@ -112,4 +115,8 @@ export interface BookEditorApi {
 export interface RenameChapterRequest {
   chapterId: string;
   title: string;
+}
+
+export interface DeleteChapterRequest {
+  chapterId: string;
 }

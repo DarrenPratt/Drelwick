@@ -11,6 +11,7 @@ const api: BookEditorApi = {
     openRecent: (id) => ipcRenderer.invoke(IPC.RECENT_OPEN, { id }),
     removeRecent: (id) => ipcRenderer.invoke(IPC.RECENT_REMOVE, { id }),
     renameChapter: (input) => ipcRenderer.invoke(IPC.CHAPTER_RENAME, input),
+    deleteChapter: (input) => ipcRenderer.invoke(IPC.CHAPTER_DELETE, input),
   },
   dialog: {
     selectImage: () => ipcRenderer.invoke("dialog:select-image"),
