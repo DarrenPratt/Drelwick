@@ -5,6 +5,7 @@ export * from "./errors.js";
 export * from "./identifiers.js";
 export * from "./paths.js";
 export * from "./result.js";
+export * from "./word-count.js";
 
 export const IPC = {
   PROJECT_SELECT_LOCATION: "project:select-location",

@@ -4,6 +4,7 @@ import {
   ApplicationError,
   createIsoDate,
   createUuid,
+  countDocumentWords,
   err,
   isIsoDate,
   isSafeRelativePath,
@@ -51,6 +52,63 @@ describe("safe relative paths", () => {
     "assets/images/cover.png",
   ])("accepts %s", (path) => {
     expect(isSafeRelativePath(path)).toBe(true);
+  });
+
+  describe("word counting", () => {
+    it.each([
+      [{ type: "doc" }, 0],
+      [
+        {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "Hello, world!" }],
+            },
+          ],
+        },
+        2,
+      ],
+      [
+        {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: "Café déjà-vu " },
+                { type: "text", marks: [{ type: "bold" }], text: "résumé" },
+              ],
+            },
+            { type: "sceneBreak" },
+            {
+              type: "blockquote",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: "“Quoted”" }],
+                },
+              ],
+            },
+          ],
+        },
+        4,
+      ],
+      [
+        {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "*** — …" }],
+            },
+          ],
+        },
+        0,
+      ],
+    ])("counts prose only", (document, expected) => {
+      expect(countDocumentWords(document)).toBe(expected);
+    });
   });
 
   it.each([

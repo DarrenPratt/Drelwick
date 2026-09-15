@@ -1,7 +1,11 @@
 import "./app.css";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import type { ProjectWorkspace, RecentProject } from "@bookeditor/shared";
+import {
+  countDocumentWords,
+  type ProjectWorkspace,
+  type RecentProject,
+} from "@bookeditor/shared";
 import { NewProjectDialog } from "./NewProjectDialog.js";
 import { Editor } from "./components/Editor.js";
 import type { JSONContent } from "@tiptap/core";
@@ -298,7 +302,26 @@ export function App() {
                   {editorError}
                 </p>
               )}
-              <Editor content={editorContent} onChange={setEditorContent} />
+              <Editor
+                content={editorContent}
+                onChange={(content) => {
+                  setEditorContent(content);
+                  if (!activeChapterId) return;
+                  const wordCount = countDocumentWords(content);
+                  setProject((current) =>
+                    current
+                      ? {
+                          ...current,
+                          chapters: current.chapters.map((chapter) =>
+                            chapter.id === activeChapterId
+                              ? { ...chapter, wordCount }
+                              : chapter,
+                          ),
+                        }
+                      : current,
+                  );
+                }}
+              />
               <p>
                 {project.chapters.length}{" "}
                 {project.chapters.length === 1 ? "chapter" : "chapters"} ·{" "}
