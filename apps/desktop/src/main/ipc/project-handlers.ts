@@ -8,6 +8,7 @@ import {
   createProject,
   createChapter,
   deleteChapter,
+  loadChapter,
   openProject,
   reorderChapters,
   renameChapter,
@@ -34,6 +35,7 @@ interface Dependencies {
   open: typeof openProject;
   rename: typeof renameChapter;
   delete: typeof deleteChapter;
+  loadChapter: typeof loadChapter;
   reorder: typeof reorderChapters;
   recents?: RecentProjects;
 }
@@ -60,6 +62,7 @@ const dependencies: Dependencies = {
   open: openProject,
   rename: renameChapter,
   delete: deleteChapter,
+  loadChapter,
   reorder: reorderChapters,
 };
 
@@ -688,6 +691,50 @@ export function registerProjectHandlers(
         );
       } finally {
         busy = false;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC.PROJECT_LOAD_CHAPTER,
+    async (
+      event,
+      payload: unknown,
+    ): Promise<
+      ProjectOperationResult<{
+        id: string;
+        content: Record<string, unknown>;
+      }>
+    > => {
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      const parsed =
+        IpcRequestSchemas[IPC.PROJECT_LOAD_CHAPTER].safeParse(payload);
+      if (!parsed.success)
+        return failure("PROJECT_INPUT_INVALID", "Choose a chapter to load.");
+      if (!activeProjectPath)
+        return failure("PROJECT_NOT_OPEN", "Open a project before editing.");
+      try {
+        const chapter = await services.loadChapter({
+          projectPath: activeProjectPath,
+          chapterId: parsed.data.chapterId,
+        });
+        return { ok: true, value: chapter };
+      } catch (error) {
+        const message =
+          error instanceof ApplicationError &&
+          error.code === "CHAPTER_NOT_FOUND"
+            ? "The selected chapter is no longer available."
+            : "Unable to load the selected chapter.";
+        return failure(
+          error instanceof ApplicationError
+            ? error.code
+            : "CHAPTER_LOAD_FAILED",
+          message,
+        );
       }
     },
   );
