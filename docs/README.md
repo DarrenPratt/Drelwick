@@ -19,5 +19,6 @@ Operational documents:
 
 - [Repository audit and reconciliations](planning/repository-audit.md)
 - [Development workflow and product classification](development.md)
+- [Existing project loading and summary cache](project-loading.md)
 - [GitHub tracking register](planning/github-tracking.md)
 - [Public Community release checklist](planning/public-release-checklist.md)

@@ -31,7 +31,7 @@ export const ProjectConfigSchema = z.object({
   bookFile: z.literal("book.json"),
   manuscript: z.object({
     order: z.array(uuid).superRefine((ids, context) => {
-      if (new Set(ids).size !== ids.length) {
+      if (new Set(ids.map((id) => id.toLowerCase())).size !== ids.length) {
         context.addIssue({
           code: "custom",
           message: "Manuscript order must not contain duplicate chapter IDs",
@@ -88,3 +88,34 @@ export type ChapterFile = z.infer<typeof ChapterFileSchema>;
 
 export const ChapterSummarySchema = z.object(chapterFields);
 export type ChapterSummary = z.infer<typeof ChapterSummarySchema>;
+
+export const CountedChapterSummarySchema = ChapterSummarySchema.extend({
+  wordCount: z.number().int().nonnegative(),
+});
+export type CountedChapterSummary = z.infer<typeof CountedChapterSummarySchema>;
+
+export const ChapterSummaryCacheSchema = z.object({
+  schemaVersion,
+  projectId: uuid,
+  entries: z
+    .array(
+      z.object({
+        size: z.number().int().nonnegative(),
+        mtimeMs: z.number(),
+        ctimeMs: z.number(),
+        summary: CountedChapterSummarySchema,
+      }),
+    )
+    .superRefine((entries, context) => {
+      if (
+        new Set(entries.map((entry) => entry.summary.id.toLowerCase())).size !==
+        entries.length
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "Duplicate cached chapter IDs",
+        });
+      }
+    }),
+});
+export type ChapterSummaryCache = z.infer<typeof ChapterSummaryCacheSchema>;

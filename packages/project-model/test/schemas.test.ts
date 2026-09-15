@@ -4,6 +4,8 @@ import {
   BookMetadataSchema,
   ChapterFileSchema,
   ChapterSummarySchema,
+  ChapterSummaryCacheSchema,
+  CountedChapterSummarySchema,
   ProjectConfigSchema,
 } from "../src/index.js";
 
@@ -96,5 +98,66 @@ describe("persistent project schemas", () => {
         ...timestamps,
       }),
     ).toThrow();
+  });
+});
+
+describe("chapter summary cache schemas", () => {
+  const summary = {
+    schemaVersion: 1,
+    id: chapterId,
+    type: "chapter",
+    title: "Example",
+    status: "draft",
+    ...timestamps,
+    wordCount: 10,
+  };
+  const entry = { size: 100, mtimeMs: 1234, ctimeMs: 1235, summary };
+  const cache = { schemaVersion: 1, projectId, entries: [entry] };
+
+  it("validates the cache envelope and strips bodies from summaries", () => {
+    expect(ChapterSummaryCacheSchema.parse(cache)).toEqual(cache);
+    expect(
+      CountedChapterSummarySchema.parse({
+        ...summary,
+        content: { type: "doc" },
+      }),
+    ).toEqual(summary);
+    expect(ChapterSummarySchema.parse(summary)).not.toHaveProperty("wordCount");
+  });
+
+  it.each([-1, 1.5, Infinity, NaN, "10", undefined])(
+    "rejects invalid word counts (%s)",
+    (wordCount) => {
+      expect(
+        CountedChapterSummarySchema.safeParse({ ...summary, wordCount })
+          .success,
+      ).toBe(false);
+    },
+  );
+
+  it("rejects unsupported caches, invalid fingerprints and duplicate identities", () => {
+    for (const invalid of [
+      { ...cache, schemaVersion: 2 },
+      { ...cache, projectId: "invalid" },
+      { ...cache, entries: [{ ...entry, size: -1 }] },
+      { ...cache, entries: [{ ...entry, mtimeMs: Infinity }] },
+      {
+        ...cache,
+        entries: [
+          entry,
+          { ...entry, summary: { ...summary, id: chapterId.toUpperCase() } },
+        ],
+      },
+    ])
+      expect(ChapterSummaryCacheSchema.safeParse(invalid).success).toBe(false);
+    expect(
+      ProjectConfigSchema.safeParse({
+        schemaVersion: 1,
+        projectId,
+        ...timestamps,
+        bookFile: "book.json",
+        manuscript: { order: [chapterId, chapterId.toUpperCase()] },
+      }).success,
+    ).toBe(false);
   });
 });
