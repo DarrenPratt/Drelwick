@@ -26,10 +26,16 @@ export function Editor({ content, onChange }: EditorProps) {
 
   return (
     <section className="editor-panel" aria-label="Chapter editor">
-      <div className="editor-toolbar" role="toolbar" aria-label="Formatting">
+      <div
+        className="editor-toolbar"
+        role="toolbar"
+        aria-label="Formatting"
+        aria-orientation="horizontal"
+      >
         <button
           type="button"
           aria-label="Bold"
+          title="Bold (Ctrl/⌘+B)"
           aria-pressed={editor.isActive("bold")}
           onClick={() => editor.chain().focus().toggleBold().run()}
         >
@@ -38,6 +44,7 @@ export function Editor({ content, onChange }: EditorProps) {
         <button
           type="button"
           aria-label="Italic"
+          title="Italic (Ctrl/⌘+I)"
           aria-pressed={editor.isActive("italic")}
           onClick={() => editor.chain().focus().toggleItalic().run()}
         >
@@ -46,6 +53,7 @@ export function Editor({ content, onChange }: EditorProps) {
         <button
           type="button"
           aria-label="Block quote"
+          title="Block quote"
           aria-pressed={editor.isActive("blockquote")}
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
         >
@@ -54,12 +62,15 @@ export function Editor({ content, onChange }: EditorProps) {
         <button
           type="button"
           aria-label="Insert scene break"
+          title="Insert scene break"
           onClick={() => editor.chain().focus().insertSceneBreak().run()}
         >
           Scene break
         </button>
         <button
           type="button"
+          aria-label="Undo"
+          title="Undo (Ctrl/⌘+Z)"
           onClick={() => editor.chain().focus().undo()}
           disabled={!editor.can().undo()}
         >
@@ -67,6 +78,8 @@ export function Editor({ content, onChange }: EditorProps) {
         </button>
         <button
           type="button"
+          aria-label="Redo"
+          title="Redo (Ctrl/⌘+Y)"
           onClick={() => editor.chain().focus().redo()}
           disabled={!editor.can().redo()}
         >
