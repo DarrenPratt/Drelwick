@@ -196,6 +196,12 @@ input:focus-visible {
   outline: 0;
   padding: 1.25rem;
 }
+.editor-panel blockquote {
+  border-left: 0.25rem solid #9aabc7;
+  color: #43516a;
+  margin: 1rem 0;
+  padding-left: 1rem;
+}
 .editor-panel [data-scene-break] {
   color: #43516a;
   font-size: 1.1rem;
