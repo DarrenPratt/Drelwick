@@ -19,9 +19,11 @@ const workspace = {
   title: "Example",
   author: "Author",
   language: "en-GB",
+  chapters: [],
 };
 const create = vi.fn<BookEditorApi["project"]["create"]>();
 const selectLocation = vi.fn<BookEditorApi["project"]["selectLocation"]>();
+const open = vi.fn<BookEditorApi["project"]["open"]>();
 let root: Root;
 let container: HTMLDivElement;
 
@@ -36,8 +38,9 @@ beforeEach(async () => {
   };
   create.mockReset().mockResolvedValue({ ok: true, value: workspace });
   selectLocation.mockReset().mockResolvedValue({ ok: true, value: selected });
+  open.mockReset().mockResolvedValue({ ok: true, value: workspace });
   window.bookEditor = {
-    project: { create, selectLocation, open: vi.fn() },
+    project: { create, selectLocation, open },
     dialog: { selectImage: vi.fn(), selectExportLocation: vi.fn() },
   };
   container = document.createElement("div");
@@ -186,5 +189,104 @@ describe("new project dialog", () => {
     expect(container.querySelector("dialog")).not.toBeNull();
     await act(async () => finish({ ok: true, value: workspace }));
     expect(container.querySelector("h1")?.textContent).toBe("Example");
+  });
+});
+
+describe("existing project workflow", () => {
+  it("opens from the welcome screen and replaces the workspace on the next successful open", async () => {
+    await click("Open project");
+    expect(open).toHaveBeenCalledWith();
+    expect(container.querySelector("h1")?.textContent).toBe("Example");
+    open.mockResolvedValue({
+      ok: true,
+      value: {
+        ...workspace,
+        title: "Another book",
+        author: "Another author",
+        projectPath: "/another/book",
+        chapters: [{ id: "chapter", title: "Beginning", wordCount: 42 }],
+      },
+    });
+    await click("Open project");
+    expect(container.querySelector("h1")?.textContent).toBe("Another book");
+    expect(container.textContent).toContain("Another author");
+    expect(container.textContent).toContain("1 chapter · 42 words");
+    expect(container.textContent).toContain("/another/book");
+    expect(container.textContent).not.toContain("There are no chapters yet");
+  });
+
+  it("keeps the welcome screen or current workspace when selection is cancelled", async () => {
+    open.mockResolvedValueOnce({ ok: true, value: null });
+    await click("Open project");
+    expect(container.querySelector("h1")?.textContent).toBe(
+      "Your manuscript workspace",
+    );
+    await click("Open project");
+    open.mockResolvedValueOnce({ ok: true, value: null });
+    await click("Open project");
+    expect(container.querySelector("h1")?.textContent).toBe("Example");
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("shows validation errors without discarding the current project and supports retry", async () => {
+    await completeForm();
+    await click("Create project");
+    open.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "PROJECT_FILE_MISSING",
+        message: "Missing project.json. Choose a project folder.",
+      },
+    });
+    await click("Open project");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Missing project.json",
+    );
+    expect(container.querySelector("h1")?.textContent).toBe("Example");
+    await click("Open project");
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("shows safe transport errors and preserves the screen", async () => {
+    open.mockRejectedValueOnce(new Error("private content"));
+    await click("Open project");
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "Unable to open the project. Please try again.",
+    );
+    expect(container.querySelector("h1")?.textContent).toBe(
+      "Your manuscript workspace",
+    );
+  });
+
+  it("retains the current workspace during opening and blocks repeated requests", async () => {
+    await click("Open project");
+    let finish!: (
+      value: ProjectOperationResult<ProjectWorkspace | null>,
+    ) => void;
+    open.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await click("Open project");
+    expect(container.querySelector("h1")?.textContent).toBe("Example");
+    expect(button("Opening project…").disabled).toBe(true);
+    await click("Opening project…");
+    expect(open).toHaveBeenCalledTimes(2);
+    await act(async () =>
+      finish({ ok: true, value: { ...workspace, title: "Finished loading" } }),
+    );
+    expect(container.querySelector("h1")?.textContent).toBe("Finished loading");
+  });
+
+  it("does not allow opening to discard a new-project form", async () => {
+    await click("New project");
+    await input("book-title", "Unsubmitted draft");
+    expect(button("Open project").disabled).toBe(true);
+    await click("Open project");
+    expect(open).not.toHaveBeenCalled();
+    expect(
+      container.querySelector<HTMLInputElement>("#book-title")?.value,
+    ).toBe("Unsubmitted draft");
   });
 });

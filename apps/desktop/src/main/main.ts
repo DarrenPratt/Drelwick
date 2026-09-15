@@ -1,7 +1,7 @@
 import { app, BrowserWindow } from "electron";
 
 import { createMainWindow, getRendererUrl } from "./windows/main-window.js";
-import { registerProjectCreationHandlers } from "./ipc/project-creation.js";
+import { registerProjectHandlers } from "./ipc/project-handlers.js";
 
 let mainWindow: BrowserWindow | undefined;
 
@@ -13,7 +13,7 @@ function createApplicationWindow(): void {
 }
 
 void app.whenReady().then(() => {
-  registerProjectCreationHandlers(() => mainWindow, getRendererUrl());
+  registerProjectHandlers(() => mainWindow, getRendererUrl());
   createApplicationWindow();
 
   app.on("activate", () => {

@@ -15,8 +15,11 @@ See the [development workflow](docs/development.md), [repository audit](docs/pla
 
 The desktop shell supports creating a project through **New project**. Enter the
 book title, author and language, then choose an empty folder. Successful creation
-opens an empty project workspace; chapter editing and the existing-project open
-UI remain separate planned work. See [project creation UI](docs/project-creation-ui.md).
+opens an empty project workspace. **Open project** on the welcome screen or
+workspace uses native folder selection to load an existing project. Cancellation
+or failure keeps the current workspace unchanged. Chapter editing remains planned
+work. See [project creation UI](docs/project-creation-ui.md) and
+[project opening UI](docs/project-open-ui.md).
 
 ## Development setup
 
