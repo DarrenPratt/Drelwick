@@ -111,6 +111,9 @@ export interface BookEditorApi {
     reorderChapters(
       input: ReorderChaptersRequest,
     ): Promise<ProjectOperationResult<ProjectWorkspace>>;
+    loadChapter(
+      input: LoadChapterRequest,
+    ): Promise<ProjectOperationResult<ChapterContent>>;
   };
   dialog: {
     selectImage(): Promise<void>;
@@ -133,4 +136,13 @@ export interface DeleteChapterRequest {
 
 export interface ReorderChaptersRequest {
   chapterIds: string[];
+}
+
+export interface LoadChapterRequest {
+  chapterId: string;
+}
+
+export interface ChapterContent {
+  id: string;
+  content: Record<string, unknown>;
 }

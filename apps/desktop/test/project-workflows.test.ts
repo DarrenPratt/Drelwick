@@ -31,6 +31,7 @@ const renameChapter = vi.fn<BookEditorApi["project"]["renameChapter"]>();
 const deleteChapter = vi.fn<BookEditorApi["project"]["deleteChapter"]>();
 const reorderChapters = vi.fn<BookEditorApi["project"]["reorderChapters"]>();
 const createChapter = vi.fn<BookEditorApi["project"]["createChapter"]>();
+const loadChapter = vi.fn<BookEditorApi["project"]["loadChapter"]>();
 let root: Root;
 let container: HTMLDivElement;
 
@@ -53,6 +54,13 @@ beforeEach(async () => {
   deleteChapter.mockReset().mockResolvedValue({ ok: true, value: workspace });
   reorderChapters.mockReset().mockResolvedValue({ ok: true, value: workspace });
   createChapter.mockReset().mockResolvedValue({ ok: true, value: workspace });
+  loadChapter.mockReset().mockResolvedValue({
+    ok: true,
+    value: {
+      id: "123e4567-e89b-42d3-a456-426614174001",
+      content: { type: "doc", content: [{ type: "paragraph" }] },
+    },
+  });
   vi.stubGlobal(
     "confirm",
     vi.fn(() => true),
@@ -69,6 +77,7 @@ beforeEach(async () => {
       deleteChapter,
       reorderChapters,
       createChapter,
+      loadChapter,
     },
     dialog: { selectImage: vi.fn(), selectExportLocation: vi.fn() },
   };

@@ -3,6 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { ProjectWorkspace, RecentProject } from "@bookeditor/shared";
 import { NewProjectDialog } from "./NewProjectDialog.js";
+import { Editor } from "./components/Editor.js";
+import type { JSONContent } from "@tiptap/core";
+
+const emptyDocument: JSONContent = {
+  type: "doc",
+  content: [{ type: "paragraph" }],
+};
 
 export function App() {
   const [creating, setCreating] = useState(false);
@@ -23,6 +30,29 @@ export function App() {
   const [newChapterTitle, setNewChapterTitle] = useState("");
   const [creatingChapter, setCreatingChapter] = useState(false);
   const [draggedChapterId, setDraggedChapterId] = useState<string | null>(null);
+  const [editorContent, setEditorContent] =
+    useState<JSONContent>(emptyDocument);
+  const [editorError, setEditorError] = useState("");
+
+  useEffect(() => {
+    if (!project || !activeChapterId) return;
+    let active = true;
+    void window.bookEditor.project
+      .loadChapter({ chapterId: activeChapterId })
+      .then((result) => {
+        if (!active) return;
+        if (result.ok) {
+          setEditorError("");
+          setEditorContent(result.value.content as JSONContent);
+        } else setEditorError(result.error.message);
+      })
+      .catch(() => {
+        if (active) setEditorError("Unable to load the selected chapter.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeChapterId, project]);
 
   useEffect(() => {
     let active = true;
@@ -259,6 +289,12 @@ export function App() {
             <p>Your project is ready. There are no chapters yet.</p>
           ) : (
             <>
+              {editorError && (
+                <p className="error-message" role="alert">
+                  {editorError}
+                </p>
+              )}
+              <Editor content={editorContent} onChange={setEditorContent} />
               <p>
                 {project.chapters.length}{" "}
                 {project.chapters.length === 1 ? "chapter" : "chapters"} ·{" "}
