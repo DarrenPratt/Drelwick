@@ -30,6 +30,7 @@ const removeRecent = vi.fn<BookEditorApi["project"]["removeRecent"]>();
 const renameChapter = vi.fn<BookEditorApi["project"]["renameChapter"]>();
 const deleteChapter = vi.fn<BookEditorApi["project"]["deleteChapter"]>();
 const reorderChapters = vi.fn<BookEditorApi["project"]["reorderChapters"]>();
+const createChapter = vi.fn<BookEditorApi["project"]["createChapter"]>();
 let root: Root;
 let container: HTMLDivElement;
 
@@ -51,6 +52,7 @@ beforeEach(async () => {
   renameChapter.mockReset().mockResolvedValue({ ok: true, value: workspace });
   deleteChapter.mockReset().mockResolvedValue({ ok: true, value: workspace });
   reorderChapters.mockReset().mockResolvedValue({ ok: true, value: workspace });
+  createChapter.mockReset().mockResolvedValue({ ok: true, value: workspace });
   vi.stubGlobal(
     "confirm",
     vi.fn(() => true),
@@ -66,6 +68,7 @@ beforeEach(async () => {
       renameChapter,
       deleteChapter,
       reorderChapters,
+      createChapter,
     },
     dialog: { selectImage: vi.fn(), selectExportLocation: vi.fn() },
   };
@@ -528,5 +531,34 @@ describe("existing project workflow", () => {
     expect(container.textContent?.indexOf("Second")).toBeLessThan(
       container.textContent?.indexOf("First") ?? 0,
     );
+  });
+
+  it("creates and selects a chapter from the navigator", async () => {
+    const existingChapter = {
+      id: "123e4567-e89b-42d3-a456-426614174001",
+      title: "Existing",
+      wordCount: 4,
+    };
+    const chapterWorkspace = { ...workspace, chapters: [existingChapter] };
+    const createdChapter = {
+      id: "123e4567-e89b-42d3-a456-426614174003",
+      title: "New chapter",
+      wordCount: 0,
+    };
+    open.mockResolvedValueOnce({ ok: true, value: chapterWorkspace });
+    await click("Open project");
+    createChapter.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        ...chapterWorkspace,
+        chapters: [existingChapter, createdChapter],
+      },
+    });
+    await input("new-chapter-title", "New chapter");
+    await click("New chapter");
+    expect(createChapter).toHaveBeenCalledWith({ title: "New chapter" });
+    expect(
+      container.querySelector('[aria-current="page"]')?.textContent,
+    ).toContain("New chapter");
   });
 });

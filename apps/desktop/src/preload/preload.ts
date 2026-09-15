@@ -13,6 +13,7 @@ const api: BookEditorApi = {
     renameChapter: (input) => ipcRenderer.invoke(IPC.CHAPTER_RENAME, input),
     deleteChapter: (input) => ipcRenderer.invoke(IPC.CHAPTER_DELETE, input),
     reorderChapters: (input) => ipcRenderer.invoke(IPC.CHAPTER_REORDER, input),
+    createChapter: (input) => ipcRenderer.invoke(IPC.CHAPTER_CREATE, input),
   },
   dialog: {
     selectImage: () => ipcRenderer.invoke("dialog:select-image"),

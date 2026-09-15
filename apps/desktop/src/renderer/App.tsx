@@ -1,5 +1,6 @@
 import "./app.css";
 import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import type { ProjectWorkspace, RecentProject } from "@bookeditor/shared";
 import { NewProjectDialog } from "./NewProjectDialog.js";
 
@@ -18,6 +19,10 @@ export function App() {
     null,
   );
   const [reordering, setReordering] = useState(false);
+  const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
+  const [newChapterTitle, setNewChapterTitle] = useState("");
+  const [creatingChapter, setCreatingChapter] = useState(false);
+  const [draggedChapterId, setDraggedChapterId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -79,7 +84,10 @@ export function App() {
         ? window.bookEditor.project.openRecent(id)
         : window.bookEditor.project.open());
       if (!result.ok) setError(result.error.message);
-      else if (result.value) setProject(result.value);
+      else if (result.value) {
+        setProject(result.value);
+        setActiveChapterId(result.value.chapters[0]?.id ?? null);
+      }
       if (result.ok && result.value) await refreshRecents();
       if (result.ok && result.warning) setRecentError(result.warning);
     } catch {
@@ -119,8 +127,11 @@ export function App() {
       const result = await window.bookEditor.project.deleteChapter({
         chapterId,
       });
-      if (result.ok) setProject(result.value);
-      else setError(result.error.message);
+      if (result.ok) {
+        setProject(result.value);
+        if (activeChapterId === chapterId)
+          setActiveChapterId(result.value.chapters[0]?.id ?? null);
+      } else setError(result.error.message);
       if (result.ok && result.warning) setError(result.warning);
     } catch {
       setError("Unable to delete the chapter. Please try again.");
@@ -148,6 +159,52 @@ export function App() {
       if (result.ok) setProject(result.value);
       else setError(result.error.message);
       if (result.ok && result.warning) setError(result.warning);
+    } catch {
+      setError("Unable to reorder chapters. Please try again.");
+    } finally {
+      setReordering(false);
+    }
+  }
+
+  async function createNewChapter(event: FormEvent) {
+    event.preventDefault();
+    if (!project || !newChapterTitle.trim() || creatingChapter) return;
+    setCreatingChapter(true);
+    setError("");
+    try {
+      const result = await window.bookEditor.project.createChapter({
+        title: newChapterTitle,
+      });
+      if (result.ok) {
+        setProject(result.value);
+        setNewChapterTitle("");
+        setActiveChapterId(result.value.chapters.at(-1)?.id ?? null);
+      } else setError(result.error.message);
+      if (result.ok && result.warning) setError(result.warning);
+    } catch {
+      setError("Unable to create the chapter. Please try again.");
+    } finally {
+      setCreatingChapter(false);
+    }
+  }
+
+  async function dropChapter(targetId: string) {
+    if (!project || !draggedChapterId || draggedChapterId === targetId) return;
+    const chapterIds = project.chapters.map((chapter) => chapter.id);
+    const from = chapterIds.indexOf(draggedChapterId);
+    const to = chapterIds.indexOf(targetId);
+    if (from < 0 || to < 0) return;
+    chapterIds.splice(from, 1);
+    chapterIds.splice(to, 0, draggedChapterId);
+    setDraggedChapterId(null);
+    setReordering(true);
+    setError("");
+    try {
+      const result = await window.bookEditor.project.reorderChapters({
+        chapterIds,
+      });
+      if (result.ok) setProject(result.value);
+      else setError(result.error.message);
     } catch {
       setError("Unable to reorder chapters. Please try again.");
     } finally {
@@ -212,10 +269,60 @@ export function App() {
                 words
               </p>
               <nav aria-label="Chapter navigator">
-                <h3>Chapters</h3>
+                <div className="navigator-heading">
+                  <h3>Chapters</h3>
+                  <form onSubmit={(event) => void createNewChapter(event)}>
+                    <label htmlFor="new-chapter-title">New chapter title</label>
+                    <input
+                      id="new-chapter-title"
+                      value={newChapterTitle}
+                      onChange={(event) =>
+                        setNewChapterTitle(event.target.value)
+                      }
+                      placeholder="New chapter title"
+                      disabled={creatingChapter}
+                    />
+                    <button
+                      type="submit"
+                      disabled={creatingChapter || !newChapterTitle.trim()}
+                    >
+                      {creatingChapter ? "Creating…" : "New chapter"}
+                    </button>
+                  </form>
+                </div>
                 <ol className="chapter-navigator">
                   {project.chapters.map((chapter) => (
-                    <li key={chapter.id}>
+                    <li
+                      key={chapter.id}
+                      className={
+                        activeChapterId === chapter.id ? "active-chapter" : ""
+                      }
+                      draggable={!reordering}
+                      onDragStart={() => setDraggedChapterId(chapter.id)}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={() => void dropChapter(chapter.id)}
+                      onKeyDown={(event) => {
+                        if (event.altKey && event.key === "ArrowUp") {
+                          event.preventDefault();
+                          void moveChapter(chapter.id, -1);
+                        } else if (event.altKey && event.key === "ArrowDown") {
+                          event.preventDefault();
+                          void moveChapter(chapter.id, 1);
+                        }
+                      }}
+                      tabIndex={0}
+                    >
+                      <button
+                        type="button"
+                        className="chapter-select"
+                        aria-current={
+                          activeChapterId === chapter.id ? "page" : undefined
+                        }
+                        onClick={() => setActiveChapterId(chapter.id)}
+                      >
+                        <span>{chapter.title}</span>
+                        <small>draft · {chapter.wordCount} words</small>
+                      </button>
                       {editingChapterId === chapter.id ? (
                         <form
                           onSubmit={(event) => {
@@ -255,7 +362,6 @@ export function App() {
                         </form>
                       ) : (
                         <>
-                          <span>{chapter.title}</span>
                           <button
                             type="button"
                             disabled={reordering}
