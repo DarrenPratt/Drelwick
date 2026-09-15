@@ -5,6 +5,7 @@ import {
   isSafeRelativePath,
   joinSafeRelativePath,
 } from "@bookeditor/shared";
+export * from "./chapter-creation.js";
 import {
   BookMetadataSchema,
   ChapterFileSchema,
