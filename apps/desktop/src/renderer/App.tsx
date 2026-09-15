@@ -12,6 +12,11 @@ export function App() {
   const [recents, setRecents] = useState<RecentProject[]>([]);
   const [recentError, setRecentError] = useState("");
   const [loadingRecents, setLoadingRecents] = useState(true);
+  const [editingChapterId, setEditingChapterId] = useState<string | null>(null);
+  const [chapterTitle, setChapterTitle] = useState("");
+  const [renamingChapterId, setRenamingChapterId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     let active = true;
@@ -84,6 +89,27 @@ export function App() {
     }
   }
 
+  async function renameSelectedChapter() {
+    if (!project || !editingChapterId || !chapterTitle.trim()) return;
+    setRenamingChapterId(editingChapterId);
+    setError("");
+    try {
+      const result = await window.bookEditor.project.renameChapter({
+        chapterId: editingChapterId,
+        title: chapterTitle,
+      });
+      if (result.ok) {
+        setProject(result.value);
+        setEditingChapterId(null);
+      } else setError(result.error.message);
+      if (result.ok && result.warning) setError(result.warning);
+    } catch {
+      setError("Unable to rename the chapter. Please try again.");
+    } finally {
+      setRenamingChapterId(null);
+    }
+  }
+
   return (
     <main className="app-shell" aria-busy={opening}>
       <header className="app-header">
@@ -130,15 +156,78 @@ export function App() {
           {project.chapters.length === 0 ? (
             <p>Your project is ready. There are no chapters yet.</p>
           ) : (
-            <p>
-              {project.chapters.length}{" "}
-              {project.chapters.length === 1 ? "chapter" : "chapters"} ·{" "}
-              {project.chapters.reduce(
-                (total, chapter) => total + chapter.wordCount,
-                0,
-              )}{" "}
-              words
-            </p>
+            <>
+              <p>
+                {project.chapters.length}{" "}
+                {project.chapters.length === 1 ? "chapter" : "chapters"} ·{" "}
+                {project.chapters.reduce(
+                  (total, chapter) => total + chapter.wordCount,
+                  0,
+                )}{" "}
+                words
+              </p>
+              <nav aria-label="Chapter navigator">
+                <h3>Chapters</h3>
+                <ol className="chapter-navigator">
+                  {project.chapters.map((chapter) => (
+                    <li key={chapter.id}>
+                      {editingChapterId === chapter.id ? (
+                        <form
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            void renameSelectedChapter();
+                          }}
+                        >
+                          <label htmlFor={`chapter-title-${chapter.id}`}>
+                            Chapter title
+                          </label>
+                          <input
+                            id={`chapter-title-${chapter.id}`}
+                            value={chapterTitle}
+                            onChange={(event) =>
+                              setChapterTitle(event.target.value)
+                            }
+                            disabled={renamingChapterId === chapter.id}
+                          />
+                          <button
+                            type="submit"
+                            disabled={
+                              renamingChapterId === chapter.id ||
+                              !chapterTitle.trim()
+                            }
+                          >
+                            {renamingChapterId === chapter.id
+                              ? "Saving…"
+                              : "Save"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={renamingChapterId === chapter.id}
+                            onClick={() => setEditingChapterId(null)}
+                          >
+                            Cancel
+                          </button>
+                        </form>
+                      ) : (
+                        <>
+                          <span>{chapter.title}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingChapterId(chapter.id);
+                              setChapterTitle(chapter.title);
+                              setError("");
+                            }}
+                          >
+                            Rename
+                          </button>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </nav>
+            </>
           )}
           <p className="project-path">Saved in {project.projectPath}</p>
         </section>

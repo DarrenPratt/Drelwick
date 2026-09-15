@@ -99,9 +99,17 @@ export interface BookEditorApi {
       id: string,
     ): Promise<ProjectOperationResult<ProjectWorkspace | null>>;
     removeRecent(id: string): Promise<ProjectOperationResult<RecentProject[]>>;
+    renameChapter(
+      input: RenameChapterRequest,
+    ): Promise<ProjectOperationResult<ProjectWorkspace>>;
   };
   dialog: {
     selectImage(): Promise<void>;
     selectExportLocation(): Promise<void>;
   };
+}
+
+export interface RenameChapterRequest {
+  chapterId: string;
+  title: string;
 }

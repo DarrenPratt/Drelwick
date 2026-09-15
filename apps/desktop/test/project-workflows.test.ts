@@ -27,6 +27,7 @@ const open = vi.fn<BookEditorApi["project"]["open"]>();
 const listRecent = vi.fn<BookEditorApi["project"]["listRecent"]>();
 const openRecent = vi.fn<BookEditorApi["project"]["openRecent"]>();
 const removeRecent = vi.fn<BookEditorApi["project"]["removeRecent"]>();
+const renameChapter = vi.fn<BookEditorApi["project"]["renameChapter"]>();
 let root: Root;
 let container: HTMLDivElement;
 
@@ -45,6 +46,7 @@ beforeEach(async () => {
   listRecent.mockReset().mockResolvedValue({ ok: true, value: [] });
   openRecent.mockReset().mockResolvedValue({ ok: true, value: workspace });
   removeRecent.mockReset().mockResolvedValue({ ok: true, value: [] });
+  renameChapter.mockReset().mockResolvedValue({ ok: true, value: workspace });
   window.bookEditor = {
     project: {
       create,
@@ -53,6 +55,7 @@ beforeEach(async () => {
       listRecent,
       openRecent,
       removeRecent,
+      renameChapter,
     },
     dialog: { selectImage: vi.fn(), selectExportLocation: vi.fn() },
   };
@@ -401,5 +404,45 @@ describe("existing project workflow", () => {
     expect(
       container.querySelector<HTMLInputElement>("#book-title")?.value,
     ).toBe("Unsubmitted draft");
+  });
+
+  it("renames a chapter from the navigator and keeps the updated workspace", async () => {
+    const chapterWorkspace = {
+      ...workspace,
+      chapters: [
+        {
+          id: "123e4567-e89b-42d3-a456-426614174001",
+          title: "Original",
+          wordCount: 12,
+        },
+      ],
+    };
+    open.mockResolvedValueOnce({ ok: true, value: chapterWorkspace });
+    await click("Open project");
+    await click("Rename");
+    await input(
+      "chapter-title-123e4567-e89b-42d3-a456-426614174001",
+      "Renamed",
+    );
+    renameChapter.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        ...chapterWorkspace,
+        chapters: [
+          {
+            id: "123e4567-e89b-42d3-a456-426614174001",
+            title: "Renamed",
+            wordCount: 12,
+          },
+        ],
+      },
+    });
+    await click("Save");
+    expect(renameChapter).toHaveBeenCalledWith({
+      chapterId: "123e4567-e89b-42d3-a456-426614174001",
+      title: "Renamed",
+    });
+    expect(container.textContent).toContain("Renamed");
+    expect(container.textContent).not.toContain("Original");
   });
 });
