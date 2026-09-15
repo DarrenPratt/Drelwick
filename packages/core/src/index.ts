@@ -7,12 +7,28 @@ import {
 } from "@bookeditor/shared";
 import {
   BookMetadataSchema,
+  ChapterFileSchema,
+  ChapterSummaryCacheSchema,
+  CountedChapterSummarySchema,
   ProjectConfigSchema,
   type BookMetadata,
+  type ChapterSummaryCache,
+  type CountedChapterSummary,
   type ProjectConfig,
 } from "@bookeditor/project-model";
-import { access, mkdir, open, readdir, rename, unlink } from "node:fs/promises";
+import {
+  access,
+  lstat,
+  mkdir,
+  open,
+  readFile,
+  readdir,
+  realpath,
+  rename,
+  unlink,
+} from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
+import type { Stats } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 
 export const PROJECT_DIRECTORIES = [
@@ -26,6 +42,288 @@ export const PROJECT_DIRECTORIES = [
 ] as const;
 
 export type ProjectDirectory = (typeof PROJECT_DIRECTORIES)[number];
+
+export const CHAPTER_SUMMARY_CACHE_FILE = ".chapter-summaries.json";
+
+export interface ProjectLoadingFileSystem {
+  readFile(path: string, encoding: "utf8"): Promise<string>;
+  lstat(path: string): Promise<Stats>;
+  realpath(path: string): Promise<string>;
+  writeJson(path: string, value: unknown): Promise<void>;
+}
+
+const defaultProjectLoadingFileSystem: ProjectLoadingFileSystem = {
+  readFile,
+  lstat,
+  realpath,
+  writeJson: writeJsonAtomically,
+};
+
+export interface OpenedProject extends CreatedProject {
+  chapters: CountedChapterSummary[];
+}
+
+export interface OpenProjectOptions {
+  rebuildSummaries?: boolean;
+}
+
+/** Opens metadata and summaries; cold/stale cache entries are rebuilt sequentially. */
+export async function openProject(
+  projectPath: string,
+  options: OpenProjectOptions = {},
+  fileSystem: ProjectLoadingFileSystem = defaultProjectLoadingFileSystem,
+): Promise<OpenedProject> {
+  if (!isAbsolute(projectPath)) {
+    throw new ApplicationError(
+      "PROJECT_PATH_INVALID",
+      "Project root must be an absolute path",
+    );
+  }
+  let projectRoot: string;
+  try {
+    projectRoot = await fileSystem.realpath(projectPath);
+  } catch {
+    throw new ApplicationError(
+      "PROJECT_PATH_ACCESS_FAILED",
+      "Unable to access project folder",
+    );
+  }
+
+  // Validate every path component before reading; never follow a project child symlink.
+  async function inspect(relativePath: string): Promise<Stats> {
+    const parts = relativePath.split("/");
+    let path = projectRoot;
+    let stats: Stats | undefined;
+    for (const [index, part] of parts.entries()) {
+      path = join(path, part);
+      try {
+        stats = await fileSystem.lstat(path);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          "code" in error &&
+          error.code === "ENOENT"
+        ) {
+          throw new ApplicationError(
+            "PROJECT_FILE_MISSING",
+            `Missing required project file: ${relativePath}`,
+          );
+        }
+        throw new ApplicationError(
+          "PROJECT_FILE_READ_FAILED",
+          `Unable to access project file: ${relativePath}`,
+        );
+      }
+      if (
+        stats.isSymbolicLink() ||
+        (index < parts.length - 1 ? !stats.isDirectory() : !stats.isFile())
+      ) {
+        throw new ApplicationError(
+          "PROJECT_PATH_INVALID",
+          `Expected a regular project file: ${relativePath}`,
+        );
+      }
+    }
+    if (!stats)
+      throw new ApplicationError("PROJECT_PATH_INVALID", "Empty project path");
+    return stats;
+  }
+
+  async function readJson(relativePath: string): Promise<unknown> {
+    await inspect(relativePath);
+    let source: string;
+    try {
+      source = await fileSystem.readFile(
+        resolveProjectPath(projectRoot, relativePath),
+        "utf8",
+      );
+    } catch {
+      throw new ApplicationError(
+        "PROJECT_FILE_READ_FAILED",
+        `Unable to read project file: ${relativePath}`,
+      );
+    }
+    try {
+      return JSON.parse(source) as unknown;
+    } catch {
+      // Parser errors can contain source text; do not retain them as causes.
+      throw new ApplicationError(
+        "PROJECT_JSON_INVALID",
+        `Invalid JSON in project file: ${relativePath}`,
+      );
+    }
+  }
+
+  const rawProject = await readJson("project.json");
+  assertSupportedVersion(rawProject, "project.json");
+  const parsedProject = ProjectConfigSchema.safeParse(rawProject);
+  if (!parsedProject.success) {
+    const invalidOrder = parsedProject.error.issues.some(
+      (issue) => issue.path[0] === "manuscript",
+    );
+    throw new ApplicationError(
+      invalidOrder ? "PROJECT_ORDER_INVALID" : "PROJECT_SCHEMA_INVALID",
+      invalidOrder
+        ? "Invalid manuscript chapter order in project.json"
+        : "Invalid project configuration in project.json",
+    );
+  }
+  const project = parsedProject.data;
+  const rawBook = await readJson(project.bookFile);
+  assertSupportedVersion(rawBook, project.bookFile);
+  const parsedBook = BookMetadataSchema.safeParse(rawBook);
+  if (!parsedBook.success) {
+    throw new ApplicationError(
+      "PROJECT_SCHEMA_INVALID",
+      "Invalid book metadata in book.json",
+    );
+  }
+
+  let cache: ChapterSummaryCache | undefined;
+  if (!options.rebuildSummaries) {
+    try {
+      const parsed = ChapterSummaryCacheSchema.safeParse(
+        await readJson(CHAPTER_SUMMARY_CACHE_FILE),
+      );
+      if (parsed.success && parsed.data.projectId === project.projectId)
+        cache = parsed.data;
+    } catch {
+      // Optional cache failures must not prevent recovery from authoritative files.
+    }
+  }
+  const cachedEntries = new Map(
+    cache?.entries.map((entry) => [entry.summary.id, entry]),
+  );
+  const entries: ChapterSummaryCache["entries"] = [];
+  for (const id of project.manuscript.order) {
+    const relativePath = `manuscript/${id}.json`;
+    let before: Stats;
+    try {
+      before = await inspect(relativePath);
+    } catch (error) {
+      if (
+        error instanceof ApplicationError &&
+        error.code === "PROJECT_FILE_MISSING"
+      ) {
+        throw new ApplicationError(
+          "PROJECT_ORDER_INVALID",
+          `Manuscript order references missing chapter: ${id}`,
+        );
+      }
+      throw error;
+    }
+    const cached = cachedEntries.get(id);
+    if (cached && sameFingerprint(cached, before)) {
+      entries.push(cached);
+      continue;
+    }
+    const rawChapter = await readJson(relativePath);
+    assertSupportedVersion(rawChapter, relativePath);
+    const parsed = ChapterFileSchema.safeParse(rawChapter);
+    if (!parsed.success) {
+      throw new ApplicationError(
+        "PROJECT_SCHEMA_INVALID",
+        `Invalid chapter in ${relativePath}`,
+      );
+    }
+    if (parsed.data.id !== id) {
+      throw new ApplicationError(
+        "PROJECT_ORDER_INVALID",
+        `Chapter ID does not match manuscript order: ${id}`,
+      );
+    }
+    if (!sameFingerprint(before, await inspect(relativePath))) {
+      throw new ApplicationError(
+        "PROJECT_CHANGED_DURING_OPEN",
+        "A chapter changed while opening the project; retry opening",
+      );
+    }
+    entries.push({
+      size: before.size,
+      mtimeMs: before.mtimeMs,
+      ctimeMs: before.ctimeMs,
+      summary: CountedChapterSummarySchema.parse({
+        ...parsed.data,
+        wordCount: countDocumentWords(parsed.data.content),
+      }),
+    });
+  }
+  const nextCache: ChapterSummaryCache = {
+    schemaVersion: 1,
+    projectId: project.projectId,
+    entries,
+  };
+  if (JSON.stringify(cache) !== JSON.stringify(nextCache)) {
+    try {
+      await fileSystem.writeJson(
+        resolveProjectPath(projectRoot, CHAPTER_SUMMARY_CACHE_FILE),
+        nextCache,
+      );
+    } catch {
+      // Opening read-only projects remains useful; the next open can rebuild again.
+    }
+  }
+  return {
+    projectPath: projectRoot,
+    project,
+    book: parsedBook.data,
+    chapters: entries.map((entry) => entry.summary),
+  };
+}
+
+function assertSupportedVersion(value: unknown, relativePath: string): void {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "schemaVersion" in value &&
+    typeof value.schemaVersion === "number" &&
+    value.schemaVersion !== 1
+  ) {
+    throw new ApplicationError(
+      "PROJECT_SCHEMA_UNSUPPORTED",
+      `Unsupported schema version in ${relativePath}; supported version is 1`,
+    );
+  }
+}
+
+function sameFingerprint(
+  left: { size: number; mtimeMs: number; ctimeMs: number },
+  right: { size: number; mtimeMs: number; ctimeMs: number },
+): boolean {
+  return (
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs &&
+    left.ctimeMs === right.ctimeMs
+  );
+}
+
+function countDocumentWords(document: unknown): number {
+  const fragments: string[] = [];
+  const pending: unknown[] = [document];
+  while (pending.length > 0) {
+    const node = pending.pop();
+    if (node === "\n") {
+      fragments.push("\n");
+      continue;
+    }
+    if (typeof node !== "object" || node === null) continue;
+    if (
+      "type" in node &&
+      node.type === "text" &&
+      "text" in node &&
+      typeof node.text === "string"
+    ) {
+      fragments.push(node.text);
+    } else if ("content" in node && Array.isArray(node.content)) {
+      pending.push("\n");
+      for (let index = node.content.length - 1; index >= 0; index--)
+        pending.push(node.content[index]);
+    } else {
+      fragments.push("\n");
+    }
+  }
+  return fragments.join("").match(/\S+/gu)?.length ?? 0;
+}
 
 export interface AtomicWriterFileSystem {
   open(path: string, flags: "wx"): Promise<FileHandle>;
