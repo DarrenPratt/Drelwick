@@ -7,6 +7,14 @@ export * from "./paths.js";
 export * from "./result.js";
 export * from "./word-count.js";
 
+export const ChapterStatusSchema = z.enum([
+  "draft",
+  "revising",
+  "review",
+  "final",
+]);
+export type ChapterStatus = z.infer<typeof ChapterStatusSchema>;
+
 export const IPC = {
   PROJECT_SELECT_LOCATION: "project:select-location",
   PROJECT_CREATE: "project:create",
@@ -47,7 +55,12 @@ export interface ProjectWorkspace {
   title: string;
   author: string;
   language: string;
-  chapters: { id: string; title: string; wordCount: number }[];
+  chapters: {
+    id: string;
+    title: string;
+    status: ChapterStatus;
+    wordCount: number;
+  }[];
 }
 export interface RecentProject {
   id: string;

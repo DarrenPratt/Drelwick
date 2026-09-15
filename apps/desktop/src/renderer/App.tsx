@@ -384,7 +384,9 @@ export function App() {
                     onClick={() => setActiveChapterId(chapter.id)}
                   >
                     <span>{chapter.title}</span>
-                    <small>draft · {chapter.wordCount} words</small>
+                    <small>
+                      {chapter.status} · {chapter.wordCount} words
+                    </small>
                   </button>
                   {editingChapterId === chapter.id ? (
                     <form

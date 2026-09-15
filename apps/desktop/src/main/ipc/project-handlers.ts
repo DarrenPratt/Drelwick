@@ -167,11 +167,14 @@ export function registerProjectHandlers(
               title: opened.book.title,
               author: opened.book.author,
               language: opened.book.language,
-              chapters: opened.chapters.map(({ id, title, wordCount }) => ({
-                id,
-                title,
-                wordCount,
-              })),
+              chapters: opened.chapters.map(
+                ({ id, title, status, wordCount }) => ({
+                  id,
+                  title,
+                  status,
+                  wordCount,
+                }),
+              ),
             },
           };
         } catch (error) {
@@ -451,7 +454,12 @@ export function registerProjectHandlers(
             author: renamed.session.book.author,
             language: renamed.session.book.language,
             chapters: renamed.session.chapters.map(
-              ({ id, title, wordCount }) => ({ id, title, wordCount }),
+              ({ id, title, status, wordCount }) => ({
+                id,
+                title,
+                status,
+                wordCount,
+              }),
             ),
           },
         };
@@ -524,7 +532,12 @@ export function registerProjectHandlers(
             author: deleted.session.book.author,
             language: deleted.session.book.language,
             chapters: deleted.session.chapters.map(
-              ({ id, title, wordCount }) => ({ id, title, wordCount }),
+              ({ id, title, status, wordCount }) => ({
+                id,
+                title,
+                status,
+                wordCount,
+              }),
             ),
           },
         };
@@ -601,7 +614,12 @@ export function registerProjectHandlers(
             author: reordered.session.book.author,
             language: reordered.session.book.language,
             chapters: reordered.session.chapters.map(
-              ({ id, title, wordCount }) => ({ id, title, wordCount }),
+              ({ id, title, status, wordCount }) => ({
+                id,
+                title,
+                status,
+                wordCount,
+              }),
             ),
           },
         };
@@ -673,7 +691,12 @@ export function registerProjectHandlers(
             author: created.session.book.author,
             language: created.session.book.language,
             chapters: created.session.chapters.map(
-              ({ id, title, wordCount }) => ({ id, title, wordCount }),
+              ({ id, title, status, wordCount }) => ({
+                id,
+                title,
+                status,
+                wordCount,
+              }),
             ),
           },
         };
