@@ -351,7 +351,9 @@ describe("existing project workflow", () => {
         title: "Another book",
         author: "Another author",
         projectPath: "/another/book",
-        chapters: [{ id: "chapter", title: "Beginning", wordCount: 42 }],
+        chapters: [
+          { id: "chapter", title: "Beginning", status: "draft", wordCount: 42 },
+        ],
       },
     });
     await click("Open project");
@@ -438,18 +440,20 @@ describe("existing project workflow", () => {
   });
 
   it("renames a chapter from the navigator and keeps the updated workspace", async () => {
-    const chapterWorkspace = {
+    const chapterWorkspace: ProjectWorkspace = {
       ...workspace,
       chapters: [
         {
           id: "123e4567-e89b-42d3-a456-426614174001",
           title: "Original",
+          status: "revising",
           wordCount: 12,
         },
       ],
     };
     open.mockResolvedValueOnce({ ok: true, value: chapterWorkspace });
     await click("Open project");
+    expect(container.textContent).toContain("revising · 12 words");
     await click("Rename");
     await input(
       "chapter-title-123e4567-e89b-42d3-a456-426614174001",
@@ -463,6 +467,7 @@ describe("existing project workflow", () => {
           {
             id: "123e4567-e89b-42d3-a456-426614174001",
             title: "Renamed",
+            status: "revising",
             wordCount: 12,
           },
         ],
@@ -478,12 +483,13 @@ describe("existing project workflow", () => {
   });
 
   it("requires confirmation and updates the navigator after deletion", async () => {
-    const chapterWorkspace = {
+    const chapterWorkspace: ProjectWorkspace = {
       ...workspace,
       chapters: [
         {
           id: "123e4567-e89b-42d3-a456-426614174001",
           title: "Original",
+          status: "draft",
           wordCount: 12,
         },
       ],
@@ -506,17 +512,19 @@ describe("existing project workflow", () => {
   });
 
   it("reorders chapters through the navigator and updates the active workspace", async () => {
-    const chapterWorkspace = {
+    const chapterWorkspace: ProjectWorkspace = {
       ...workspace,
       chapters: [
         {
           id: "123e4567-e89b-42d3-a456-426614174001",
           title: "First",
+          status: "draft",
           wordCount: 1,
         },
         {
           id: "123e4567-e89b-42d3-a456-426614174002",
           title: "Second",
+          status: "review",
           wordCount: 2,
         },
       ],
@@ -543,15 +551,20 @@ describe("existing project workflow", () => {
   });
 
   it("creates and selects a chapter from the navigator", async () => {
-    const existingChapter = {
+    const existingChapter: ProjectWorkspace["chapters"][number] = {
       id: "123e4567-e89b-42d3-a456-426614174001",
       title: "Existing",
+      status: "draft",
       wordCount: 4,
     };
-    const chapterWorkspace = { ...workspace, chapters: [existingChapter] };
-    const createdChapter = {
+    const chapterWorkspace: ProjectWorkspace = {
+      ...workspace,
+      chapters: [existingChapter],
+    };
+    const createdChapter: ProjectWorkspace["chapters"][number] = {
       id: "123e4567-e89b-42d3-a456-426614174003",
       title: "New chapter",
+      status: "draft",
       wordCount: 0,
     };
     open.mockResolvedValueOnce({ ok: true, value: chapterWorkspace });

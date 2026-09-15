@@ -96,7 +96,7 @@ describe("existing project IPC", () => {
       id,
       title: "Beginning",
       type: "chapter",
-      status: "draft",
+      status: "review",
       created: project.created,
       modified: project.modified,
       content: {
@@ -116,7 +116,7 @@ describe("existing project IPC", () => {
         title: "Existing book",
         author: "Writer",
         projectPath: path,
-        chapters: [{ id, title: "Beginning", wordCount: 2 }],
+        chapters: [{ id, title: "Beginning", status: "review", wordCount: 2 }],
       },
     });
     expect(showOpenDialog).toHaveBeenCalledWith(

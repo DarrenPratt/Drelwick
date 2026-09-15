@@ -1,5 +1,8 @@
-import { isIsoDate, isUuid } from "@bookeditor/shared";
+import { ChapterStatusSchema, isIsoDate, isUuid } from "@bookeditor/shared";
 import { z } from "zod";
+
+export { ChapterStatusSchema };
+export type { ChapterStatus } from "@bookeditor/shared";
 
 const schemaVersion = z.literal(1);
 const uuid = z.string().refine(isUuid, "Expected a UUID v4");
@@ -14,14 +17,6 @@ export const ChapterTypeSchema = z.enum([
   "backmatter",
 ]);
 export type ChapterType = z.infer<typeof ChapterTypeSchema>;
-
-export const ChapterStatusSchema = z.enum([
-  "draft",
-  "revising",
-  "review",
-  "final",
-]);
-export type ChapterStatus = z.infer<typeof ChapterStatusSchema>;
 
 export const ProjectConfigSchema = z.object({
   schemaVersion,
