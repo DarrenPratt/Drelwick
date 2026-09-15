@@ -43,6 +43,7 @@ export interface ProjectWorkspace {
   title: string;
   author: string;
   language: string;
+  chapters: { id: string; title: string; wordCount: number }[];
 }
 export type ProjectOperationResult<T> =
   | { ok: true; value: T }
@@ -81,7 +82,7 @@ export interface BookEditorApi {
       input: CreateProjectRequest,
     ): Promise<ProjectOperationResult<ProjectWorkspace>>;
     selectLocation(): Promise<ProjectOperationResult<ProjectLocation | null>>;
-    open(): Promise<void>;
+    open(): Promise<ProjectOperationResult<ProjectWorkspace | null>>;
   };
   dialog: {
     selectImage(): Promise<void>;

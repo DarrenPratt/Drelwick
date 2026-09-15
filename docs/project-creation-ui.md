@@ -12,8 +12,8 @@ limited to 500 characters and language to 100 at both the UI and IPC boundary.
 Creation errors appear in the dialog without clearing inputs. Pending operations
 disable submission/cancellation and main serializes folder selection and creation.
 Success displays the new project's title, author, language, location and empty
-manuscript workspace. Chapter editing and opening existing projects are separate
-issues.
+manuscript workspace. Chapter editing is separate work; existing projects use the
+[open workflow](project-open-ui.md).
 
 ## Process boundary
 

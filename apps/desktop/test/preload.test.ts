@@ -42,5 +42,7 @@ describe("preload API", () => {
     expect(invoke).toHaveBeenNthCalledWith(2, "dialog:select-image");
     await api.project.selectLocation();
     expect(invoke).toHaveBeenNthCalledWith(3, "project:select-location");
+    await api.project.open();
+    expect(invoke).toHaveBeenNthCalledWith(4, "project:open");
   });
 });

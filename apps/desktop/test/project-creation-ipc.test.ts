@@ -19,7 +19,7 @@ vi.mock("electron", () => ({
   ipcMain: { handle },
   dialog: { showOpenDialog },
 }));
-import { registerProjectCreationHandlers } from "../src/main/ipc/project-creation.js";
+import { registerProjectHandlers } from "../src/main/ipc/project-handlers.js";
 
 const rendererUrl = "file:///app/index.html";
 const directories: string[] = [];
@@ -46,7 +46,7 @@ function setup(create = vi.fn(createProject)) {
   const selectFolder = vi
     .fn<() => Promise<string | null>>()
     .mockResolvedValue("/chosen/folder");
-  registerProjectCreationHandlers(() => window, rendererUrl, {
+  registerProjectHandlers(() => window, rendererUrl, {
     selectFolder,
     create,
   });
@@ -84,7 +84,7 @@ describe("project creation IPC", () => {
       isDestroyed: () => false,
       webContents,
     } as unknown as BrowserWindow;
-    registerProjectCreationHandlers(() => window, rendererUrl);
+    registerProjectHandlers(() => window, rendererUrl);
     showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] });
     const handler = handle.mock.calls.find(
       ([name]) => name === IPC.PROJECT_SELECT_LOCATION,
