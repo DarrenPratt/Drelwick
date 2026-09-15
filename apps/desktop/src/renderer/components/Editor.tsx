@@ -45,6 +45,14 @@ export function Editor({ content, onChange }: EditorProps) {
         </button>
         <button
           type="button"
+          aria-label="Block quote"
+          aria-pressed={editor.isActive("blockquote")}
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        >
+          Block quote
+        </button>
+        <button
+          type="button"
           aria-label="Insert scene break"
           onClick={() => editor.chain().focus().insertSceneBreak().run()}
         >
