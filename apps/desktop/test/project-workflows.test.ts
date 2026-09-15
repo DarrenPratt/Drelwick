@@ -29,6 +29,7 @@ const openRecent = vi.fn<BookEditorApi["project"]["openRecent"]>();
 const removeRecent = vi.fn<BookEditorApi["project"]["removeRecent"]>();
 const renameChapter = vi.fn<BookEditorApi["project"]["renameChapter"]>();
 const deleteChapter = vi.fn<BookEditorApi["project"]["deleteChapter"]>();
+const reorderChapters = vi.fn<BookEditorApi["project"]["reorderChapters"]>();
 let root: Root;
 let container: HTMLDivElement;
 
@@ -49,6 +50,7 @@ beforeEach(async () => {
   removeRecent.mockReset().mockResolvedValue({ ok: true, value: [] });
   renameChapter.mockReset().mockResolvedValue({ ok: true, value: workspace });
   deleteChapter.mockReset().mockResolvedValue({ ok: true, value: workspace });
+  reorderChapters.mockReset().mockResolvedValue({ ok: true, value: workspace });
   vi.stubGlobal(
     "confirm",
     vi.fn(() => true),
@@ -63,6 +65,7 @@ beforeEach(async () => {
       removeRecent,
       renameChapter,
       deleteChapter,
+      reorderChapters,
     },
     dialog: { selectImage: vi.fn(), selectExportLocation: vi.fn() },
   };
@@ -87,6 +90,15 @@ function button(text: string): HTMLButtonElement {
 }
 async function click(text: string) {
   await act(async () => button(text).click());
+}
+async function clickLabel(label: string) {
+  await act(async () => {
+    const element = container.querySelector<HTMLButtonElement>(
+      `button[aria-label="${label}"]`,
+    );
+    if (!element) throw new Error(`Missing button: ${label}`);
+    element.click();
+  });
 }
 async function input(id: string, value: string) {
   await act(async () => {
@@ -479,5 +491,42 @@ describe("existing project workflow", () => {
       chapterId: "123e4567-e89b-42d3-a456-426614174001",
     });
     expect(container.textContent).toContain("There are no chapters yet");
+  });
+
+  it("reorders chapters through the navigator and updates the active workspace", async () => {
+    const chapterWorkspace = {
+      ...workspace,
+      chapters: [
+        {
+          id: "123e4567-e89b-42d3-a456-426614174001",
+          title: "First",
+          wordCount: 1,
+        },
+        {
+          id: "123e4567-e89b-42d3-a456-426614174002",
+          title: "Second",
+          wordCount: 2,
+        },
+      ],
+    };
+    open.mockResolvedValueOnce({ ok: true, value: chapterWorkspace });
+    await click("Open project");
+    reorderChapters.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        ...chapterWorkspace,
+        chapters: [...chapterWorkspace.chapters].reverse(),
+      },
+    });
+    await clickLabel("Move Second up");
+    expect(reorderChapters).toHaveBeenCalledWith({
+      chapterIds: [
+        "123e4567-e89b-42d3-a456-426614174002",
+        "123e4567-e89b-42d3-a456-426614174001",
+      ],
+    });
+    expect(container.textContent?.indexOf("Second")).toBeLessThan(
+      container.textContent?.indexOf("First") ?? 0,
+    );
   });
 });
