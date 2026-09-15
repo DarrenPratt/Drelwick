@@ -10,6 +10,9 @@ export const IPC = {
   PROJECT_SELECT_LOCATION: "project:select-location",
   PROJECT_CREATE: "project:create",
   PROJECT_OPEN: "project:open",
+  RECENT_LIST: "project:recent-list",
+  RECENT_OPEN: "project:recent-open",
+  RECENT_REMOVE: "project:recent-remove",
   PROJECT_CLOSE: "project:close",
   PROJECT_LOAD_CHAPTER: "project:load-chapter",
   PROJECT_SAVE_CHAPTER: "project:save-chapter",
@@ -45,14 +48,22 @@ export interface ProjectWorkspace {
   language: string;
   chapters: { id: string; title: string; wordCount: number }[];
 }
+export interface RecentProject {
+  id: string;
+  path: string;
+  title: string;
+}
 export type ProjectOperationResult<T> =
-  | { ok: true; value: T }
+  | { ok: true; value: T; warning?: string }
   | { ok: false; error: { code: string; message: string } };
 
 export const IpcRequestSchemas = {
   [IPC.PROJECT_CREATE]: CreateProjectRequestSchema,
   [IPC.PROJECT_SELECT_LOCATION]: z.undefined(),
   [IPC.PROJECT_OPEN]: z.undefined(),
+  [IPC.RECENT_LIST]: z.undefined(),
+  [IPC.RECENT_OPEN]: z.object({ id: z.string().uuid() }).strict(),
+  [IPC.RECENT_REMOVE]: z.object({ id: z.string().uuid() }).strict(),
   [IPC.PROJECT_CLOSE]: z.undefined(),
   [IPC.PROJECT_LOAD_CHAPTER]: z.object({ chapterId }),
   [IPC.PROJECT_SAVE_CHAPTER]: z.object({
@@ -83,6 +94,11 @@ export interface BookEditorApi {
     ): Promise<ProjectOperationResult<ProjectWorkspace>>;
     selectLocation(): Promise<ProjectOperationResult<ProjectLocation | null>>;
     open(): Promise<ProjectOperationResult<ProjectWorkspace | null>>;
+    listRecent(): Promise<ProjectOperationResult<RecentProject[]>>;
+    openRecent(
+      id: string,
+    ): Promise<ProjectOperationResult<ProjectWorkspace | null>>;
+    removeRecent(id: string): Promise<ProjectOperationResult<RecentProject[]>>;
   };
   dialog: {
     selectImage(): Promise<void>;

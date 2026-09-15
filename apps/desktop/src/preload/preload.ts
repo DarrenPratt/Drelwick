@@ -7,6 +7,9 @@ const api: BookEditorApi = {
     create: (input) => ipcRenderer.invoke(IPC.PROJECT_CREATE, input),
     selectLocation: () => ipcRenderer.invoke(IPC.PROJECT_SELECT_LOCATION),
     open: () => ipcRenderer.invoke(IPC.PROJECT_OPEN),
+    listRecent: () => ipcRenderer.invoke(IPC.RECENT_LIST),
+    openRecent: (id) => ipcRenderer.invoke(IPC.RECENT_OPEN, { id }),
+    removeRecent: (id) => ipcRenderer.invoke(IPC.RECENT_REMOVE, { id }),
   },
   dialog: {
     selectImage: () => ipcRenderer.invoke("dialog:select-image"),

@@ -44,5 +44,15 @@ describe("preload API", () => {
     expect(invoke).toHaveBeenNthCalledWith(3, "project:select-location");
     await api.project.open();
     expect(invoke).toHaveBeenNthCalledWith(4, "project:open");
+    await api.project.listRecent();
+    expect(invoke).toHaveBeenNthCalledWith(5, "project:recent-list");
+    await api.project.openRecent(input.locationToken);
+    expect(invoke).toHaveBeenNthCalledWith(6, "project:recent-open", {
+      id: input.locationToken,
+    });
+    await api.project.removeRecent(input.locationToken);
+    expect(invoke).toHaveBeenNthCalledWith(7, "project:recent-remove", {
+      id: input.locationToken,
+    });
   });
 });

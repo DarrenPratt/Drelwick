@@ -22,5 +22,6 @@ Operational documents:
 - [Existing project loading and summary cache](project-loading.md)
 - [New project dialog and IPC](project-creation-ui.md)
 - [Existing project open workflow](project-open-ui.md)
+- [Recent project tracking](recent-projects.md)
 - [GitHub tracking register](planning/github-tracking.md)
 - [Public Community release checklist](planning/public-release-checklist.md)

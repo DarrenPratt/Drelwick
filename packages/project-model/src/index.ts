@@ -119,3 +119,19 @@ export const ChapterSummaryCacheSchema = z.object({
     }),
 });
 export type ChapterSummaryCache = z.infer<typeof ChapterSummaryCacheSchema>;
+
+/** Application-level settings; never embed these machine-specific paths in projects. */
+export const RecentProjectsSettingsSchema = z
+  .object({
+    schemaVersion,
+    projects: z.array(
+      z
+        .object({
+          id: uuid,
+          path: z.string().min(1),
+          title: z.string(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
