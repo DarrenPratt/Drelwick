@@ -656,7 +656,7 @@ describe("chapter editor persistence", () => {
     expect(container.querySelector(".tiptap")).toBeNull();
     expect(container.textContent).toContain("Invalid document");
   });
-  it("blocks duplicate saves and freezes editing while the captured document is written", async () => {
+  it("blocks duplicate saves while allowing newer edits that remain dirty after acknowledgement", async () => {
     await openChapter();
     let finish!: (
       result: Awaited<ReturnType<BookEditorApi["project"]["saveChapter"]>>,
@@ -668,7 +668,10 @@ describe("chapter editor persistence", () => {
     );
     await click("Save chapter");
     expect(button("Saving chapter...").disabled).toBe(true);
-    expect(editor().isEditable).toBe(false);
+    expect(editor().isEditable).toBe(true);
+    await act(async () => {
+      editor().commands.insertContent("Newer edit");
+    });
     await click("Saving chapter...");
     expect(saveChapter).toHaveBeenCalledTimes(1);
     await act(async () =>
@@ -681,5 +684,238 @@ describe("chapter editor persistence", () => {
       }),
     );
     expect(editor().isEditable).toBe(true);
+    expect(container.textContent).toContain("Newer edit");
+    expect(
+      container.querySelector('[aria-label="Chapter save status"]')
+        ?.textContent,
+    ).toBe("Unsaved changes");
+    expect(saveChapter.mock.calls[0]?.[0].document).not.toEqual(
+      editor().getJSON(),
+    );
+    await click("Save chapter");
+    expect(saveChapter.mock.calls[1]?.[0].document).toEqual(editor().getJSON());
+    expect(
+      container.querySelector('[aria-label="Chapter save status"]')
+        ?.textContent,
+    ).toBe("All changes saved");
+  });
+  function saveStatus() {
+    return container.querySelector('[aria-label="Chapter save status"]')
+      ?.textContent;
+  }
+  async function editText(text = "Unsaved prose") {
+    await act(async () => {
+      editor().commands.insertContent(text);
+    });
+  }
+  async function openTwoChapters() {
+    open.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        ...workspace,
+        chapters: [
+          {
+            id: "123e4567-e89b-42d3-a456-426614174001",
+            title: "First",
+            status: "draft",
+            wordCount: 0,
+          },
+          {
+            id: "123e4567-e89b-42d3-a456-426614174002",
+            title: "Second",
+            status: "draft",
+            wordCount: 0,
+          },
+        ],
+      },
+    });
+    loadChapter.mockImplementation(async ({ chapterId }) => ({
+      ok: true,
+      value: {
+        id: chapterId,
+        content: { type: "doc", content: [{ type: "paragraph" }] },
+      },
+    }));
+    await click("Open project");
+  }
+  async function select(index: number) {
+    await act(async () => {
+      container
+        .querySelectorAll<HTMLButtonElement>(".chapter-select")
+        [index]?.click();
+    });
+  }
+  it("blocks dirty chapter switches, including after failed saves, until the latest edits are saved", async () => {
+    await openTwoChapters();
+    expect(saveStatus()).toBe("All changes saved");
+    await editText();
+    expect(saveStatus()).toBe("Unsaved changes");
+    await select(1);
+    expect(loadChapter).toHaveBeenCalledTimes(1);
+    expect(
+      container.querySelector('[aria-current="page"]')?.textContent,
+    ).toContain("First");
+    expect(container.textContent).toContain(
+      "Choose Save chapter before switching",
+    );
+    saveChapter.mockResolvedValueOnce({
+      ok: false,
+      error: { code: "CHAPTER_SAVE_FAILED", message: "Retry saving" },
+    });
+    await click("Save chapter");
+    await select(1);
+    expect(saveStatus()).toBe("Unsaved changes");
+    expect(editor().getText()).toBe("Unsaved prose");
+    expect(loadChapter).toHaveBeenCalledTimes(1);
+    await click("Save chapter");
+    await select(1);
+    expect(loadChapter).toHaveBeenCalledTimes(2);
+    expect(
+      container.querySelector('[aria-current="page"]')?.textContent,
+    ).toContain("Second");
+    expect(saveStatus()).toBe("All changes saved");
+  });
+  it("protects dirty content from creation, active deletion and opening another project", async () => {
+    await openChapter();
+    await editText();
+    await input("new-chapter-title", "New chapter");
+    await click("New chapter");
+    await click("Delete");
+    await click("Open project");
+    expect(createChapter).not.toHaveBeenCalled();
+    expect(deleteChapter).not.toHaveBeenCalled();
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(editor().getText()).toBe("Unsaved prose");
+    expect(saveStatus()).toBe("Unsaved changes");
+  });
+  it("blocks switches during an in-flight save and leaves rejected saves dirty", async () => {
+    await openTwoChapters();
+    await editText();
+    let reject!: (error: Error) => void;
+    saveChapter.mockReturnValueOnce(
+      new Promise((_, fail) => {
+        reject = fail;
+      }),
+    );
+    await click("Save chapter");
+    await editText(" newer");
+    await select(1);
+    expect(loadChapter).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain(
+      "Please wait for the current chapter operation",
+    );
+    await act(async () => reject(new Error("IPC failed")));
+    expect(saveStatus()).toBe("Unsaved changes");
+    expect(editor().getText()).toBe("Unsaved prose newer");
+    await select(1);
+    expect(loadChapter).toHaveBeenCalledTimes(1);
+  });
+  it("does not clear dirty state for an acknowledgement naming another chapter", async () => {
+    await openChapter();
+    await editText();
+    saveChapter.mockResolvedValueOnce({
+      ok: true,
+      value: { id: "different-chapter", modified: "2026-09-16T12:00:00Z" },
+    });
+    await click("Save chapter");
+    expect(saveStatus()).toBe("Unsaved changes");
+    expect(container.textContent).toContain("acknowledgement did not match");
+    await click("Save chapter");
+    expect(saveStatus()).toBe("All changes saved");
+  });
+  it("captures edits made immediately before a save without waiting for a React render", async () => {
+    await openChapter();
+    await act(async () => {
+      editor().commands.insertContent("Immediate edit");
+      button("Save chapter").click();
+    });
+    expect(saveChapter.mock.calls[0]?.[0].document).toEqual(editor().getJSON());
+    expect(saveStatus()).toBe("All changes saved");
+  });
+  it("prevents a chapter switch immediately after an editor transaction", async () => {
+    await openTwoChapters();
+    await act(async () => {
+      editor().commands.insertContent("Immediate edit");
+      container
+        .querySelectorAll<HTMLButtonElement>(".chapter-select")[1]
+        ?.click();
+    });
+    expect(loadChapter).toHaveBeenCalledTimes(1);
+    expect(editor().getText()).toBe("Immediate edit");
+    expect(saveStatus()).toBe("Unsaved changes");
+  });
+  it("reloads a reopened project even if its first chapter has the same identity", async () => {
+    await openChapter();
+    await openChapter();
+    expect(loadChapter).toHaveBeenCalledTimes(2);
+    expect(saveStatus()).toBe("All changes saved");
+  });
+  it("keeps late chapter loads from replacing edits after a rapid switch back", async () => {
+    await openTwoChapters();
+    type LoadResult = Awaited<
+      ReturnType<BookEditorApi["project"]["loadChapter"]>
+    >;
+    let finishSecond!: (result: LoadResult) => void;
+    let finishFirst!: (result: LoadResult) => void;
+    loadChapter.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishSecond = resolve;
+      }),
+    );
+    loadChapter.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishFirst = resolve;
+      }),
+    );
+    await select(1);
+    await select(0);
+    expect(container.querySelector(".tiptap")).toBeNull();
+    expect(button("Save chapter").disabled).toBe(true);
+    await act(async () =>
+      finishFirst({
+        ok: true,
+        value: {
+          id: "123e4567-e89b-42d3-a456-426614174001",
+          content: { type: "doc", content: [{ type: "paragraph" }] },
+        },
+      }),
+    );
+    await editText("Keep these edits");
+    await act(async () =>
+      finishSecond({
+        ok: true,
+        value: {
+          id: "123e4567-e89b-42d3-a456-426614174002",
+          content: {
+            type: "doc",
+            content: [
+              {
+                type: "paragraph",
+                content: [{ type: "text", text: "Old response" }],
+              },
+            ],
+          },
+        },
+      }),
+    );
+    expect(editor().getText()).toBe("Keep these edits");
+    expect(saveStatus()).toBe("Unsaved changes");
+  });
+  it("pauses editing during project replacement so the in-flight open cannot discard new edits", async () => {
+    await openChapter();
+    let finish!: (
+      result: ProjectOperationResult<ProjectWorkspace | null>,
+    ) => void;
+    open.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await click("Open project");
+    expect(editor().isEditable).toBe(false);
+    expect(button("Save chapter").disabled).toBe(true);
+    await act(async () => finish({ ok: true, value: null }));
+    expect(editor().isEditable).toBe(true);
+    expect(saveStatus()).toBe("All changes saved");
   });
 });
