@@ -130,3 +130,5 @@ export const RecentProjectsSettingsSchema = z
     ),
   })
   .strict();
+
+export { ManuscriptDocumentSchema } from "./manuscript-document.js";

@@ -31,6 +31,7 @@ const renameChapter = vi.fn<BookEditorApi["project"]["renameChapter"]>();
 const deleteChapter = vi.fn<BookEditorApi["project"]["deleteChapter"]>();
 const reorderChapters = vi.fn<BookEditorApi["project"]["reorderChapters"]>();
 const createChapter = vi.fn<BookEditorApi["project"]["createChapter"]>();
+const saveChapter = vi.fn<BookEditorApi["project"]["saveChapter"]>();
 const loadChapter = vi.fn<BookEditorApi["project"]["loadChapter"]>();
 let root: Root;
 let container: HTMLDivElement;
@@ -54,6 +55,13 @@ beforeEach(async () => {
   deleteChapter.mockReset().mockResolvedValue({ ok: true, value: workspace });
   reorderChapters.mockReset().mockResolvedValue({ ok: true, value: workspace });
   createChapter.mockReset().mockResolvedValue({ ok: true, value: workspace });
+  saveChapter.mockReset().mockResolvedValue({
+    ok: true,
+    value: {
+      id: "123e4567-e89b-42d3-a456-426614174001",
+      modified: "2026-09-16T12:00:00Z",
+    },
+  });
   loadChapter.mockReset().mockResolvedValue({
     ok: true,
     value: {
@@ -78,6 +86,7 @@ beforeEach(async () => {
       reorderChapters,
       createChapter,
       loadChapter,
+      saveChapter,
     },
     dialog: { selectImage: vi.fn(), selectExportLocation: vi.fn() },
   };
@@ -582,5 +591,95 @@ describe("existing project workflow", () => {
     expect(
       container.querySelector('[aria-current="page"]')?.textContent,
     ).toContain("New chapter");
+  });
+});
+
+describe("chapter editor persistence", () => {
+  async function openChapter() {
+    open.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        ...workspace,
+        chapters: [
+          {
+            id: "123e4567-e89b-42d3-a456-426614174001",
+            title: "Chapter",
+            status: "draft",
+            wordCount: 0,
+          },
+        ],
+      },
+    });
+    await click("Open project");
+  }
+  function editor() {
+    return (
+      container.querySelector(".tiptap") as HTMLElement & {
+        editor: import("@tiptap/core").Editor;
+      }
+    ).editor;
+  }
+  it("retains edits across word-count updates, saves serialized formatting and permits retry", async () => {
+    await openChapter();
+    await act(async () => {
+      editor().commands.insertContent({
+        type: "text",
+        text: "Formatted prose",
+        marks: [{ type: "bold" }, { type: "italic" }],
+      });
+    });
+    const document = editor().getJSON();
+    expect(loadChapter).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain("Formatted prose");
+    saveChapter.mockResolvedValueOnce({
+      ok: false,
+      error: { code: "CHAPTER_SAVE_FAILED", message: "Save failed; retry." },
+    });
+    await click("Save chapter");
+    expect(container.textContent).toContain("Save failed; retry.");
+    expect(editor().getJSON()).toEqual(document);
+    await click("Save chapter");
+    expect(saveChapter).toHaveBeenLastCalledWith({
+      chapterId: "123e4567-e89b-42d3-a456-426614174001",
+      document,
+    });
+    expect(container.textContent).toContain("Chapter saved.");
+    expect(loadChapter).toHaveBeenCalledTimes(1);
+  });
+  it("disables saving and editing until a chapter has loaded successfully", async () => {
+    loadChapter.mockResolvedValueOnce({
+      ok: false,
+      error: { code: "CHAPTER_DOCUMENT_INVALID", message: "Invalid document" },
+    });
+    await openChapter();
+    expect(button("Save chapter").disabled).toBe(true);
+    expect(container.querySelector(".tiptap")).toBeNull();
+    expect(container.textContent).toContain("Invalid document");
+  });
+  it("blocks duplicate saves and freezes editing while the captured document is written", async () => {
+    await openChapter();
+    let finish!: (
+      result: Awaited<ReturnType<BookEditorApi["project"]["saveChapter"]>>,
+    ) => void;
+    saveChapter.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await click("Save chapter");
+    expect(button("Saving chapter...").disabled).toBe(true);
+    expect(editor().isEditable).toBe(false);
+    await click("Saving chapter...");
+    expect(saveChapter).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      finish({
+        ok: true,
+        value: {
+          id: "123e4567-e89b-42d3-a456-426614174001",
+          modified: "2026-09-16T12:00:00Z",
+        },
+      }),
+    );
+    expect(editor().isEditable).toBe(true);
   });
 });

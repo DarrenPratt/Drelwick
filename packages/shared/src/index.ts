@@ -79,11 +79,15 @@ export const IpcRequestSchemas = {
   [IPC.RECENT_OPEN]: z.object({ id: z.string().uuid() }).strict(),
   [IPC.RECENT_REMOVE]: z.object({ id: z.string().uuid() }).strict(),
   [IPC.PROJECT_CLOSE]: z.undefined(),
-  [IPC.PROJECT_LOAD_CHAPTER]: z.object({ chapterId }),
-  [IPC.PROJECT_SAVE_CHAPTER]: z.object({
-    chapterId,
-    document: z.record(z.string(), z.unknown()),
-  }),
+  [IPC.PROJECT_LOAD_CHAPTER]: z
+    .object({ chapterId: z.string().uuid() })
+    .strict(),
+  [IPC.PROJECT_SAVE_CHAPTER]: z
+    .object({
+      chapterId: z.string().uuid(),
+      document: z.record(z.string(), z.unknown()),
+    })
+    .strict(),
   [IPC.CHAPTER_CREATE]: z.object({ title: chapterTitle }),
   [IPC.CHAPTER_RENAME]: z.object({ chapterId, title: chapterTitle }),
   [IPC.CHAPTER_DELETE]: z.object({ chapterId }),
@@ -125,6 +129,9 @@ export interface BookEditorApi {
     reorderChapters(
       input: ReorderChaptersRequest,
     ): Promise<ProjectOperationResult<ProjectWorkspace>>;
+    saveChapter(
+      input: SaveChapterRequest,
+    ): Promise<ProjectOperationResult<ChapterSaveReceipt>>;
     loadChapter(
       input: LoadChapterRequest,
     ): Promise<ProjectOperationResult<ChapterContent>>;
@@ -159,4 +166,14 @@ export interface LoadChapterRequest {
 export interface ChapterContent {
   id: string;
   content: Record<string, unknown>;
+}
+
+export interface SaveChapterRequest {
+  chapterId: string;
+  document: Record<string, unknown>;
+}
+
+export interface ChapterSaveReceipt {
+  id: string;
+  modified: string;
 }

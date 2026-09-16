@@ -54,5 +54,11 @@ describe("preload API", () => {
     expect(invoke).toHaveBeenNthCalledWith(7, "project:recent-remove", {
       id: input.locationToken,
     });
+    const chapter = {
+      chapterId: input.locationToken,
+      document: { type: "doc", content: [{ type: "paragraph" }] },
+    };
+    await api.project.saveChapter(chapter);
+    expect(invoke).toHaveBeenLastCalledWith("project:save-chapter", chapter);
   });
 });

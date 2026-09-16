@@ -9,6 +9,7 @@ import {
   createChapter,
   deleteChapter,
   loadChapter,
+  saveChapter,
   openProject,
   reorderChapters,
   renameChapter,
@@ -36,6 +37,7 @@ interface Dependencies {
   rename: typeof renameChapter;
   delete: typeof deleteChapter;
   loadChapter: typeof loadChapter;
+  saveChapter: typeof saveChapter;
   reorder: typeof reorderChapters;
   recents?: RecentProjects;
 }
@@ -63,6 +65,7 @@ const dependencies: Dependencies = {
   rename: renameChapter,
   delete: deleteChapter,
   loadChapter,
+  saveChapter,
   reorder: reorderChapters,
 };
 
@@ -718,6 +721,66 @@ export function registerProjectHandlers(
     },
   );
 
+  ipcMain.handle(IPC.PROJECT_SAVE_CHAPTER, async (event, payload: unknown) => {
+    if (!trusted(event))
+      return failure(
+        "PROJECT_ACCESS_DENIED",
+        "Project access is not permitted.",
+      );
+    const parsed =
+      IpcRequestSchemas[IPC.PROJECT_SAVE_CHAPTER].safeParse(payload);
+    if (!parsed.success)
+      return failure(
+        "PROJECT_INPUT_INVALID",
+        "Choose a valid chapter document to save.",
+      );
+    if (!activeProjectPath)
+      return failure("PROJECT_NOT_OPEN", "Open a project before saving.");
+    if (busy)
+      return failure(
+        "PROJECT_BUSY",
+        "Please wait for the current project operation.",
+      );
+    busy = true;
+    try {
+      const saved = await services.saveChapter({
+        ...parsed.data,
+        projectPath: activeProjectPath,
+      });
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      return {
+        ok: true,
+        value: { id: saved.id, modified: saved.modified },
+        ...(saved.warning ? { warning: saved.warning } : {}),
+      };
+    } catch (error) {
+      const messages: Record<string, string> = {
+        CHAPTER_NOT_FOUND: "The selected chapter is no longer available.",
+        CHAPTER_DOCUMENT_INVALID:
+          "The chapter document has an unsupported or invalid structure.",
+        CHAPTER_RECOVERY_REQUIRED:
+          "A temporary chapter file exists. Preserve it for recovery before retrying.",
+        PROJECT_BUSY:
+          "Another chapter operation is in progress. Check the project lock before retrying.",
+      };
+      if (
+        error instanceof ApplicationError &&
+        Object.hasOwn(messages, error.code)
+      )
+        return failure(error.code, messages[error.code]!);
+      return failure(
+        "CHAPTER_SAVE_FAILED",
+        "Unable to save the chapter. Your edits remain in the editor; please try again.",
+      );
+    } finally {
+      busy = false;
+    }
+  });
+
   ipcMain.handle(
     IPC.PROJECT_LOAD_CHAPTER,
     async (
@@ -745,6 +808,11 @@ export function registerProjectHandlers(
           projectPath: activeProjectPath,
           chapterId: parsed.data.chapterId,
         });
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project access is not permitted.",
+          );
         return { ok: true, value: chapter };
       } catch (error) {
         const message =

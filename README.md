@@ -17,8 +17,9 @@ The desktop shell supports creating a project through **New project**. Enter the
 book title, author and language, then choose an empty folder. Successful creation
 opens an empty project workspace. **Open project** on the welcome screen or
 workspace uses native folder selection to load an existing project. Cancellation
-or failure keeps the current workspace unchanged. Chapter editing remains planned
-work. See [project creation UI](docs/project-creation-ui.md) and
+or failure keeps the current workspace unchanged. Select a chapter to edit its content, then choose **Save chapter** to persist
+your changes. Save before switching chapters or closing the application; automatic
+saving remains planned. See [chapter persistence](docs/chapter-persistence.md). See [project creation UI](docs/project-creation-ui.md) and
 [project opening UI](docs/project-open-ui.md).
 
 The welcome screen and workspace also list **Recent projects**. Select a title

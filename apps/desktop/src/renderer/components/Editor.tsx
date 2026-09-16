@@ -53,13 +53,15 @@ export function sanitizePastedHtml(html: string): string {
 
 interface EditorProps {
   content: JSONContent;
+  editable?: boolean;
   onChange(content: JSONContent): void;
 }
 
-export function Editor({ content, onChange }: EditorProps) {
+export function Editor({ content, onChange, editable = true }: EditorProps) {
   const editor = useEditor({
     extensions: [StarterKit, SceneBreak],
     content,
+    editable,
     immediatelyRender: false,
     onUpdate: ({ editor: current }) => onChange(current.getJSON()),
     editorProps: {
@@ -80,14 +82,19 @@ export function Editor({ content, onChange }: EditorProps) {
 
   useEffect(() => {
     if (editor && JSON.stringify(editor.getJSON()) !== JSON.stringify(content))
-      editor.commands.setContent(content);
+      editor.commands.setContent(content, { emitUpdate: false });
   }, [content, editor]);
+
+  useEffect(() => {
+    editor?.setEditable(editable, false);
+  }, [editor, editable]);
 
   if (!editor) return <p>Loading editor…</p>;
 
   return (
     <section className="editor-panel" aria-label="Chapter editor">
-      <div
+      <fieldset
+        disabled={!editable}
         className="editor-toolbar"
         role="toolbar"
         aria-label="Formatting"
@@ -146,7 +153,7 @@ export function Editor({ content, onChange }: EditorProps) {
         >
           Redo
         </button>
-      </div>
+      </fieldset>
       <EditorContent editor={editor} />
     </section>
   );
