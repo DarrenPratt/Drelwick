@@ -1,7 +1,10 @@
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { ApplicationError } from "@bookeditor/shared";
-import { ChapterFileSchema } from "@bookeditor/project-model";
+import {
+  ChapterFileSchema,
+  ManuscriptDocumentSchema,
+} from "@bookeditor/project-model";
 import { openProject } from "./index.js";
 
 export interface LoadChapterInput {
@@ -45,6 +48,11 @@ export async function loadChapter(
       throw new ApplicationError(
         "PROJECT_SCHEMA_INVALID",
         "The selected chapter has an invalid format.",
+      );
+    if (!ManuscriptDocumentSchema.safeParse(parsed.data.content).success)
+      throw new ApplicationError(
+        "CHAPTER_DOCUMENT_INVALID",
+        "The chapter document has an unsupported or invalid structure.",
       );
     return { id: parsed.data.id, content: parsed.data.content };
   } catch (error) {

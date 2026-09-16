@@ -38,17 +38,35 @@ export function App() {
     useState<JSONContent>(emptyDocument);
   const [editorError, setEditorError] = useState("");
 
+  const projectPath = project?.projectPath;
+  const [loadedKey, setLoadedKey] = useState("");
+  const chapterKey = JSON.stringify([projectPath, activeChapterId]);
+  const [saving, setSaving] = useState(false);
+  const savePending = useRef(false);
+  const currentKey = useRef(chapterKey);
   useEffect(() => {
-    if (!project || !activeChapterId) return;
+    currentKey.current = chapterKey;
+  }, [chapterKey]);
+  const [saveMessage, setSaveMessage] = useState("");
+
+  useEffect(() => {
+    if (!projectPath || !activeChapterId) return;
     let active = true;
     void window.bookEditor.project
       .loadChapter({ chapterId: activeChapterId })
       .then((result) => {
         if (!active) return;
-        if (result.ok) {
+        if (result.ok && result.value.id === activeChapterId) {
           setEditorError("");
+          setSaveMessage("");
           setEditorContent(result.value.content as JSONContent);
-        } else setEditorError(result.error.message);
+          setLoadedKey(chapterKey);
+        } else
+          setEditorError(
+            result.ok
+              ? "The wrong chapter was returned."
+              : result.error.message,
+          );
       })
       .catch(() => {
         if (active) setEditorError("Unable to load the selected chapter.");
@@ -56,7 +74,33 @@ export function App() {
     return () => {
       active = false;
     };
-  }, [activeChapterId, project]);
+  }, [activeChapterId, projectPath, chapterKey]);
+
+  async function saveActiveChapter() {
+    if (!activeChapterId || loadedKey !== chapterKey || savePending.current)
+      return;
+    savePending.current = true;
+    setSaving(true);
+    setSaveMessage("");
+    setEditorError("");
+    try {
+      const result = await window.bookEditor.project.saveChapter({
+        chapterId: activeChapterId,
+        document: editorContent,
+      });
+      if (currentKey.current !== chapterKey) return;
+      if (result.ok) setSaveMessage(result.warning ?? "Chapter saved.");
+      else setEditorError(result.error.message);
+    } catch {
+      if (currentKey.current === chapterKey)
+        setEditorError(
+          "Unable to save the chapter. Your edits remain in the editor; please try again.",
+        );
+    } finally {
+      savePending.current = false;
+      setSaving(false);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -302,26 +346,41 @@ export function App() {
                   {editorError}
                 </p>
               )}
-              <Editor
-                content={editorContent}
-                onChange={(content) => {
-                  setEditorContent(content);
-                  if (!activeChapterId) return;
-                  const wordCount = countDocumentWords(content);
-                  setProject((current) =>
-                    current
-                      ? {
-                          ...current,
-                          chapters: current.chapters.map((chapter) =>
-                            chapter.id === activeChapterId
-                              ? { ...chapter, wordCount }
-                              : chapter,
-                          ),
-                        }
-                      : current,
-                  );
-                }}
-              />
+              {loadedKey === chapterKey ? (
+                <Editor
+                  key={chapterKey}
+                  editable={!saving}
+                  content={editorContent}
+                  onChange={(content) => {
+                    setEditorContent(content);
+                    setSaveMessage("");
+                    if (!activeChapterId) return;
+                    const wordCount = countDocumentWords(content);
+                    setProject((current) =>
+                      current
+                        ? {
+                            ...current,
+                            chapters: current.chapters.map((chapter) =>
+                              chapter.id === activeChapterId
+                                ? { ...chapter, wordCount }
+                                : chapter,
+                            ),
+                          }
+                        : current,
+                    );
+                  }}
+                />
+              ) : (
+                <p>Select a chapter and wait for it to load before editing.</p>
+              )}
+              <button
+                type="button"
+                disabled={saving || loadedKey !== chapterKey}
+                onClick={() => void saveActiveChapter()}
+              >
+                {saving ? "Saving chapter..." : "Save chapter"}
+              </button>
+              {saveMessage && <p role="status">{saveMessage}</p>}
               <p>
                 {project.chapters.length}{" "}
                 {project.chapters.length === 1 ? "chapter" : "chapters"} ·{" "}

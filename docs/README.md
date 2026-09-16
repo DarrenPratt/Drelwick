@@ -24,5 +24,6 @@ Operational documents:
 - [Existing project open workflow](project-open-ui.md)
 - [Recent project tracking](recent-projects.md)
 - [Chapter creation and failure recovery](chapter-creation.md)
+- [Chapter document persistence](chapter-persistence.md)
 - [GitHub tracking register](planning/github-tracking.md)
 - [Public Community release checklist](planning/public-release-checklist.md)
