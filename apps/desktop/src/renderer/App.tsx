@@ -1,5 +1,5 @@
 import "./app.css";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   countDocumentWords,
@@ -9,11 +9,12 @@ import {
 import { NewProjectDialog } from "./NewProjectDialog.js";
 import { Editor } from "./components/Editor.js";
 import type { JSONContent } from "@tiptap/core";
-
-const emptyDocument: JSONContent = {
-  type: "doc",
-  content: [{ type: "paragraph" }],
-};
+import {
+  documentReducer,
+  isDocumentDirty,
+  type DocumentAction,
+  type DocumentState,
+} from "./document-state.js";
 
 export function App() {
   const [creating, setCreating] = useState(false);
@@ -34,20 +35,28 @@ export function App() {
   const [newChapterTitle, setNewChapterTitle] = useState("");
   const [creatingChapter, setCreatingChapter] = useState(false);
   const [draggedChapterId, setDraggedChapterId] = useState<string | null>(null);
-  const [editorContent, setEditorContent] =
-    useState<JSONContent>(emptyDocument);
+  const [documentState, reduceDocument] = useReducer(documentReducer, null);
+  const documentRef = useRef<DocumentState | null>(null);
+  const dispatchDocument = useCallback((action: DocumentAction) => {
+    // Event handlers must see edits immediately, even before React commits a render.
+    documentRef.current = documentReducer(documentRef.current, action);
+    reduceDocument(action);
+  }, []);
   const [editorError, setEditorError] = useState("");
-
+  const [documentSession, setDocumentSession] = useState(0);
+  const [deletingChapter, setDeletingChapter] = useState(false);
   const projectPath = project?.projectPath;
-  const [loadedKey, setLoadedKey] = useState("");
-  const chapterKey = JSON.stringify([projectPath, activeChapterId]);
-  const [saving, setSaving] = useState(false);
+  const chapterKey = JSON.stringify([
+    documentSession,
+    projectPath,
+    activeChapterId,
+  ]);
+  const documentReady = documentState?.key === chapterKey;
+  const dirty = documentReady && isDocumentDirty(documentState);
+  const saving = documentReady && documentState?.pendingSave !== null;
   const savePending = useRef(false);
-  const currentKey = useRef(chapterKey);
-  useEffect(() => {
-    currentKey.current = chapterKey;
-  }, [chapterKey]);
-  const [saveMessage, setSaveMessage] = useState("");
+  const nextSaveRequest = useRef(0);
+  const changingDocument = opening || creatingChapter || deletingChapter;
 
   useEffect(() => {
     if (!projectPath || !activeChapterId) return;
@@ -58,9 +67,12 @@ export function App() {
         if (!active) return;
         if (result.ok && result.value.id === activeChapterId) {
           setEditorError("");
-          setSaveMessage("");
-          setEditorContent(result.value.content as JSONContent);
-          setLoadedKey(chapterKey);
+          dispatchDocument({
+            type: "loaded",
+            key: chapterKey,
+            chapterId: activeChapterId,
+            content: result.value.content as JSONContent,
+          });
         } else
           setEditorError(
             result.ok
@@ -74,32 +86,84 @@ export function App() {
     return () => {
       active = false;
     };
-  }, [activeChapterId, projectPath, chapterKey]);
+  }, [activeChapterId, projectPath, chapterKey, dispatchDocument]);
 
   async function saveActiveChapter() {
-    if (!activeChapterId || loadedKey !== chapterKey || savePending.current)
+    const snapshot = documentRef.current;
+    if (
+      !snapshot ||
+      snapshot.key !== chapterKey ||
+      savePending.current ||
+      changingDocument
+    )
       return;
+    const requestId = ++nextSaveRequest.current;
     savePending.current = true;
-    setSaving(true);
-    setSaveMessage("");
+    setError("");
+    dispatchDocument({
+      type: "saving",
+      key: snapshot.key,
+      requestId,
+      revision: snapshot.editorRevision,
+    });
     setEditorError("");
     try {
       const result = await window.bookEditor.project.saveChapter({
-        chapterId: activeChapterId,
-        document: editorContent,
+        chapterId: snapshot.chapterId,
+        document: snapshot.content,
       });
-      if (currentKey.current !== chapterKey) return;
-      if (result.ok) setSaveMessage(result.warning ?? "Chapter saved.");
-      else setEditorError(result.error.message);
+      if (result.ok && result.value.id === snapshot.chapterId) {
+        dispatchDocument({
+          type: "saved",
+          key: snapshot.key,
+          requestId,
+          ...(result.warning ? { warning: result.warning } : {}),
+        });
+      } else {
+        dispatchDocument({
+          type: "failed",
+          key: snapshot.key,
+          requestId,
+          message: result.ok
+            ? "The save acknowledgement did not match this chapter. Please retry."
+            : result.error.message,
+        });
+      }
     } catch {
-      if (currentKey.current === chapterKey)
-        setEditorError(
+      dispatchDocument({
+        type: "failed",
+        key: snapshot.key,
+        requestId,
+        message:
           "Unable to save the chapter. Your edits remain in the editor; please try again.",
-        );
+      });
     } finally {
       savePending.current = false;
-      setSaving(false);
     }
+  }
+
+  function canLeaveChapter() {
+    if (savePending.current || changingDocument) {
+      setError(
+        "Please wait for the current chapter operation before switching.",
+      );
+      return false;
+    }
+    if (isDocumentDirty(documentRef.current)) {
+      setError(
+        "This chapter has unsaved changes. Choose Save chapter before switching.",
+      );
+      return false;
+    }
+    return true;
+  }
+
+  function selectChapter(chapterId: string) {
+    if (chapterId === activeChapterId || !canLeaveChapter()) return;
+    setError("");
+    setEditorError("");
+    setDocumentSession((session) => session + 1);
+    setActiveChapterId(chapterId);
   }
 
   useEffect(() => {
@@ -153,7 +217,8 @@ export function App() {
   }
 
   async function openExistingProject(id?: string) {
-    if (pending.current || creating || loadingRecents) return;
+    if (pending.current || creating || loadingRecents || !canLeaveChapter())
+      return;
     pending.current = true;
     setOpening(true);
     setError("");
@@ -164,6 +229,7 @@ export function App() {
       if (!result.ok) setError(result.error.message);
       else if (result.value) {
         setProject(result.value);
+        setDocumentSession((session) => session + 1);
         setActiveChapterId(result.value.chapters[0]?.id ?? null);
       }
       if (result.ok && result.value) await refreshRecents();
@@ -198,8 +264,15 @@ export function App() {
   }
 
   async function deleteSelectedChapter(chapterId: string) {
+    if (
+      changingDocument ||
+      savePending.current ||
+      (chapterId === activeChapterId && !canLeaveChapter())
+    )
+      return;
     if (!project || !window.confirm("Move this chapter to project recovery?"))
       return;
+    setDeletingChapter(true);
     setError("");
     try {
       const result = await window.bookEditor.project.deleteChapter({
@@ -207,12 +280,16 @@ export function App() {
       });
       if (result.ok) {
         setProject(result.value);
-        if (activeChapterId === chapterId)
+        if (activeChapterId === chapterId) {
+          setDocumentSession((session) => session + 1);
           setActiveChapterId(result.value.chapters[0]?.id ?? null);
+        }
       } else setError(result.error.message);
       if (result.ok && result.warning) setError(result.warning);
     } catch {
       setError("Unable to delete the chapter. Please try again.");
+    } finally {
+      setDeletingChapter(false);
     }
   }
 
@@ -246,7 +323,13 @@ export function App() {
 
   async function createNewChapter(event: FormEvent) {
     event.preventDefault();
-    if (!project || !newChapterTitle.trim() || creatingChapter) return;
+    if (
+      !project ||
+      !newChapterTitle.trim() ||
+      creatingChapter ||
+      !canLeaveChapter()
+    )
+      return;
     setCreatingChapter(true);
     setError("");
     try {
@@ -256,6 +339,7 @@ export function App() {
       if (result.ok) {
         setProject(result.value);
         setNewChapterTitle("");
+        setDocumentSession((session) => session + 1);
         setActiveChapterId(result.value.chapters.at(-1)?.id ?? null);
       } else setError(result.error.message);
       if (result.ok && result.warning) setError(result.warning);
@@ -346,14 +430,17 @@ export function App() {
                   {editorError}
                 </p>
               )}
-              {loadedKey === chapterKey ? (
+              {documentReady && documentState ? (
                 <Editor
                   key={chapterKey}
-                  editable={!saving}
-                  content={editorContent}
+                  editable={!changingDocument}
+                  content={documentState.content}
                   onChange={(content) => {
-                    setEditorContent(content);
-                    setSaveMessage("");
+                    dispatchDocument({
+                      type: "edited",
+                      key: chapterKey,
+                      content,
+                    });
                     if (!activeChapterId) return;
                     const wordCount = countDocumentWords(content);
                     setProject((current) =>
@@ -375,12 +462,30 @@ export function App() {
               )}
               <button
                 type="button"
-                disabled={saving || loadedKey !== chapterKey}
+                disabled={saving || !documentReady || changingDocument}
                 onClick={() => void saveActiveChapter()}
               >
                 {saving ? "Saving chapter..." : "Save chapter"}
               </button>
-              {saveMessage && <p role="status">{saveMessage}</p>}
+              {documentReady && documentState && (
+                <>
+                  <p role="status" aria-label="Chapter save status">
+                    {saving
+                      ? "Saving chapter..."
+                      : dirty
+                        ? "Unsaved changes"
+                        : "All changes saved"}
+                  </p>
+                  {documentState.message && (
+                    <p role="status">{documentState.message}</p>
+                  )}
+                  {documentState.error && (
+                    <p role="alert" className="error-message">
+                      {documentState.error}
+                    </p>
+                  )}
+                </>
+              )}
               <p>
                 {project.chapters.length}{" "}
                 {project.chapters.length === 1 ? "chapter" : "chapters"} ·{" "}
@@ -440,7 +545,7 @@ export function App() {
                     aria-current={
                       activeChapterId === chapter.id ? "page" : undefined
                     }
-                    onClick={() => setActiveChapterId(chapter.id)}
+                    onClick={() => selectChapter(chapter.id)}
                   >
                     <span>{chapter.title}</span>
                     <small>
@@ -587,6 +692,7 @@ export function App() {
           onCancel={() => setCreating(false)}
           onCreated={(created, warning) => {
             setProject(created);
+            setDocumentSession((session) => session + 1);
             setCreating(false);
             setLoadingRecents(true);
             void refreshRecents().finally(() => {
