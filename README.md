@@ -18,10 +18,12 @@ book title, author and language, then choose an empty folder. Successful creatio
 opens an empty project workspace. **Open project** on the welcome screen or
 workspace uses native folder selection to load an existing project. Cancellation
 or failure keeps the current workspace unchanged. Select a chapter to edit its
-content, then choose **Save chapter** to persist your changes. **Unsaved changes**
-tracks edits, including those made during a save. Save before switching chapters
-or projects; unsaved edits block those actions. Save before closing the application;
-autosave and shutdown protection remain planned. See
+content. Changes autosave after 750 ms of idle typing; **Save chapter** saves
+immediately. **Unsaved changes** tracks edits, including those made during a save.
+Focus loss and attempts to leave the document flush pending edits. If switching
+or closing is blocked for saving, wait for **All changes saved** and retry the
+action. Failed saves retain edits and report an error. Full shutdown/recovery
+coordination remains planned. See
 [chapter persistence](docs/chapter-persistence.md),
 [project creation UI](docs/project-creation-ui.md) and
 [project opening UI](docs/project-open-ui.md).

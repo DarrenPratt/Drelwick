@@ -1,4 +1,8 @@
 import "./app.css";
+import {
+  createAutosaveCoordinator,
+  type AutosaveCoordinator,
+} from "@bookeditor/core/autosave";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
@@ -56,6 +60,7 @@ export function App() {
   const saving = documentReady && documentState?.pendingSave !== null;
   const savePending = useRef(false);
   const nextSaveRequest = useRef(0);
+  const autosave = useRef<AutosaveCoordinator | null>(null);
   const changingDocument = opening || creatingChapter || deletingChapter;
 
   useEffect(() => {
@@ -88,18 +93,12 @@ export function App() {
     };
   }, [activeChapterId, projectPath, chapterKey, dispatchDocument]);
 
-  async function saveActiveChapter() {
+  const persistDocument = useCallback(async (): Promise<boolean> => {
     const snapshot = documentRef.current;
-    if (
-      !snapshot ||
-      snapshot.key !== chapterKey ||
-      savePending.current ||
-      changingDocument
-    )
-      return;
+    if (!snapshot || !isDocumentDirty(snapshot)) return true;
+    if (savePending.current) return false;
     const requestId = ++nextSaveRequest.current;
     savePending.current = true;
-    setError("");
     dispatchDocument({
       type: "saving",
       key: snapshot.key,
@@ -119,6 +118,7 @@ export function App() {
           requestId,
           ...(result.warning ? { warning: result.warning } : {}),
         });
+        return true;
       } else {
         dispatchDocument({
           type: "failed",
@@ -128,6 +128,7 @@ export function App() {
             ? "The save acknowledgement did not match this chapter. Please retry."
             : result.error.message,
         });
+        return false;
       }
     } catch {
       dispatchDocument({
@@ -137,21 +138,61 @@ export function App() {
         message:
           "Unable to save the chapter. Your edits remain in the editor; please try again.",
       });
+      return false;
     } finally {
       savePending.current = false;
     }
+  }, [dispatchDocument]);
+
+  useEffect(() => {
+    const coordinator = createAutosaveCoordinator({
+      isDirty: () => isDocumentDirty(documentRef.current),
+      save: persistDocument,
+    });
+    autosave.current = coordinator;
+    const onBlur = () => {
+      void coordinator.flush();
+    };
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!isDocumentDirty(documentRef.current) && !savePending.current) return;
+      event.preventDefault();
+      // Electron requires an explicit returnValue when using addEventListener.
+      event.returnValue = "";
+      setError(
+        "Saving before closing. Close again after all changes are saved.",
+      );
+      void coordinator.flush();
+    };
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      coordinator.dispose();
+      autosave.current = null;
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [persistDocument]);
+
+  function saveActiveChapter() {
+    if (!documentReady || changingDocument) return;
+    setError("");
+    void autosave.current?.flush();
   }
 
   function canLeaveChapter() {
-    if (savePending.current || changingDocument) {
+    if (
+      !changingDocument &&
+      (savePending.current || isDocumentDirty(documentRef.current))
+    ) {
+      void autosave.current?.flush();
       setError(
-        "Please wait for the current chapter operation before switching.",
+        "Saving changes. Try switching again after all changes are saved.",
       );
       return false;
     }
-    if (isDocumentDirty(documentRef.current)) {
+    if (savePending.current || changingDocument) {
       setError(
-        "This chapter has unsaved changes. Choose Save chapter before switching.",
+        "Please wait for the current chapter operation before switching.",
       );
       return false;
     }
@@ -441,6 +482,7 @@ export function App() {
                       key: chapterKey,
                       content,
                     });
+                    autosave.current?.edited();
                     if (!activeChapterId) return;
                     const wordCount = countDocumentWords(content);
                     setProject((current) =>
