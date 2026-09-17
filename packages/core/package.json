@@ -7,6 +7,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./autosave": {
+      "types": "./dist/autosave.d.ts",
+      "import": "./dist/autosave.js"
     }
   },
   "scripts": {

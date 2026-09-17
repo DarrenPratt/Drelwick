@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement } from "react";
+import { act, createElement, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -100,6 +100,7 @@ afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 function button(text: string): HTMLButtonElement {
@@ -656,8 +657,9 @@ describe("chapter editor persistence", () => {
     expect(container.querySelector(".tiptap")).toBeNull();
     expect(container.textContent).toContain("Invalid document");
   });
-  it("blocks duplicate saves while allowing newer edits that remain dirty after acknowledgement", async () => {
+  it("serializes newer edits while an immediate save flush is in flight", async () => {
     await openChapter();
+    await editText("First edit");
     let finish!: (
       result: Awaited<ReturnType<BookEditorApi["project"]["saveChapter"]>>,
     ) => void;
@@ -688,7 +690,7 @@ describe("chapter editor persistence", () => {
     expect(
       container.querySelector('[aria-label="Chapter save status"]')
         ?.textContent,
-    ).toBe("Unsaved changes");
+    ).toBe("All changes saved");
     expect(saveChapter.mock.calls[0]?.[0].document).not.toEqual(
       editor().getJSON(),
     );
@@ -750,13 +752,17 @@ describe("chapter editor persistence", () => {
     expect(saveStatus()).toBe("All changes saved");
     await editText();
     expect(saveStatus()).toBe("Unsaved changes");
+    saveChapter.mockResolvedValue({
+      ok: false,
+      error: { code: "CHAPTER_SAVE_FAILED", message: "Retry saving" },
+    });
     await select(1);
     expect(loadChapter).toHaveBeenCalledTimes(1);
     expect(
       container.querySelector('[aria-current="page"]')?.textContent,
     ).toContain("First");
     expect(container.textContent).toContain(
-      "Choose Save chapter before switching",
+      "Try switching again after all changes are saved",
     );
     saveChapter.mockResolvedValueOnce({
       ok: false,
@@ -767,6 +773,13 @@ describe("chapter editor persistence", () => {
     expect(saveStatus()).toBe("Unsaved changes");
     expect(editor().getText()).toBe("Unsaved prose");
     expect(loadChapter).toHaveBeenCalledTimes(1);
+    saveChapter.mockResolvedValue({
+      ok: true,
+      value: {
+        id: "123e4567-e89b-42d3-a456-426614174001",
+        modified: "2026-09-16T12:00:00Z",
+      },
+    });
     await click("Save chapter");
     await select(1);
     expect(loadChapter).toHaveBeenCalledTimes(2);
@@ -778,6 +791,10 @@ describe("chapter editor persistence", () => {
   it("protects dirty content from creation, active deletion and opening another project", async () => {
     await openChapter();
     await editText();
+    saveChapter.mockResolvedValue({
+      ok: false,
+      error: { code: "CHAPTER_SAVE_FAILED", message: "Retry saving" },
+    });
     await input("new-chapter-title", "New chapter");
     await click("New chapter");
     await click("Delete");
@@ -802,7 +819,7 @@ describe("chapter editor persistence", () => {
     await select(1);
     expect(loadChapter).toHaveBeenCalledTimes(1);
     expect(container.textContent).toContain(
-      "Please wait for the current chapter operation",
+      "Try switching again after all changes are saved",
     );
     await act(async () => reject(new Error("IPC failed")));
     expect(saveStatus()).toBe("Unsaved changes");
@@ -842,7 +859,8 @@ describe("chapter editor persistence", () => {
     });
     expect(loadChapter).toHaveBeenCalledTimes(1);
     expect(editor().getText()).toBe("Immediate edit");
-    expect(saveStatus()).toBe("Unsaved changes");
+    expect(saveStatus()).toBe("All changes saved");
+    expect(saveChapter).toHaveBeenCalledTimes(1);
   });
   it("reloads a reopened project even if its first chapter has the same identity", async () => {
     await openChapter();
@@ -917,5 +935,145 @@ describe("chapter editor persistence", () => {
     await act(async () => finish({ ok: true, value: null }));
     expect(editor().isEditable).toBe(true);
     expect(saveStatus()).toBe("All changes saved");
+  });
+  describe("autosave triggers", () => {
+    beforeEach(() =>
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }),
+    );
+    async function advance(ms: number) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+      });
+    }
+    it("automatically saves only after 750 ms of idle typing", async () => {
+      await openChapter();
+      await editText("First");
+      await advance(749);
+      expect(saveChapter).not.toHaveBeenCalled();
+      await editText(" second");
+      await advance(749);
+      expect(saveChapter).not.toHaveBeenCalled();
+      expect(editor().isEditable).toBe(true);
+      expect(saveStatus()).toBe("Unsaved changes");
+      await advance(1);
+      expect(saveChapter).toHaveBeenCalledExactlyOnceWith({
+        chapterId: "123e4567-e89b-42d3-a456-426614174001",
+        document: editor().getJSON(),
+      });
+      expect(saveStatus()).toBe("All changes saved");
+      await advance(2000);
+      expect(saveChapter).toHaveBeenCalledTimes(1);
+    });
+    it("keeps typing responsive and saves newer edits after their own debounce", async () => {
+      await openChapter();
+      let finish!: (
+        result: Awaited<ReturnType<BookEditorApi["project"]["saveChapter"]>>,
+      ) => void;
+      saveChapter.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      await editText("First");
+      await advance(750);
+      expect(editor().isEditable).toBe(true);
+      await editText(" newer");
+      await act(async () =>
+        finish({
+          ok: true,
+          value: {
+            id: "123e4567-e89b-42d3-a456-426614174001",
+            modified: "2026-09-16T12:00:00Z",
+          },
+        }),
+      );
+      expect(saveStatus()).toBe("Unsaved changes");
+      expect(editor().getText()).toBe("First newer");
+      await advance(749);
+      expect(saveChapter).toHaveBeenCalledTimes(1);
+      await advance(1);
+      expect(saveChapter).toHaveBeenCalledTimes(2);
+      expect(saveStatus()).toBe("All changes saved");
+    });
+    it("reports an autosave failure, retains dirty content and retries after another edit", async () => {
+      await openChapter();
+      saveChapter.mockRejectedValueOnce(new Error("IPC failure"));
+      await editText();
+      await advance(750);
+      expect(saveStatus()).toBe("Unsaved changes");
+      expect(container.textContent).toContain("Unable to save the chapter");
+      expect(editor().getText()).toBe("Unsaved prose");
+      await advance(30000);
+      expect(saveChapter).toHaveBeenCalledTimes(1);
+      await editText(" retry");
+      await advance(750);
+      expect(saveChapter).toHaveBeenCalledTimes(2);
+      expect(saveStatus()).toBe("All changes saved");
+    });
+    it("flushes on window focus loss without waiting for the timer", async () => {
+      await openChapter();
+      await editText();
+      await act(async () => {
+        window.dispatchEvent(new Event("blur"));
+      });
+      expect(saveChapter).toHaveBeenCalledTimes(1);
+      expect(saveStatus()).toBe("All changes saved");
+      await advance(750);
+      expect(saveChapter).toHaveBeenCalledTimes(1);
+    });
+    it("flushes before leaving a project and requires retrying the guarded transition", async () => {
+      await openChapter();
+      await editText();
+      await click("Open project");
+      expect(saveChapter).toHaveBeenCalledTimes(1);
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(editor().getText()).toBe("Unsaved prose");
+      expect(saveStatus()).toBe("All changes saved");
+      await click("Open project");
+      expect(open).toHaveBeenCalledTimes(2);
+    });
+    it("requests a flush on application close, keeps the window open on failure and permits a clean retry", async () => {
+      await openChapter();
+      await editText();
+      saveChapter.mockResolvedValueOnce({
+        ok: false,
+        error: { code: "CHAPTER_SAVE_FAILED", message: "Cannot save now" },
+      });
+      const failedClose = new Event("beforeunload", { cancelable: true });
+      await act(async () => {
+        window.dispatchEvent(failedClose);
+      });
+      expect(failedClose.defaultPrevented).toBe(true);
+      expect(saveStatus()).toBe("Unsaved changes");
+      expect(container.textContent).toContain("Cannot save now");
+      const retry = new Event("beforeunload", { cancelable: true });
+      await act(async () => {
+        window.dispatchEvent(retry);
+      });
+      expect(retry.defaultPrevented).toBe(true);
+      expect(saveStatus()).toBe("All changes saved");
+      const cleanClose = new Event("beforeunload", { cancelable: true });
+      await act(async () => {
+        window.dispatchEvent(cleanClose);
+      });
+      expect(cleanClose.defaultPrevented).toBe(false);
+      expect(saveChapter).toHaveBeenCalledTimes(2);
+    });
+    it("survives StrictMode setup replay and removes timers and listeners on unmount", async () => {
+      await act(async () =>
+        root.render(createElement(StrictMode, null, createElement(App))),
+      );
+      await openChapter();
+      await editText();
+      await advance(750);
+      expect(saveChapter).toHaveBeenCalledTimes(1);
+      await editText(" more");
+      await act(async () => root.render(null));
+      await advance(1000);
+      await act(async () => {
+        window.dispatchEvent(new Event("blur"));
+      });
+      expect(saveChapter).toHaveBeenCalledTimes(1);
+    });
   });
 });

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createProject, createChapter, saveChapter } from "@bookeditor/core";
+import { createAutosaveCoordinator } from "@bookeditor/core/autosave";
 import { IPC, type ProjectOperationResult } from "@bookeditor/shared";
 const { handle } = vi.hoisted(() => ({ handle: vi.fn() }));
 vi.mock("electron", () => ({ ipcMain: { handle }, dialog: {} }));
@@ -98,6 +99,49 @@ it("round trips validated IPC through disk and a fresh main session", async () =
   expect(
     await restarted.invoke(IPC.PROJECT_LOAD_CHAPTER, { chapterId }),
   ).toEqual({ ok: true, value: { id: chapterId, content: document } });
+});
+
+it("autosaves a debounced revision through validated IPC to the chapter file", async () => {
+  const { root, chapterId, path } = await fixture();
+  const save = vi.fn(saveChapter);
+  const { invoke } = setup(root, save);
+  await invoke(IPC.PROJECT_OPEN);
+  let dirty = true;
+  const coordinator = createAutosaveCoordinator({
+    isDirty: () => dirty,
+    save: async () => {
+      const result = await invoke(IPC.PROJECT_SAVE_CHAPTER, {
+        chapterId,
+        document,
+      });
+      if (result.ok) dirty = false;
+      return result.ok;
+    },
+  });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    coordinator.edited();
+    await vi.advanceTimersByTimeAsync(749);
+    expect(save).not.toHaveBeenCalled();
+    coordinator.edited();
+    await vi.advanceTimersByTimeAsync(750);
+    expect(save).toHaveBeenCalledTimes(1);
+    // Await the already-started disk write without relying on filesystem timing.
+    expect(await coordinator.flush()).toBe(true);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({
+      id: chapterId,
+      content: document,
+    });
+    const restarted = setup(root);
+    await restarted.invoke(IPC.PROJECT_OPEN);
+    expect(
+      await restarted.invoke(IPC.PROJECT_LOAD_CHAPTER, { chapterId }),
+    ).toEqual({ ok: true, value: { id: chapterId, content: document } });
+  } finally {
+    coordinator.dispose();
+    vi.useRealTimers();
+  }
 });
 
 it("rejects unauthorized requests, invalid documents and renderer paths without changing disk", async () => {

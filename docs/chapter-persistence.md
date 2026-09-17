@@ -67,17 +67,55 @@ Undo/redo transactions also advance the revision: returning to earlier text can
 remain dirty until saved. Revision counters are conservative session state and
 are not stored in chapter JSON.
 
-Selecting another chapter while dirty or saving keeps the current chapter open
-and explains what to do. Creating a chapter, deleting the active chapter and
-opening a project (including a recent project) use the same guard. Save the latest
-edits, then repeat the action. Editing pauses during operations that can replace
-the active document, preventing new edits from being lost while those operations
-are pending. There is no automatic save or implicit discard.
+## Autosave scheduling and immediate triggers
+
+Issue #32 saves the active manuscript after **750 ms without an edit**. Each new
+edit resets that deadline. The host-independent coordinator lives in
+`packages/core/src/autosave.ts`; the renderer imports the dedicated
+`@bookeditor/core/autosave` export, which does not import filesystem helpers.
+Autosave and **Save chapter** share the existing validated main persistence
+service and renderer revision acknowledgements.
+
+Only one write runs at a time. Edits made during a write remain responsive and
+schedule their own idle deadline. If that deadline expires before the current
+write finishes, the next snapshot waits for it; further typing resets the pending
+deadline. Explicit flush requests bypass the delay and drain newer revisions in
+order until clean, sharing an in-flight write instead of starting overlapping
+writes. Clean documents do not trigger writes.
+
+Save failures are shown in the editor and retain dirty content. The coordinator
+does not automatically retry a failed revision, avoiding repeated disk writes
+and alerts. Newer edits keep their own debounce even if the preceding write fails.
+A new edit starts another debounce; **Save chapter**, window focus loss or another
+explicit flush request retries immediately. Disposal cancels timers and queued
+work while allowing an already-started atomic write to finish. React StrictMode
+setup/cleanup creates a fresh coordinator and removes old listeners.
+
+Window focus loss requests an immediate flush. Attempting to select another
+chapter, create a chapter, delete the active chapter or leave the project by
+opening another project also requests a flush. The existing transition guard
+keeps the active document open: once it is saved, repeat the action. Editing
+pauses only during operations that can replace the active document, not during
+an autosave.
+
+The renderer's `beforeunload` handler requests a flush and cancels a dirty or
+in-flight close/reload, using Electron's explicit return-value behavior (see
+[BrowserWindow close handling](https://www.electronjs.org/docs/latest/api/browser-window#event-close)).
+The application explains that closing must be retried after saving. A failed
+flush leaves the window open and the editor dirty. A subsequent clean close is
+allowed. DOM tests cover failed-close preservation, immediate close-trigger
+retry, clean close and listener cleanup. Native application-close behavior still
+needs verification on the supported desktop platforms.
+
+There is currently no separate project-close command. Leaving a project through
+Open project uses the flush trigger; the coordinator's `flush()` entry point is
+available for the future lifecycle/project-close coordinator. No session marker,
+shutdown discard choice or automatic post-save navigation is introduced here.
 
 ## Remaining workflow issues
 
-Debounced autosave (#32), keyboard/menu save integration (#33), saving automatically
-before chapter switching (#34) and safe shutdown (#35) remain separate work. Save
-before exiting; revision state is in memory and does not yet guard window close or
-provide crash recovery. The switch guard in #31 blocks navigation until saving
-succeeds instead of performing #34's automatic save-and-switch workflow.
+Keyboard/menu save integration (#33), automatic save-and-switch navigation (#34)
+and complete shutdown/project-close coordination (#35) remain separate work.
+#35 also requires session markers (#38). Close attempts now trigger a guarded
+flush, but forced process termination and operating-system shutdown are not crash
+recovery. Wait for **All changes saved** before exiting.
