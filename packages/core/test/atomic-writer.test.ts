@@ -102,3 +102,12 @@ describe("atomic JSON writer", () => {
     );
   });
 });
+
+it("preserves a pre-existing temporary recovery file", async () => {
+  const path = await createTemporaryFile();
+  await writeFile(`${path}.tmp`, "recoverable data");
+  await expect(writeJsonAtomically(path, {})).rejects.toMatchObject({
+    code: "PROJECT_FILE_WRITE_FAILED",
+  });
+  expect(await readFile(`${path}.tmp`, "utf8")).toBe("recoverable data");
+});

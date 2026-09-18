@@ -21,6 +21,12 @@ const api: BookEditorApi = {
     ipcRenderer.on(SHUTDOWN_REQUEST_CHANNEL, listener);
     return () => ipcRenderer.removeListener(SHUTDOWN_REQUEST_CHANNEL, listener);
   },
+  recovery: {
+    list: () => ipcRenderer.invoke(IPC.RECOVERY_LIST),
+    recover: (id) => ipcRenderer.invoke(IPC.RECOVERY_RECOVER, { id }),
+    discard: (id) => ipcRenderer.invoke(IPC.RECOVERY_DISCARD, { id }),
+    cancel: () => ipcRenderer.invoke(IPC.RECOVERY_CANCEL),
+  },
   project: {
     create: (input) => ipcRenderer.invoke(IPC.PROJECT_CREATE, input),
     selectLocation: () => ipcRenderer.invoke(IPC.PROJECT_SELECT_LOCATION),

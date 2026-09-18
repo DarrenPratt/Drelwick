@@ -29,6 +29,7 @@ import {
 import type { RecentProjects } from "../recent-projects.js";
 
 interface Dependencies {
+  startupBlocked(): boolean;
   selectFolder(window: BrowserWindow): Promise<string | null>;
   create: typeof createProject;
   createChapter: typeof createChapter;
@@ -43,6 +44,7 @@ interface Dependencies {
 }
 
 const dependencies: Dependencies = {
+  startupBlocked: () => false,
   selectFolder: async (window) => {
     const result = await dialog.showOpenDialog(window, {
       title: "Choose an empty folder for your book",
@@ -89,6 +91,7 @@ export function registerProjectHandlers(
   const trusted = (event: IpcMainInvokeEvent) => {
     const window = getWindow();
     return (
+      !services.startupBlocked() &&
       window &&
       !window.isDestroyed() &&
       event.sender === window.webContents &&

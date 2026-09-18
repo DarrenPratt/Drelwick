@@ -84,6 +84,18 @@ describe("preload API", () => {
     expect(invoke).toHaveBeenLastCalledWith("application:shutdown-ready", {
       saved: true,
     });
+    await api.recovery.list();
+    expect(invoke).toHaveBeenLastCalledWith("recovery:list");
+    await api.recovery.recover(input.locationToken);
+    expect(invoke).toHaveBeenLastCalledWith("recovery:recover", {
+      id: input.locationToken,
+    });
+    await api.recovery.discard(input.locationToken);
+    expect(invoke).toHaveBeenLastCalledWith("recovery:discard", {
+      id: input.locationToken,
+    });
+    await api.recovery.cancel();
+    expect(invoke).toHaveBeenLastCalledWith("recovery:cancel");
     removeShutdown();
     expect(removeListener).toHaveBeenCalledWith(
       "application:shutdown-request",

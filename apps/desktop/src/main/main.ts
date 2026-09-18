@@ -8,6 +8,7 @@ import { RecoveryService } from "@bookeditor/core";
 
 import { createMainWindow, getRendererUrl } from "./windows/main-window.js";
 import { registerProjectHandlers } from "./ipc/project-handlers.js";
+import { registerRecoveryHandlers } from "./ipc/recovery-handlers.js";
 import { RecentProjects } from "./recent-projects.js";
 import { installApplicationMenu } from "./application-menu.js";
 import { SessionMarkerService } from "./session-marker.js";
@@ -17,6 +18,9 @@ let sessionMarker: SessionMarkerService | undefined;
 let quitting = false;
 let shutdownPending = false;
 const recoveryService = new RecoveryService();
+let recoveryScanError: string | undefined;
+const recoveryPending = () =>
+  Boolean(recoveryScanError) || recoveryService.getCandidates().length > 0;
 
 function createApplicationWindow(): void {
   mainWindow = createMainWindow();
@@ -37,7 +41,8 @@ void app.whenReady().then(async () => {
         for (const project of recentProjects)
           await recoveryService.scanProject(project.path);
       } catch {
-        console.error("Crash recovery scan failed.");
+        recoveryScanError =
+          "Unable to scan recovery data. Check recent project folders, then cancel startup and retry.";
       }
     }
   } catch {
@@ -46,7 +51,15 @@ void app.whenReady().then(async () => {
   }
   registerProjectHandlers(() => mainWindow, getRendererUrl(), {
     recents: new RecentProjects(app.getPath("userData")),
+    startupBlocked: recoveryPending,
   });
+  registerRecoveryHandlers(
+    () => mainWindow,
+    getRendererUrl(),
+    recoveryService,
+    () => app.exit(0),
+    recoveryScanError,
+  );
   ipcMain.handle(IPC.APPLICATION_SHUTDOWN_READY, async (event, payload) => {
     if (
       !shutdownPending ||
@@ -64,7 +77,7 @@ void app.whenReady().then(async () => {
       return;
     }
     try {
-      await sessionMarker?.markClean();
+      if (!recoveryPending()) await sessionMarker?.markClean();
       app.exit(0);
     } catch {
       quitting = false;
@@ -90,6 +103,10 @@ app.on("before-quit", (event) => {
   if (quitting || !sessionMarker || !mainWindow) return;
   event.preventDefault();
   if (shutdownPending) return;
+  if (recoveryPending()) {
+    app.exit(0);
+    return;
+  }
   quitting = true;
   shutdownPending = true;
   mainWindow.webContents.send(SHUTDOWN_REQUEST_CHANNEL);

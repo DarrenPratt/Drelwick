@@ -16,6 +16,10 @@ export const ChapterStatusSchema = z.enum([
 export type ChapterStatus = z.infer<typeof ChapterStatusSchema>;
 
 export const IPC = {
+  RECOVERY_LIST: "recovery:list",
+  RECOVERY_RECOVER: "recovery:recover",
+  RECOVERY_DISCARD: "recovery:discard",
+  RECOVERY_CANCEL: "recovery:cancel",
   PROJECT_SELECT_LOCATION: "project:select-location",
   PROJECT_CREATE: "project:create",
   PROJECT_OPEN: "project:open",
@@ -77,6 +81,10 @@ export type ProjectOperationResult<T> =
   | { ok: false; error: { code: string; message: string } };
 
 export const IpcRequestSchemas = {
+  [IPC.RECOVERY_LIST]: z.undefined(),
+  [IPC.RECOVERY_CANCEL]: z.undefined(),
+  [IPC.RECOVERY_RECOVER]: z.object({ id: z.string().uuid() }).strict(),
+  [IPC.RECOVERY_DISCARD]: z.object({ id: z.string().uuid() }).strict(),
   [IPC.PROJECT_CREATE]: CreateProjectRequestSchema,
   [IPC.PROJECT_SELECT_LOCATION]: z.undefined(),
   [IPC.PROJECT_OPEN]: z.undefined(),
@@ -111,7 +119,27 @@ export function validateIpcPayload<Channel extends IpcChannel>(
   return IpcRequestSchemas[channel].parse(payload) as IpcRequestMap[Channel];
 }
 
+export interface RecoveryCandidateSummary {
+  id: string;
+  projectPath: string;
+  chapterId: string;
+  title: string;
+  created: string;
+  source: "temporary" | "history";
+}
+
 export interface BookEditorApi {
+  recovery: {
+    list(): Promise<ProjectOperationResult<RecoveryCandidateSummary[]>>;
+    recover(
+      id: string,
+    ): Promise<ProjectOperationResult<RecoveryCandidateSummary[]>>;
+    discard(
+      id: string,
+    ): Promise<ProjectOperationResult<RecoveryCandidateSummary[]>>;
+    cancel(): Promise<ProjectOperationResult<null>>;
+  };
+
   onSaveRequested(callback: () => void): () => void;
   onShutdownRequested(callback: () => Promise<boolean>): () => void;
   project: {
