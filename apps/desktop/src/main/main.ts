@@ -4,6 +4,7 @@ import {
   SHUTDOWN_REQUEST_CHANNEL,
   validateIpcPayload,
 } from "@bookeditor/shared";
+import { RecoveryService } from "@bookeditor/core";
 
 import { createMainWindow, getRendererUrl } from "./windows/main-window.js";
 import { registerProjectHandlers } from "./ipc/project-handlers.js";
@@ -15,6 +16,7 @@ let mainWindow: BrowserWindow | undefined;
 let sessionMarker: SessionMarkerService | undefined;
 let quitting = false;
 let shutdownPending = false;
+const recoveryService = new RecoveryService();
 
 function createApplicationWindow(): void {
   mainWindow = createMainWindow();
@@ -26,7 +28,18 @@ function createApplicationWindow(): void {
 void app.whenReady().then(async () => {
   sessionMarker = new SessionMarkerService(app.getPath("userData"));
   try {
-    await sessionMarker.start();
+    const startup = await sessionMarker.start();
+    if (startup.wasUnclean) {
+      try {
+        const recentProjects = await new RecentProjects(
+          app.getPath("userData"),
+        ).list();
+        for (const project of recentProjects)
+          await recoveryService.scanProject(project.path);
+      } catch {
+        console.error("Crash recovery scan failed.");
+      }
+    }
   } catch {
     app.quit();
     return;

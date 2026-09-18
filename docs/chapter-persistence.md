@@ -141,9 +141,14 @@ Retention keeps all snapshots for 24 hours, then one per UTC hour through seven
 days and one per UTC day through 30 days; older validated snapshots are removed.
 Invalid history files and authoritative manuscript files are left untouched.
 
-Complete shutdown/project-close coordination (#35) remains separate work. The
-application-owned session marker is implemented separately from renderer flush;
-#35 must integrate the marker only after pending persistence succeeds. Close
-attempts now trigger a guarded flush, but forced process termination and
-operating-system shutdown are not crash recovery. Wait for **All changes saved**
-before exiting.
+After an unclean application shutdown, startup scans each recent project for
+validated chapter temporary files and history snapshots newer than the
+authoritative chapter's `modified` timestamp. Invalid files, symlinks and
+unbounded paths are ignored safely. The scan only reports candidates; it never
+replaces a manuscript file automatically. Recovery actions remain an explicit
+startup workflow.
+
+Application shutdown uses the session marker only after pending persistence
+succeeds. Close attempts now trigger a guarded flush, but forced process
+termination and operating-system shutdown are not crash recovery. Wait for
+**All changes saved** before exiting.

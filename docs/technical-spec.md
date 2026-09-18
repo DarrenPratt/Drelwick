@@ -1067,7 +1067,16 @@ written only after the renderer confirms persistence.
 
 # 32. Recovery
 
-Recovery should initially compare timestamps.
+Recovery initially compares timestamps. After the session marker detects an
+unclean shutdown, startup scans recent projects for valid chapter temporary
+files (`manuscript/<chapter-id>.json.tmp`) and history snapshots under
+`.history/snapshots/<chapter-id>/`. Candidate documents must pass the
+versioned project schemas and must be newer than the persisted chapter's
+`modified` timestamp. Invalid JSON/schema data, symlinks and paths outside
+these bounded locations are ignored.
+
+The scan is read-only: it identifies candidates for a later explicit recovery
+decision and never overwrites an authoritative manuscript automatically.
 
 Possible workflow:
 
