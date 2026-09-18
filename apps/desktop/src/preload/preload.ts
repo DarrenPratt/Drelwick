@@ -1,5 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { IPC, SAVE_COMMAND_CHANNEL } from "@bookeditor/shared";
+import {
+  IPC,
+  SAVE_COMMAND_CHANNEL,
+  SHUTDOWN_REQUEST_CHANNEL,
+} from "@bookeditor/shared";
 import type { BookEditorApi } from "@bookeditor/shared";
 
 const api: BookEditorApi = {
@@ -7,6 +11,15 @@ const api: BookEditorApi = {
     const listener = () => callback();
     ipcRenderer.on(SAVE_COMMAND_CHANNEL, listener);
     return () => ipcRenderer.removeListener(SAVE_COMMAND_CHANNEL, listener);
+  },
+  onShutdownRequested: (callback) => {
+    const listener = () => {
+      void callback().then((saved) =>
+        ipcRenderer.invoke(IPC.APPLICATION_SHUTDOWN_READY, { saved }),
+      );
+    };
+    ipcRenderer.on(SHUTDOWN_REQUEST_CHANNEL, listener);
+    return () => ipcRenderer.removeListener(SHUTDOWN_REQUEST_CHANNEL, listener);
   },
   project: {
     create: (input) => ipcRenderer.invoke(IPC.PROJECT_CREATE, input),

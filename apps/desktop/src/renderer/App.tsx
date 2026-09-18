@@ -175,6 +175,18 @@ export function App() {
     };
   }, [persistDocument]);
 
+  useEffect(() => {
+    return window.bookEditor.onShutdownRequested(async () => {
+      const saved = (await autosave.current?.flush()) ?? true;
+      if (!saved) {
+        setError(
+          "Unable to save changes before closing. Your edits remain available; try closing again.",
+        );
+      }
+      return saved;
+    });
+  }, []);
+
   const saveActiveChapter = useCallback(() => {
     if (!documentReady || changingDocument) return;
     setError("");

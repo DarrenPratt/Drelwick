@@ -36,9 +36,11 @@ const loadChapter = vi.fn<BookEditorApi["project"]["loadChapter"]>();
 let root: Root;
 let container: HTMLDivElement;
 const saveListeners = new Set<() => void>();
+const shutdownListeners = new Set<() => Promise<boolean>>();
 
 beforeEach(async () => {
   saveListeners.clear();
+  shutdownListeners.clear();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   // jsdom has no native modal implementation; Electron smoke testing covers it.
   HTMLDialogElement.prototype.showModal = function () {
@@ -80,6 +82,12 @@ beforeEach(async () => {
       saveListeners.add(callback);
       return () => {
         saveListeners.delete(callback);
+      };
+    }),
+    onShutdownRequested: vi.fn((callback) => {
+      shutdownListeners.add(callback);
+      return () => {
+        shutdownListeners.delete(callback);
       };
     }),
     project: {

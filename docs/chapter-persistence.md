@@ -108,10 +108,16 @@ allowed. DOM tests cover failed-close preservation, immediate close-trigger
 retry, clean close and listener cleanup. Native application-close behavior still
 needs verification on the supported desktop platforms.
 
+Application shutdown uses a restricted main/preload handshake. The main process
+intercepts the quit request and asks the renderer to flush its coordinator. The
+renderer reports whether persistence succeeded; failure cancels the quit and
+keeps the session marker unclean. Only a successful response allows the main
+process to mark the session clean and exit.
+
 There is currently no separate project-close command. Leaving a project through
 Open project uses the flush trigger; the coordinator's `flush()` entry point is
-available for the future lifecycle/project-close coordinator. No session marker,
-shutdown discard choice or automatic post-save navigation is introduced here.
+also used by the application shutdown coordinator. No shutdown discard choice or
+automatic post-save navigation is introduced here.
 
 ## Remaining workflow issues
 

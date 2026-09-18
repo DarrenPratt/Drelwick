@@ -1050,6 +1050,12 @@ Check:
 
 Then offer recovery.
 
+Application quit is coordinated through a restricted main/preload handshake.
+The main process intercepts the quit request, asks the renderer to flush pending
+autosaves, and accepts a success response only from the trusted main frame. A
+failed flush cancels the quit and leaves the marker unclean; the clean marker is
+written only after the renderer confirms persistence.
+
 ---
 
 # 32. Recovery
