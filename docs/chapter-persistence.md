@@ -114,8 +114,18 @@ shutdown discard choice or automatic post-save navigation is introduced here.
 
 ## Remaining workflow issues
 
-Keyboard/menu save integration (#33), automatic save-and-switch navigation (#34)
-and complete shutdown/project-close coordination (#35) remain separate work.
+Issue #33 adds **File → Save** and **Ctrl+S / Cmd+S**. These and **Save chapter**
+invoke the same guarded renderer command and autosave coordinator flush. The
+native menu sends a payload-free notification through a restricted preload
+subscription; the renderer never receives Electron events or arbitrary channels.
+Subscriptions and keyboard listeners are removed on cleanup. Saving is a no-op
+without a loaded active chapter or during document replacement. Clean documents
+are not rewritten. Repeated requests share the in-flight write and drain newer
+edits. The existing save status shows saving, unsaved changes or all changes saved;
+failures retain the document and show an actionable error for manual retry.
+
+Automatic save-and-switch navigation (#34) and complete shutdown/project-close
+coordination (#35) remain separate work.
 #35 also requires session markers (#38). Close attempts now trigger a guarded
 flush, but forced process termination and operating-system shutdown are not crash
 recovery. Wait for **All changes saved** before exiting.

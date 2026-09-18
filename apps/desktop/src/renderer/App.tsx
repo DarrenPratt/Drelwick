@@ -173,11 +173,32 @@ export function App() {
     };
   }, [persistDocument]);
 
-  function saveActiveChapter() {
+  const saveActiveChapter = useCallback(() => {
     if (!documentReady || changingDocument) return;
     setError("");
     void autosave.current?.flush();
-  }
+  }, [documentReady, changingDocument]);
+
+  useEffect(() => {
+    const unsubscribe = window.bookEditor.onSaveRequested(saveActiveChapter);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() !== "s" ||
+        !(event.ctrlKey || event.metaKey) ||
+        event.altKey ||
+        event.shiftKey ||
+        event.isComposing
+      )
+        return;
+      event.preventDefault();
+      saveActiveChapter();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [saveActiveChapter]);
 
   function canLeaveChapter() {
     if (
@@ -504,6 +525,7 @@ export function App() {
               )}
               <button
                 type="button"
+                aria-keyshortcuts="Control+s Meta+s"
                 disabled={saving || !documentReady || changingDocument}
                 onClick={() => void saveActiveChapter()}
               >

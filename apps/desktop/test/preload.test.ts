@@ -3,10 +3,12 @@ import type { BookEditorApi } from "@bookeditor/shared";
 
 const exposeInMainWorld = vi.fn();
 const invoke = vi.fn(() => Promise.resolve());
+const on = vi.fn();
+const removeListener = vi.fn();
 
 vi.mock("electron", () => ({
   contextBridge: { exposeInMainWorld },
-  ipcRenderer: { invoke },
+  ipcRenderer: { invoke, on, removeListener },
 }));
 
 describe("preload API", () => {
@@ -29,6 +31,14 @@ describe("preload API", () => {
     );
 
     const [, api] = exposeInMainWorld.mock.calls[0] as [string, BookEditorApi];
+    const callback = vi.fn();
+    const unsubscribe = api.onSaveRequested(callback);
+    expect(on).toHaveBeenCalledWith("command:save", expect.any(Function));
+    const listener = on.mock.calls[0]?.[1] as (...args: unknown[]) => void;
+    listener({ sender: "privileged event" }, "unexpected payload");
+    expect(callback).toHaveBeenCalledExactlyOnceWith();
+    unsubscribe();
+    expect(removeListener).toHaveBeenCalledWith("command:save", listener);
     const input = {
       title: "Book",
       author: "Author",

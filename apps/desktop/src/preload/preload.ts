@@ -1,8 +1,13 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { IPC } from "@bookeditor/shared";
+import { IPC, SAVE_COMMAND_CHANNEL } from "@bookeditor/shared";
 import type { BookEditorApi } from "@bookeditor/shared";
 
 const api: BookEditorApi = {
+  onSaveRequested: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on(SAVE_COMMAND_CHANNEL, listener);
+    return () => ipcRenderer.removeListener(SAVE_COMMAND_CHANNEL, listener);
+  },
   project: {
     create: (input) => ipcRenderer.invoke(IPC.PROJECT_CREATE, input),
     selectLocation: () => ipcRenderer.invoke(IPC.PROJECT_SELECT_LOCATION),

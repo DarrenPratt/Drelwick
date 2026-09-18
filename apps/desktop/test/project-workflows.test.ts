@@ -35,8 +35,10 @@ const saveChapter = vi.fn<BookEditorApi["project"]["saveChapter"]>();
 const loadChapter = vi.fn<BookEditorApi["project"]["loadChapter"]>();
 let root: Root;
 let container: HTMLDivElement;
+const saveListeners = new Set<() => void>();
 
 beforeEach(async () => {
+  saveListeners.clear();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   // jsdom has no native modal implementation; Electron smoke testing covers it.
   HTMLDialogElement.prototype.showModal = function () {
@@ -74,6 +76,12 @@ beforeEach(async () => {
     vi.fn(() => true),
   );
   window.bookEditor = {
+    onSaveRequested: vi.fn((callback) => {
+      saveListeners.add(callback);
+      return () => {
+        saveListeners.delete(callback);
+      };
+    }),
     project: {
       create,
       selectLocation,
@@ -596,6 +604,73 @@ describe("existing project workflow", () => {
 });
 
 describe("chapter editor persistence", () => {
+  async function shortcut(modifiers: KeyboardEventInit) {
+    const event = new KeyboardEvent("keydown", {
+      key: "s",
+      bubbles: true,
+      cancelable: true,
+      ...modifiers,
+    });
+    await act(async () => {
+      (container.querySelector(".tiptap") ?? window).dispatchEvent(event);
+    });
+    return event;
+  }
+
+  it.each([{ ctrlKey: true }, { metaKey: true }])(
+    "flushes immediately from the editor with %j and reports failure/retry",
+    async (modifiers) => {
+      vi.useFakeTimers();
+      await openChapter();
+      await editText();
+      saveChapter.mockResolvedValueOnce({
+        ok: false,
+        error: { code: "CHAPTER_SAVE_FAILED", message: "Save failed; retry." },
+      });
+      expect((await shortcut(modifiers)).defaultPrevented).toBe(true);
+      expect(saveChapter).toHaveBeenCalledExactlyOnceWith({
+        chapterId: "123e4567-e89b-42d3-a456-426614174001",
+        document: editor().getJSON(),
+      });
+      expect(saveStatus()).toBe("Unsaved changes");
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+        "Save failed; retry.",
+      );
+      expect(editor().getText()).toBe("Unsaved prose");
+      await shortcut(modifiers);
+      expect(saveStatus()).toBe("All changes saved");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(saveChapter).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("shares the menu command, ignores unrelated keys and removes listeners", async () => {
+    await shortcut({ ctrlKey: true });
+    expect(saveChapter).not.toHaveBeenCalled();
+    await openChapter();
+    await editText();
+    for (const modifiers of [
+      {},
+      { ctrlKey: true, shiftKey: true },
+      { metaKey: true, altKey: true },
+    ]) {
+      // The editor may handle these combinations for its own formatting commands.
+      await shortcut(modifiers);
+    }
+    expect(saveChapter).not.toHaveBeenCalled();
+    expect(saveListeners.size).toBe(1);
+    await act(async () => {
+      saveListeners.forEach((callback) => callback());
+    });
+    expect(saveChapter).toHaveBeenCalledTimes(1);
+    expect(saveStatus()).toBe("All changes saved");
+    await act(async () => root.render(null));
+    expect(saveListeners.size).toBe(0);
+    expect((await shortcut({ ctrlKey: true })).defaultPrevented).toBe(false);
+  });
+
   async function openChapter() {
     open.mockResolvedValueOnce({
       ok: true,
@@ -675,6 +750,8 @@ describe("chapter editor persistence", () => {
       editor().commands.insertContent("Newer edit");
     });
     await click("Saving chapter...");
+    await shortcut({ ctrlKey: true });
+    await shortcut({ metaKey: true });
     expect(saveChapter).toHaveBeenCalledTimes(1);
     await act(async () =>
       finish({
