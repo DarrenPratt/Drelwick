@@ -974,6 +974,13 @@ service suppresses identical content and does not create another interval
 snapshot within five minutes; snapshot write failures never replace or modify
 the authoritative chapter file.
 
+Retention removes only validated snapshot JSON files beneath `.history` using
+the initial policy: keep every snapshot for 24 hours, retain at most one
+snapshot per chapter and UTC hour through seven days, retain at most one per
+UTC day through 30 days, and remove older snapshots. Invalid history files are
+left untouched for inspection, and active manuscript files are never scanned or
+deleted by retention.
+
 Additionally create snapshots on:
 
 ```text

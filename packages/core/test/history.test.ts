@@ -2,7 +2,10 @@ import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { createHistorySnapshot } from "../src/history.js";
+import {
+  applyHistoryRetention,
+  createHistorySnapshot,
+} from "../src/history.js";
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -113,7 +116,50 @@ it("ignores invalid history files and reports write failures", async () => {
         writeJson: async () => {
           throw new Error("disk full");
         },
+        unlink: async () => undefined,
       },
     ),
   ).rejects.toMatchObject({ code: "HISTORY_SNAPSHOT_WRITE_FAILED" });
+});
+
+it("retains recent, hourly, and daily history without touching manuscript files", async () => {
+  const root = await setup();
+  const chapterId = "123e4567-e89b-42d3-a456-426614174001";
+  const dates = [
+    "2026-08-01T12:00:00.000Z",
+    "2026-09-10T08:00:00.000Z",
+    "2026-09-10T12:00:00.000Z",
+    "2026-09-17T11:30:00.000Z",
+    "2026-09-17T12:00:00.000Z",
+    "2026-09-18T11:00:00.000Z",
+    "2026-09-18T12:00:00.000Z",
+  ];
+  for (const [index, date] of dates.entries()) {
+    await createHistorySnapshot({
+      projectPath: root,
+      chapterId,
+      document: {
+        ...document,
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: `${index}` }],
+          },
+        ],
+      },
+      now: date,
+      reason: "manual",
+    });
+  }
+  const fs = await import("node:fs/promises");
+  const chapterPath = join(root, "manuscript", `${chapterId}.json`);
+  await fs.mkdir(join(root, "manuscript"), { recursive: true });
+  await fs.writeFile(chapterPath, "authoritative", "utf8");
+  expect(await applyHistoryRetention(root, "2026-09-18T13:00:00.000Z")).toEqual(
+    { removed: 2, retained: 5 },
+  );
+  expect(await readFile(chapterPath, "utf8")).toBe("authoritative");
+  expect(
+    await readdir(join(root, ".history", "snapshots", chapterId)),
+  ).toHaveLength(5);
 });
