@@ -824,7 +824,7 @@ describe("chapter editor persistence", () => {
         [index]?.click();
     });
   }
-  it("blocks dirty chapter switches, including after failed saves, until the latest edits are saved", async () => {
+  it("flushes dirty chapter switches and keeps the current chapter after a failed save", async () => {
     await openTwoChapters();
     expect(saveStatus()).toBe("All changes saved");
     await editText();
@@ -838,18 +838,7 @@ describe("chapter editor persistence", () => {
     expect(
       container.querySelector('[aria-current="page"]')?.textContent,
     ).toContain("First");
-    expect(container.textContent).toContain(
-      "Try switching again after all changes are saved",
-    );
-    saveChapter.mockResolvedValueOnce({
-      ok: false,
-      error: { code: "CHAPTER_SAVE_FAILED", message: "Retry saving" },
-    });
-    await click("Save chapter");
-    await select(1);
-    expect(saveStatus()).toBe("Unsaved changes");
-    expect(editor().getText()).toBe("Unsaved prose");
-    expect(loadChapter).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain("current chapter remains open");
     saveChapter.mockResolvedValue({
       ok: true,
       value: {
@@ -857,7 +846,6 @@ describe("chapter editor persistence", () => {
         modified: "2026-09-16T12:00:00Z",
       },
     });
-    await click("Save chapter");
     await select(1);
     expect(loadChapter).toHaveBeenCalledTimes(2);
     expect(
@@ -882,7 +870,7 @@ describe("chapter editor persistence", () => {
     expect(editor().getText()).toBe("Unsaved prose");
     expect(saveStatus()).toBe("Unsaved changes");
   });
-  it("blocks switches during an in-flight save and leaves rejected saves dirty", async () => {
+  it("waits for an in-flight save and leaves rejected saves dirty", async () => {
     await openTwoChapters();
     await editText();
     let reject!: (error: Error) => void;
@@ -893,16 +881,17 @@ describe("chapter editor persistence", () => {
     );
     await click("Save chapter");
     await editText(" newer");
-    await select(1);
+    act(() => {
+      container
+        .querySelectorAll<HTMLButtonElement>(".chapter-select")[1]
+        ?.click();
+    });
     expect(loadChapter).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain(
-      "Try switching again after all changes are saved",
-    );
     await act(async () => reject(new Error("IPC failed")));
     expect(saveStatus()).toBe("Unsaved changes");
     expect(editor().getText()).toBe("Unsaved prose newer");
     await select(1);
-    expect(loadChapter).toHaveBeenCalledTimes(1);
+    expect(loadChapter).toHaveBeenCalledTimes(2);
   });
   it("does not clear dirty state for an acknowledgement naming another chapter", async () => {
     await openChapter();
@@ -926,7 +915,7 @@ describe("chapter editor persistence", () => {
     expect(saveChapter.mock.calls[0]?.[0].document).toEqual(editor().getJSON());
     expect(saveStatus()).toBe("All changes saved");
   });
-  it("prevents a chapter switch immediately after an editor transaction", async () => {
+  it("flushes a chapter switch immediately after an editor transaction", async () => {
     await openTwoChapters();
     await act(async () => {
       editor().commands.insertContent("Immediate edit");
@@ -934,8 +923,8 @@ describe("chapter editor persistence", () => {
         .querySelectorAll<HTMLButtonElement>(".chapter-select")[1]
         ?.click();
     });
-    expect(loadChapter).toHaveBeenCalledTimes(1);
-    expect(editor().getText()).toBe("Immediate edit");
+    expect(loadChapter).toHaveBeenCalledTimes(2);
+    expect(editor().getText()).toBe("");
     expect(saveStatus()).toBe("All changes saved");
     expect(saveChapter).toHaveBeenCalledTimes(1);
   });

@@ -94,9 +94,10 @@ setup/cleanup creates a fresh coordinator and removes old listeners.
 Window focus loss requests an immediate flush. Attempting to select another
 chapter, create a chapter, delete the active chapter or leave the project by
 opening another project also requests a flush. The existing transition guard
-keeps the active document open: once it is saved, repeat the action. Editing
-pauses only during operations that can replace the active document, not during
-an autosave.
+waits for chapter saves before replacing the active document; a failed save
+keeps the current chapter open and reports an actionable error. Editing pauses
+only during operations that can replace the active document, not during an
+autosave.
 
 The renderer's `beforeunload` handler requests a flush and cancels a dirty or
 in-flight close/reload, using Electron's explicit return-value behavior (see
@@ -124,8 +125,7 @@ are not rewritten. Repeated requests share the in-flight write and drain newer
 edits. The existing save status shows saving, unsaved changes or all changes saved;
 failures retain the document and show an actionable error for manual retry.
 
-Automatic save-and-switch navigation (#34) and complete shutdown/project-close
-coordination (#35) remain separate work.
+Complete shutdown/project-close coordination (#35) remains separate work.
 #35 also requires session markers (#38). Close attempts now trigger a guarded
 flush, but forced process termination and operating-system shutdown are not crash
 recovery. Wait for **All changes saved** before exiting.
