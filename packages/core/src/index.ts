@@ -12,6 +12,7 @@ export * from "./chapter-ordering.js";
 export * from "./chapter-loading.js";
 export * from "./chapter-saving.js";
 export * from "./chapter-rename.js";
+export * from "./history.js";
 import {
   BookMetadataSchema,
   ChapterFileSchema,

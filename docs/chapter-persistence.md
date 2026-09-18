@@ -125,6 +125,12 @@ are not rewritten. Repeated requests share the in-flight write and drain newer
 edits. The existing save status shows saving, unsaved changes or all changes saved;
 failures retain the document and show an actionable error for manual retry.
 
+Periodic history snapshots are stored independently under
+`.history/snapshots/<chapter-id>/` as versioned chapter documents. The history
+service validates snapshots before writing, limits interval snapshots to one
+per five minutes per chapter, and suppresses identical content. Snapshot
+failures are reported without affecting the authoritative chapter file.
+
 Complete shutdown/project-close coordination (#35) remains separate work. The
 application-owned session marker is implemented separately from renderer flush;
 #35 must integrate the marker only after pending persistence succeeds. Close

@@ -967,6 +967,13 @@ History snapshot:
 maximum once every 5 minutes while editing
 ```
 
+Interval snapshots are stored as versioned JSON documents under
+`.history/snapshots/<chapter-id>/`. Each snapshot records its UUID, chapter ID,
+creation timestamp, reason and validated manuscript document. The history
+service suppresses identical content and does not create another interval
+snapshot within five minutes; snapshot write failures never replace or modify
+the authoritative chapter file.
+
 Additionally create snapshots on:
 
 ```text
