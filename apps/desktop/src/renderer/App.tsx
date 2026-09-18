@@ -38,6 +38,7 @@ export function App() {
   const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
   const [newChapterTitle, setNewChapterTitle] = useState("");
   const [creatingChapter, setCreatingChapter] = useState(false);
+  const [switchingChapter, setSwitchingChapter] = useState(false);
   const [draggedChapterId, setDraggedChapterId] = useState<string | null>(null);
   const [documentState, reduceDocument] = useReducer(documentReducer, null);
   const documentRef = useRef<DocumentState | null>(null);
@@ -61,7 +62,8 @@ export function App() {
   const savePending = useRef(false);
   const nextSaveRequest = useRef(0);
   const autosave = useRef<AutosaveCoordinator | null>(null);
-  const changingDocument = opening || creatingChapter || deletingChapter;
+  const changingDocument =
+    opening || creatingChapter || deletingChapter || switchingChapter;
 
   useEffect(() => {
     if (!projectPath || !activeChapterId) return;
@@ -220,12 +222,37 @@ export function App() {
     return true;
   }
 
-  function selectChapter(chapterId: string) {
-    if (chapterId === activeChapterId || !canLeaveChapter()) return;
+  async function selectChapter(chapterId: string) {
+    if (
+      chapterId === activeChapterId ||
+      switchingChapter ||
+      opening ||
+      creatingChapter ||
+      deletingChapter
+    )
+      return;
+    setSwitchingChapter(true);
     setError("");
-    setEditorError("");
-    setDocumentSession((session) => session + 1);
-    setActiveChapterId(chapterId);
+    try {
+      if (savePending.current || isDocumentDirty(documentRef.current)) {
+        const saved = await autosave.current?.flush();
+        if (
+          !saved ||
+          savePending.current ||
+          isDocumentDirty(documentRef.current)
+        ) {
+          setError(
+            "Unable to save changes. The current chapter remains open; please try again.",
+          );
+          return;
+        }
+      }
+      setEditorError("");
+      setDocumentSession((session) => session + 1);
+      setActiveChapterId(chapterId);
+    } finally {
+      setSwitchingChapter(false);
+    }
   }
 
   useEffect(() => {
@@ -609,7 +636,7 @@ export function App() {
                     aria-current={
                       activeChapterId === chapter.id ? "page" : undefined
                     }
-                    onClick={() => selectChapter(chapter.id)}
+                    onClick={() => void selectChapter(chapter.id)}
                   >
                     <span>{chapter.title}</span>
                     <small>
