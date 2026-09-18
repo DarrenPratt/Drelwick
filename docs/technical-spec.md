@@ -1000,29 +1000,39 @@ interface HistorySnapshot {
 
 # 31. Crash Detection
 
-Create a session marker at startup:
+Create an application-owned session marker at startup in Electron's
+`app.getPath("userData")` directory. The current marker is schema version 1
+and is written atomically:
 
 ```text
-.session
+<userData>/session.json
 ```
 
 Example:
 
 ```json
 {
+  "schemaVersion": 1,
   "sessionId": "...",
   "started": "...",
   "cleanShutdown": false
 }
 ```
 
-On normal shutdown:
+The desktop lifecycle service treats one marker as the authoritative session
+for this application installation. A second startup reports an active previous
+marker as unclean before replacing it with its own marker; concurrent launches
+are not merged. Corrupt or unsupported markers are preserved and prevent
+startup rather than being silently replaced.
+
+On normal shutdown, after the quit request has been intercepted:
 
 ```text
 cleanShutdown = true
 ```
 
-At next startup, if a previous session is unclean:
+Forced termination, process crashes and operating-system termination do not
+reach the clean-marker write. At next startup, if a previous session is unclean:
 
 ```text
 Check:

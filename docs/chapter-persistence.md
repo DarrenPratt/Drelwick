@@ -125,7 +125,9 @@ are not rewritten. Repeated requests share the in-flight write and drain newer
 edits. The existing save status shows saving, unsaved changes or all changes saved;
 failures retain the document and show an actionable error for manual retry.
 
-Complete shutdown/project-close coordination (#35) remains separate work.
-#35 also requires session markers (#38). Close attempts now trigger a guarded
-flush, but forced process termination and operating-system shutdown are not crash
-recovery. Wait for **All changes saved** before exiting.
+Complete shutdown/project-close coordination (#35) remains separate work. The
+application-owned session marker is implemented separately from renderer flush;
+#35 must integrate the marker only after pending persistence succeeds. Close
+attempts now trigger a guarded flush, but forced process termination and
+operating-system shutdown are not crash recovery. Wait for **All changes saved**
+before exiting.

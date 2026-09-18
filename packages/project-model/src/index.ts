@@ -131,4 +131,15 @@ export const RecentProjectsSettingsSchema = z
   })
   .strict();
 
+export const SessionMarkerSchema = z
+  .object({
+    schemaVersion,
+    sessionId: uuid,
+    started: isoDate,
+    cleanShutdown: z.boolean(),
+    shutdown: isoDate.optional(),
+  })
+  .strict();
+export type SessionMarker = z.infer<typeof SessionMarkerSchema>;
+
 export { ManuscriptDocumentSchema } from "./manuscript-document.js";
