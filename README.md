@@ -23,8 +23,9 @@ immediately. **File → Save**, **Ctrl+S** (Windows/Linux) and **Cmd+S** (macOS)
 also save the active chapter immediately. **Unsaved changes** tracks edits, including those made during a save.
 Focus loss and attempts to leave the document flush pending edits. If switching
 or closing is blocked for saving, wait for **All changes saved** and retry the
-action. Failed saves retain edits and report an error. Full shutdown/recovery
-coordination remains planned. See
+action. Failed saves retain edits and report an error. Startup scans for
+recoverable data after an unclean shutdown; explicit recovery actions remain
+planned. See
 [chapter persistence](docs/chapter-persistence.md),
 [project creation UI](docs/project-creation-ui.md) and
 [project opening UI](docs/project-open-ui.md).

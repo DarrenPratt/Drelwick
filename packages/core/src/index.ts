@@ -13,6 +13,7 @@ export * from "./chapter-loading.js";
 export * from "./chapter-saving.js";
 export * from "./chapter-rename.js";
 export * from "./history.js";
+export * from "./recovery.js";
 import {
   BookMetadataSchema,
   ChapterFileSchema,
