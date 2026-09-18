@@ -1,5 +1,6 @@
 import { ChapterStatusSchema, isIsoDate, isUuid } from "@bookeditor/shared";
 import { z } from "zod";
+import { ManuscriptDocumentSchema } from "./manuscript-document.js";
 
 export { ChapterStatusSchema };
 export type { ChapterStatus } from "@bookeditor/shared";
@@ -142,4 +143,20 @@ export const SessionMarkerSchema = z
   .strict();
 export type SessionMarker = z.infer<typeof SessionMarkerSchema>;
 
-export { ManuscriptDocumentSchema } from "./manuscript-document.js";
+export const HistorySnapshotSchema = z.object({
+  schemaVersion,
+  id: uuid,
+  chapterId: uuid,
+  created: isoDate,
+  reason: z.enum([
+    "interval",
+    "manual",
+    "migration",
+    "before-import",
+    "status-change",
+  ]),
+  content: ManuscriptDocumentSchema,
+});
+export type HistorySnapshot = z.infer<typeof HistorySnapshotSchema>;
+
+export { ManuscriptDocumentSchema };
