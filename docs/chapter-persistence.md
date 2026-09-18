@@ -137,6 +137,10 @@ service validates snapshots before writing, limits interval snapshots to one
 per five minutes per chapter, and suppresses identical content. Snapshot
 failures are reported without affecting the authoritative chapter file.
 
+Retention keeps all snapshots for 24 hours, then one per UTC hour through seven
+days and one per UTC day through 30 days; older validated snapshots are removed.
+Invalid history files and authoritative manuscript files are left untouched.
+
 Complete shutdown/project-close coordination (#35) remains separate work. The
 application-owned session marker is implemented separately from renderer flush;
 #35 must integrate the marker only after pending persistence succeeds. Close
