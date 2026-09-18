@@ -314,3 +314,17 @@ input:focus-visible {
     flex-direction: column;
   }
 }
+
+.recovery-dialog {
+  max-height: 85vh;
+  overflow-y: auto;
+}
+.recovery-dialog ul {
+  list-style: none;
+  padding: 0;
+}
+.recovery-dialog li {
+  border-top: 1px solid #dbe2ed;
+  padding: 1rem 0;
+  overflow-wrap: anywhere;
+}

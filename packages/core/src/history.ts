@@ -85,7 +85,10 @@ export async function createHistorySnapshot(
     "snapshots",
     input.chapterId,
   );
-  const latest = await readLatestSnapshot(directory, fileSystem);
+  const latest =
+    input.reason === "before-recovery"
+      ? null
+      : await readLatestSnapshot(directory, fileSystem);
   if (
     latest &&
     JSON.stringify(latest.content) === JSON.stringify(document.data)

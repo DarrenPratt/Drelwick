@@ -3,14 +3,31 @@ import {
   HistorySnapshotSchema,
   ProjectConfigSchema,
 } from "@bookeditor/project-model";
-import { ApplicationError, isUuid } from "@bookeditor/shared";
-import { lstat, readFile, readdir, realpath } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
+import { ApplicationError, createUuid, isUuid } from "@bookeditor/shared";
+import {
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rmdir,
+  unlink,
+} from "node:fs/promises";
+import { dirname, isAbsolute, join } from "node:path";
+import { createHistorySnapshot } from "./history.js";
+import {
+  CHAPTER_CREATION_LOCK,
+  writeJsonAtomically,
+  writeJsonAtomicallyAt,
+} from "./index.js";
 
 export type RecoveryCandidateSource = "temporary" | "history";
 
 export interface RecoveryCandidate {
+  id: string;
+  projectPath: string;
   chapterId: string;
+  title?: string;
   created: string;
   document: Record<string, unknown>;
   path: string;
@@ -31,6 +48,12 @@ export interface RecoveryFileSystem {
   realpath(path: string): Promise<string>;
   readFile(path: string, encoding: "utf8"): Promise<string>;
   readdir(path: string): Promise<string[]>;
+  mkdir(path: string): Promise<void>;
+  writeJson(path: string, value: unknown): Promise<void>;
+  unlink(path: string): Promise<void>;
+  writeRecovery(path: string, value: unknown): Promise<void>;
+  acquireLock(path: string): Promise<void>;
+  releaseLock(path: string): Promise<void>;
 }
 
 const defaultFileSystem: RecoveryFileSystem = {
@@ -38,6 +61,17 @@ const defaultFileSystem: RecoveryFileSystem = {
   realpath,
   readFile,
   readdir: async (path) => readdir(path),
+  mkdir: async (path) => {
+    await mkdir(path, { recursive: true });
+  },
+  writeJson: writeJsonAtomically,
+  writeRecovery: (path, value) =>
+    writeJsonAtomicallyAt(path, `${path}.${createUuid()}.recovery.tmp`, value),
+  acquireLock: async (path) => {
+    await mkdir(path);
+  },
+  releaseLock: rmdir,
+  unlink,
 };
 
 /**
@@ -103,12 +137,186 @@ export class RecoveryService {
   getCandidates(): RecoveryCandidate[] {
     return [...this.candidates.values()].flat();
   }
+
+  private busy = false;
+
+  async recoverCandidate(
+    id: string,
+    overrides: Partial<RecoveryFileSystem> = {},
+  ): Promise<{ warning?: string }> {
+    return this.decide(id, true, { ...defaultFileSystem, ...overrides });
+  }
+
+  async discardCandidate(
+    id: string,
+    overrides: Partial<RecoveryFileSystem> = {},
+  ): Promise<{ warning?: string }> {
+    return this.decide(id, false, { ...defaultFileSystem, ...overrides });
+  }
+
+  private async decide(
+    id: string,
+    recover: boolean,
+    fileSystem: RecoveryFileSystem,
+  ): Promise<{ warning?: string }> {
+    if (this.busy)
+      throw new ApplicationError(
+        "RECOVERY_BUSY",
+        "Please wait for the current recovery operation.",
+      );
+    const candidate = this.getCandidates().find((item) => item.id === id);
+    if (!candidate)
+      throw new ApplicationError(
+        "RECOVERY_CANDIDATE_NOT_FOUND",
+        "This recovery candidate is no longer available.",
+      );
+    this.busy = true;
+    let locked = false;
+    let committed = false;
+    const result: { warning?: string } = {};
+    const lock = join(candidate.projectPath, CHAPTER_CREATION_LOCK);
+    try {
+      await assertSafePath(candidate.projectPath, fileSystem, true);
+      try {
+        await fileSystem.acquireLock(lock);
+        locked = true;
+      } catch {
+        throw new ApplicationError(
+          "PROJECT_BUSY",
+          "Unable to acquire the chapter operation lock. Preserve project files and inspect any stale lock before retrying.",
+        );
+      }
+      await assertSafePath(candidate.path, fileSystem);
+      const raw = await readJson(candidate.path, fileSystem);
+      const parsed =
+        candidate.source === "temporary"
+          ? ChapterFileSchema.safeParse(raw)
+          : HistorySnapshotSchema.safeParse(raw);
+      if (
+        !parsed.success ||
+        JSON.stringify(parsed.data.content) !==
+          JSON.stringify(candidate.document) ||
+        ("chapterId" in parsed.data
+          ? parsed.data.chapterId
+          : parsed.data.id) !== candidate.chapterId ||
+        ("modified" in parsed.data
+          ? parsed.data.modified
+          : parsed.data.created) !== candidate.created
+      )
+        throw new ApplicationError(
+          "RECOVERY_CANDIDATE_CHANGED",
+          "Recovery data changed since startup. Cancel startup and restart to scan it again.",
+        );
+      if (recover) {
+        await assertSafePath(
+          join(candidate.projectPath, "project.json"),
+          fileSystem,
+        );
+        const project = await readProject(candidate.projectPath, fileSystem);
+        if (!project.manuscript.order.includes(candidate.chapterId))
+          throw new ApplicationError(
+            "CHAPTER_NOT_FOUND",
+            "The recovery chapter is no longer in the project.",
+          );
+        const chapterPath = join(
+          candidate.projectPath,
+          "manuscript",
+          `${candidate.chapterId}.json`,
+        );
+        await assertSafePath(chapterPath, fileSystem);
+        const original = await readJson(chapterPath, fileSystem);
+        const current = ChapterFileSchema.safeParse(original);
+        if (!current.success || current.data.id !== candidate.chapterId)
+          throw new ApplicationError(
+            "RECOVERY_MANUSCRIPT_INVALID",
+            "The original chapter is invalid. Preserve the files for manual recovery.",
+          );
+        if (Date.parse(current.data.modified) >= Date.parse(candidate.created))
+          throw new ApplicationError(
+            "RECOVERY_STALE",
+            "The original chapter is now as new as this candidate. Discard this candidate or cancel startup.",
+          );
+        // Every existing history ancestor must be a real directory before mkdir.
+        await assertSafePath(
+          join(
+            candidate.projectPath,
+            ".history",
+            "snapshots",
+            candidate.chapterId,
+          ),
+          fileSystem,
+          true,
+          true,
+        );
+        await createHistorySnapshot(
+          {
+            projectPath: candidate.projectPath,
+            chapterId: candidate.chapterId,
+            document: current.data.content,
+            reason: "before-recovery",
+          },
+          fileSystem,
+        );
+        await fileSystem.writeRecovery(chapterPath, {
+          ...(original as Record<string, unknown>),
+          content: parsed.data.content,
+          modified: new Date(
+            Math.max(Date.now(), Date.parse(candidate.created)),
+          ).toISOString(),
+        });
+        committed = true;
+      }
+      try {
+        await fileSystem.unlink(candidate.path);
+        this.removeCandidate(id);
+      } catch {
+        if (!committed)
+          throw new ApplicationError(
+            "RECOVERY_DISCARD_FAILED",
+            "Unable to discard recovery data. The original and candidate are preserved; retry or cancel startup.",
+          );
+        result.warning =
+          "The chapter was recovered, but its recovery file could not be removed. Discard the remaining candidate to retry cleanup, or cancel startup.";
+      }
+      return result;
+    } catch (error) {
+      if (
+        error instanceof ApplicationError &&
+        !error.code.startsWith("PROJECT_FILE_") &&
+        !error.code.startsWith("PROJECT_TEMPORARY_")
+      )
+        throw error;
+      throw new ApplicationError(
+        "RECOVERY_FAILED",
+        "Recovery could not complete. The original chapter and recovery data are preserved; retry or cancel startup.",
+      );
+    } finally {
+      if (locked) {
+        try {
+          await fileSystem.releaseLock(lock);
+        } catch {
+          result.warning =
+            "The decision completed, but the project lock could not be removed. Inspect the lock before editing.";
+        }
+      }
+      this.busy = false;
+    }
+  }
+
+  private removeCandidate(id: string): void {
+    for (const [projectPath, candidates] of this.candidates) {
+      const remaining = candidates.filter((candidate) => candidate.id !== id);
+      if (remaining.length === 0) this.candidates.delete(projectPath);
+      else this.candidates.set(projectPath, remaining);
+    }
+  }
 }
 
 async function readProject(
   root: string,
   fileSystem: RecoveryFileSystem,
 ): Promise<{ manuscript: { order: string[] } }> {
+  await assertSafePath(join(root, "project.json"), fileSystem);
   const raw = await readJson(join(root, "project.json"), fileSystem);
   const parsed = ProjectConfigSchema.safeParse(raw);
   if (!parsed.success) {
@@ -162,7 +370,10 @@ async function scanTemporaryFiles(
     const chapter = ChapterFileSchema.safeParse(parsed);
     if (!chapter.success || chapter.data.id !== chapterId) continue;
     candidates.push({
+      id: createUuid(),
+      projectPath: root,
       chapterId,
+      title: chapter.data.title,
       created: chapter.data.modified,
       document: chapter.data.content,
       path,
@@ -194,8 +405,15 @@ async function scanHistoryFiles(
         continue;
       }
       const parsed = HistorySnapshotSchema.safeParse(raw);
-      if (!parsed.success || parsed.data.chapterId !== chapterId) continue;
+      if (
+        !parsed.success ||
+        parsed.data.chapterId !== chapterId ||
+        parsed.data.reason === "before-recovery"
+      )
+        continue;
       candidates.push({
+        id: createUuid(),
+        projectPath: root,
         chapterId,
         created: parsed.data.created,
         document: parsed.data.content,
@@ -212,6 +430,7 @@ async function readDirectory(
   fileSystem: RecoveryFileSystem,
 ): Promise<string[]> {
   try {
+    await assertSafePath(path, fileSystem, true, true);
     return await fileSystem.readdir(path);
   } catch (error) {
     if (isMissing(error)) return [];
@@ -227,6 +446,7 @@ async function isRegularFile(
   fileSystem: RecoveryFileSystem,
 ): Promise<boolean> {
   try {
+    await assertSafePath(path, fileSystem);
     const stats = await fileSystem.lstat(path);
     return stats.isFile() && !stats.isSymbolicLink();
   } catch {
@@ -239,6 +459,7 @@ async function isRegularDirectory(
   fileSystem: RecoveryFileSystem,
 ): Promise<boolean> {
   try {
+    await assertSafePath(path, fileSystem, true);
     const stats = await fileSystem.lstat(path);
     return stats.isDirectory() && !stats.isSymbolicLink();
   } catch {
@@ -279,4 +500,30 @@ function isMissing(error: unknown): boolean {
     "code" in error &&
     error.code === "ENOENT"
   );
+}
+
+/** Reject linked ancestors, including directory junctions, before privileged I/O. */
+async function assertSafePath(
+  path: string,
+  fileSystem: RecoveryFileSystem,
+  directory = false,
+  allowMissing = false,
+): Promise<void> {
+  const parent = dirname(path);
+  if (parent !== path)
+    await assertSafePath(parent, fileSystem, true, allowMissing);
+  try {
+    const stats = await fileSystem.lstat(path);
+    if (
+      stats.isSymbolicLink() ||
+      (directory ? !stats.isDirectory() : !stats.isFile())
+    )
+      throw new ApplicationError(
+        "RECOVERY_PATH_INVALID",
+        "Recovery requires regular files and directories without symbolic links.",
+      );
+  } catch (error) {
+    if (allowMissing && isMissing(error)) return;
+    throw error;
+  }
 }

@@ -421,12 +421,22 @@ export async function writeJsonAtomically(
   value: unknown,
   fileSystem: AtomicWriterFileSystem = defaultAtomicWriterFileSystem,
 ): Promise<void> {
-  const temporaryPath = `${filePath}.tmp`;
+  await writeJsonAtomicallyAt(filePath, `${filePath}.tmp`, value, fileSystem);
+}
+
+export async function writeJsonAtomicallyAt(
+  filePath: string,
+  temporaryPath: string,
+  value: unknown,
+  fileSystem: AtomicWriterFileSystem = defaultAtomicWriterFileSystem,
+): Promise<void> {
   let fileHandle: FileHandle | undefined;
+  let ownsTemporaryFile = false;
 
   try {
     const serialized = `${JSON.stringify(value, null, 2)}\n`;
     fileHandle = await fileSystem.open(temporaryPath, "wx");
+    ownsTemporaryFile = true;
     await fileHandle.writeFile(serialized, "utf8");
     await fileHandle.sync();
     await fileHandle.close();
@@ -438,7 +448,7 @@ export async function writeJsonAtomically(
     }
 
     try {
-      await fileSystem.unlink(temporaryPath);
+      if (ownsTemporaryFile) await fileSystem.unlink(temporaryPath);
     } catch (cleanupError) {
       if (
         !(cleanupError instanceof Error) ||

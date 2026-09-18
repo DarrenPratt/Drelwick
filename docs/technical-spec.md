@@ -1075,8 +1075,12 @@ versioned project schemas and must be newer than the persisted chapter's
 `modified` timestamp. Invalid JSON/schema data, symlinks and paths outside
 these bounded locations are ignored.
 
-The scan is read-only: it identifies candidates for a later explicit recovery
-decision and never overwrites an authoritative manuscript automatically.
+The scan is read-only and never overwrites an authoritative manuscript automatically.
+The startup recovery dialog offers Recover, Discard and Cancel startup before
+editing. Recovery saves a mandatory `before-recovery` history snapshot, then
+atomically replaces the chapter through validated main/preload operations. Cancel
+leaves the session unclean for the next launch. See [manuscript recovery](manuscript-recovery.md)
+for failure ordering, compatibility and security details.
 
 Possible workflow:
 

@@ -24,8 +24,8 @@ also save the active chapter immediately. **Unsaved changes** tracks edits, incl
 Focus loss and attempts to leave the document flush pending edits. If switching
 or closing is blocked for saving, wait for **All changes saved** and retry the
 action. Failed saves retain edits and report an error. Startup scans for
-recoverable data after an unclean shutdown; explicit recovery actions remain
-planned. See
+recoverable data after an unclean shutdown and offers **Recover**, **Discard**
+or **Cancel startup** before editing. See [manuscript recovery](docs/manuscript-recovery.md),
 [chapter persistence](docs/chapter-persistence.md),
 [project creation UI](docs/project-creation-ui.md) and
 [project opening UI](docs/project-open-ui.md).

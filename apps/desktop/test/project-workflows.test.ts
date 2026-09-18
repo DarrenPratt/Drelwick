@@ -78,6 +78,12 @@ beforeEach(async () => {
     vi.fn(() => true),
   );
   window.bookEditor = {
+    recovery: {
+      list: vi.fn(),
+      recover: vi.fn(),
+      discard: vi.fn(),
+      cancel: vi.fn(),
+    },
     onSaveRequested: vi.fn((callback) => {
       saveListeners.add(callback);
       return () => {
