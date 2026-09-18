@@ -33,6 +33,9 @@ export const IPC = {
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
 
+// Main-to-renderer notifications are separate from validated invoke requests.
+export const SAVE_COMMAND_CHANNEL = "command:save";
+
 const chapterId = z.string().trim().min(1);
 const chapterTitle = z.string().trim().min(1).max(200);
 
@@ -106,6 +109,7 @@ export function validateIpcPayload<Channel extends IpcChannel>(
 }
 
 export interface BookEditorApi {
+  onSaveRequested(callback: () => void): () => void;
   project: {
     create(
       input: CreateProjectRequest,

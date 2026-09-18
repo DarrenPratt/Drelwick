@@ -3,6 +3,7 @@ import { app, BrowserWindow } from "electron";
 import { createMainWindow, getRendererUrl } from "./windows/main-window.js";
 import { registerProjectHandlers } from "./ipc/project-handlers.js";
 import { RecentProjects } from "./recent-projects.js";
+import { installApplicationMenu } from "./application-menu.js";
 
 let mainWindow: BrowserWindow | undefined;
 
@@ -18,6 +19,7 @@ void app.whenReady().then(() => {
     recents: new RecentProjects(app.getPath("userData")),
   });
   createApplicationWindow();
+  installApplicationMenu();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

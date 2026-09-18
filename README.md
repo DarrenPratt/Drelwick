@@ -19,7 +19,8 @@ opens an empty project workspace. **Open project** on the welcome screen or
 workspace uses native folder selection to load an existing project. Cancellation
 or failure keeps the current workspace unchanged. Select a chapter to edit its
 content. Changes autosave after 750 ms of idle typing; **Save chapter** saves
-immediately. **Unsaved changes** tracks edits, including those made during a save.
+immediately. **File → Save**, **Ctrl+S** (Windows/Linux) and **Cmd+S** (macOS)
+also save the active chapter immediately. **Unsaved changes** tracks edits, including those made during a save.
 Focus loss and attempts to leave the document flush pending edits. If switching
 or closing is blocked for saving, wait for **All changes saved** and retry the
 action. Failed saves retain edits and report an error. Full shutdown/recovery
