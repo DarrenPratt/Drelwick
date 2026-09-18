@@ -1,4 +1,9 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
+import {
+  IPC,
+  SHUTDOWN_REQUEST_CHANNEL,
+  validateIpcPayload,
+} from "@bookeditor/shared";
 
 import { createMainWindow, getRendererUrl } from "./windows/main-window.js";
 import { registerProjectHandlers } from "./ipc/project-handlers.js";
@@ -9,6 +14,7 @@ import { SessionMarkerService } from "./session-marker.js";
 let mainWindow: BrowserWindow | undefined;
 let sessionMarker: SessionMarkerService | undefined;
 let quitting = false;
+let shutdownPending = false;
 
 function createApplicationWindow(): void {
   mainWindow = createMainWindow();
@@ -28,6 +34,29 @@ void app.whenReady().then(async () => {
   registerProjectHandlers(() => mainWindow, getRendererUrl(), {
     recents: new RecentProjects(app.getPath("userData")),
   });
+  ipcMain.handle(IPC.APPLICATION_SHUTDOWN_READY, async (event, payload) => {
+    if (
+      !shutdownPending ||
+      event.sender !== mainWindow?.webContents ||
+      event.senderFrame !== mainWindow?.webContents.mainFrame
+    )
+      return;
+    const { saved } = validateIpcPayload(
+      IPC.APPLICATION_SHUTDOWN_READY,
+      payload,
+    );
+    shutdownPending = false;
+    if (!saved) {
+      quitting = false;
+      return;
+    }
+    try {
+      await sessionMarker?.markClean();
+      app.exit(0);
+    } catch {
+      quitting = false;
+    }
+  });
   createApplicationWindow();
   installApplicationMenu();
 
@@ -45,13 +74,10 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", (event) => {
-  if (quitting || !sessionMarker) return;
+  if (quitting || !sessionMarker || !mainWindow) return;
   event.preventDefault();
+  if (shutdownPending) return;
   quitting = true;
-  void sessionMarker
-    .markClean()
-    .then(() => app.exit(0))
-    .catch(() => {
-      quitting = false;
-    });
+  shutdownPending = true;
+  mainWindow.webContents.send(SHUTDOWN_REQUEST_CHANNEL);
 });

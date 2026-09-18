@@ -23,6 +23,7 @@ describe("preload API", () => {
           create: expect.any(Function),
           open: expect.any(Function),
         }),
+        onShutdownRequested: expect.any(Function),
         dialog: expect.objectContaining({
           selectImage: expect.any(Function),
           selectExportLocation: expect.any(Function),
@@ -70,5 +71,23 @@ describe("preload API", () => {
     };
     await api.project.saveChapter(chapter);
     expect(invoke).toHaveBeenLastCalledWith("project:save-chapter", chapter);
+    const shutdownCallback = vi.fn(async () => true);
+    const removeShutdown = api.onShutdownRequested(shutdownCallback);
+    expect(on).toHaveBeenCalledWith(
+      "application:shutdown-request",
+      expect.any(Function),
+    );
+    const shutdownListener = on.mock.calls[1]?.[1] as () => void;
+    shutdownListener();
+    await Promise.resolve();
+    expect(shutdownCallback).toHaveBeenCalledOnce();
+    expect(invoke).toHaveBeenLastCalledWith("application:shutdown-ready", {
+      saved: true,
+    });
+    removeShutdown();
+    expect(removeListener).toHaveBeenCalledWith(
+      "application:shutdown-request",
+      shutdownListener,
+    );
   });
 });

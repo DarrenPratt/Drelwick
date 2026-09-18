@@ -29,12 +29,14 @@ export const IPC = {
   CHAPTER_RENAME: "chapter:rename",
   CHAPTER_DELETE: "chapter:delete",
   CHAPTER_REORDER: "chapter:reorder",
+  APPLICATION_SHUTDOWN_READY: "application:shutdown-ready",
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
 
 // Main-to-renderer notifications are separate from validated invoke requests.
 export const SAVE_COMMAND_CHANNEL = "command:save";
+export const SHUTDOWN_REQUEST_CHANNEL = "application:shutdown-request";
 
 const chapterId = z.string().trim().min(1);
 const chapterTitle = z.string().trim().min(1).max(200);
@@ -95,6 +97,7 @@ export const IpcRequestSchemas = {
   [IPC.CHAPTER_RENAME]: z.object({ chapterId, title: chapterTitle }),
   [IPC.CHAPTER_DELETE]: z.object({ chapterId }),
   [IPC.CHAPTER_REORDER]: z.object({ chapterIds: z.array(chapterId).min(1) }),
+  [IPC.APPLICATION_SHUTDOWN_READY]: z.object({ saved: z.boolean() }).strict(),
 } as const;
 
 export type IpcRequestMap = {
@@ -110,6 +113,7 @@ export function validateIpcPayload<Channel extends IpcChannel>(
 
 export interface BookEditorApi {
   onSaveRequested(callback: () => void): () => void;
+  onShutdownRequested(callback: () => Promise<boolean>): () => void;
   project: {
     create(
       input: CreateProjectRequest,
