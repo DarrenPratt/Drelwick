@@ -11,7 +11,7 @@ are planned work, not implemented publishing features. See the
 Basic DOCX import and manuscript DOCX export are planned Community capabilities.
 The delivery roadmap is a local desktop workflow with no account or hosted
 conversion requirement. Optional backup to user-owned storage such as Google
-Drive or Wasabi is research only; cloud editing and collaboration are outside
+Drive, Wasabi or Git repositories is research only; cloud editing and collaboration are outside
 the current roadmap.
 
 Start with the [documentation index](docs/README.md) for the design, technical specification and build plans.

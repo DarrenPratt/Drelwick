@@ -2274,7 +2274,7 @@ The importer must report located warnings for unsupported formatting and structu
 
 Export DOCX from a consistent saved manuscript revision to an atomic local output. Maintain an explicit support matrix and verify supported content by independent OOXML inspection and re-import. DOCX is interchange, never the authoritative project format.
 
-Optional remote backup remains a separate research task. The proposed unit of transfer is an immutable validated project archive with explicit restore into a new location. Live project-folder synchronization, cloud editing, hosted conversion and collaboration are outside the current roadmap. Provider unavailability must never prevent local authoring or publishing; credentials must remain outside project files and renderer access.
+Optional remote backup remains a separate research task. Evaluate Google Drive, Wasabi/S3-compatible storage and user-owned Git repositories. Storage providers transfer immutable validated project archives; Git research compares archive commits with validated staged project snapshots. Restore always targets a new location. Live project-folder synchronization, cloud editing, hosted conversion and collaboration are outside the current roadmap. Provider unavailability must never prevent local authoring or publishing; credentials must remain outside project files and renderer access.
 
 ---
 

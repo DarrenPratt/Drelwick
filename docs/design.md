@@ -124,7 +124,7 @@ The application must support:
 - local backups;
 - local exports.
 
-Cloud editing, hosted conversion and collaboration are outside the current delivery roadmap. Optional off-device backup may later use user-owned storage such as Google Drive or Wasabi. This is exploration, not a selected provider or implementation commitment. Backups use consistent archives; live multi-file project synchronization is not the backup model. Local project files remain authoritative, and writing, import, preview and export must work without a connection or BookEditor account. See the [local publishing plan](planning/local-publishing-plan.md).
+Cloud editing, hosted conversion and collaboration are outside the current delivery roadmap. Optional off-device backup may later use user-owned storage such as Google Drive, Wasabi or Git repositories. This is exploration, not a selected provider or implementation commitment. Storage-provider backups use consistent archives. Git research also compares commits of validated staged project snapshots with archive commits; neither approach synchronizes the live manuscript working directory. Local project files remain authoritative, and writing, import, preview and export must work without a connection or BookEditor account. See the [local publishing plan](planning/local-publishing-plan.md).
 
 ---
 

@@ -17,7 +17,7 @@ Task 60 is future work, after the Community/Pro package boundary is established 
 
 ## Local delivery update — 19 September 2026
 
-Basic DOCX import is CORE in v0.2; basic manuscript DOCX export is CORE by v0.3. Cloud editing, hosted conversion and collaboration are outside the current roadmap. Optional Google Drive/Wasabi backup is exploration of user-owned storage, not a BookEditor hosted service. Client-side integration does not automatically imply SERVICE classification; provider fees and any future BookEditor-operated infrastructure are separate decisions. See the [local publishing plan](local-publishing-plan.md). The rest of the feature-boundary review remains open in actual GitHub issue #52.
+Basic DOCX import is CORE in v0.2; basic manuscript DOCX export is CORE by v0.3. Cloud editing, hosted conversion and collaboration are outside the current roadmap. Optional Google Drive/Wasabi/Git repository backup is exploration of user-owned storage, not a BookEditor hosted service. Client-side integration does not automatically imply SERVICE classification; provider fees and any future BookEditor-operated infrastructure are separate decisions. See the [local publishing plan](local-publishing-plan.md). The rest of the feature-boundary review remains open in actual GitHub issue #52.
 
 # Commercial Architecture Milestone
 
