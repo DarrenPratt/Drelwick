@@ -16,6 +16,7 @@ Status: **not completed**. Repository stays private. The v0.3 Community candidat
 - [ ] Complete Community/Pro feature and package boundary review; verify Community builds/tests without Pro.
 - [ ] Publishable project-format specification includes UTF-8, schemas, versions, ordering, migration, assets and independent recovery examples.
 - [ ] Review extension API security/versioning and ensure optional extensions cannot hold manuscripts hostage.
+- [ ] Complete v0.1 reliability validation (#51), standalone packaging (#107), and the offline DOCX-to-EPUB publishing gate before advertising the v0.3 publishing candidate; record platform limitations. Optional provider backup and later print delivery are not prerequisites for this EPUB candidate.
 - [ ] Verify CI is green and appropriate merge checks are enforced.
 - [ ] Verify issue/PR templates, contribution settings, README and release documentation are ready.
 - [ ] Complete the Licensing & Commercial Architecture milestone and public-release preparation issue, with evidence.

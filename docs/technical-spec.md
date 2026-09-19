@@ -2214,19 +2214,16 @@ interface ManuscriptImporter {
 }
 ```
 
-Initial implementations:
+Planned v0.2 implementations:
 
 ```text
+DocxImporter
 MarkdownImporter
 PlainTextImporter
 HtmlImporter
 ```
 
-Later:
-
-```text
-DocxImporter
-```
+Built-in importers belong in Community and do not require a plugin runtime. Parse locally behind restricted IPC into a bounded, validated intermediate model with metadata, chapters, assets and located warnings. Inspect/preview and commit are separate operations. Imports commit to a new empty destination and preserve source files and the active project on cancellation or failure. No external relationship, macro, script or remote resource executes.
 
 ---
 
@@ -2257,7 +2254,7 @@ Chapter splitting rules should be user-configurable later.
 
 # 82. DOCX Import
 
-DOCX support should not be included in the earliest milestone.
+Basic DOCX import is scheduled for v0.2 after the reliable v0.1 foundation; basic editable manuscript DOCX export follows by v0.3. Both are Community capabilities and run offline. Exact Word page-layout fidelity is not promised. See the [local publishing plan](planning/local-publishing-plan.md) for issue dependencies.
 
 When implemented:
 
@@ -2273,7 +2270,11 @@ semantic mapping
 TipTap document
 ```
 
-The importer should warn when formatting cannot be reliably interpreted.
+The importer must report located warnings for unsupported formatting and structures, including tracked changes, comments, tables and notes. Preserve recoverable text or block conversion pending an explicit choice; never silently omit author content. Bound ZIP expansion and XML parsing, disable external entities, and never fetch relationships. Detect unsupported/encrypted inputs and keep the source unchanged.
+
+Export DOCX from a consistent saved manuscript revision to an atomic local output. Maintain an explicit support matrix and verify supported content by independent OOXML inspection and re-import. DOCX is interchange, never the authoritative project format.
+
+Optional remote backup remains a separate research task. Evaluate Google Drive, Wasabi/S3-compatible storage and user-owned Git repositories. Storage providers transfer immutable validated project archives; Git research compares archive commits with validated staged project snapshots. Restore always targets a new location. Live project-folder synchronization, cloud editing, hosted conversion and collaboration are outside the current roadmap. Provider unavailability must never prevent local authoring or publishing; credentials must remain outside project files and renderer access.
 
 ---
 

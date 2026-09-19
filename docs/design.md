@@ -16,12 +16,12 @@ BookEditor is a cross-platform, local-first, open-core authoring and publishing 
 
 The dependency direction is always `BookEditor Pro -> BookEditor Community`. Community must build and test with no Pro repository present. No Pro repository is required during the v0.1 foundation. Manuscript/project files belong to the author and remain authoritative, recoverable outside the application and usable without cloud connectivity. EPUB/PDF are generated outputs, never editable master documents.
 
-| Classification | Product scope                                                                                                                                                                                                                                                          |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CORE           | Manuscript editing; project/chapter management; semantic formatting; autosave; recovery; history; basic themes; ebook/print preview; EPUB 3; basic publishable print PDF; open project format; public extension APIs.                                                  |
-| PRO            | Potential advanced typography, KDP profiles/preflight, paperback/hardcover validation, automatic gutters, bleed/DPI analysis, advanced headers/page numbering/chapter openings, premium themes, DOCX, series management, advanced continuity and professional reports. |
-| SERVICE        | Optional hosted functionality with continuing operating costs. Basic local authoring never requires it.                                                                                                                                                                |
-| ECOSYSTEM      | Third-party themes/plugins/extensions. The Community API they use remains CORE.                                                                                                                                                                                        |
+| Classification | Product scope                                                                                                                                                                                                                                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CORE           | Manuscript editing; project/chapter management; semantic formatting; autosave; recovery; history; basic local DOCX import and manuscript export; portable local backup/restore; basic themes; ebook/print preview; EPUB 3; basic publishable print PDF; open project format; public extension APIs.                    |
+| PRO            | Potential advanced typography, KDP profiles/preflight, paperback/hardcover validation, automatic gutters, bleed/DPI analysis, advanced headers/page numbering/chapter openings, premium themes, advanced Word layout fidelity if separately designed, series management, advanced continuity and professional reports. |
+| SERVICE        | Optional hosted functionality with continuing operating costs. Basic local authoring never requires it.                                                                                                                                                                                                                |
+| ECOSYSTEM      | Third-party themes/plugins/extensions. The Community API they use remains CORE.                                                                                                                                                                                                                                        |
 
 Community must be capable of producing a normal publishable novel. Pro monetises additional professional convenience, not artificial restrictions on authors' manuscripts. Detailed boundaries remain subject to commercial task 51; ordinary publishable PDF output and basic validation cannot require Pro. A feature appearing later in this document describes product capability, not an automatic assignment to Community or to v0.1.
 
@@ -124,7 +124,7 @@ The application must support:
 - local backups;
 - local exports.
 
-Cloud synchronisation could be introduced later as an optional feature.
+Cloud editing, hosted conversion and collaboration are outside the current delivery roadmap. Optional off-device backup may later use user-owned storage such as Google Drive, Wasabi or Git repositories. This is exploration, not a selected provider or implementation commitment. Storage-provider backups use consistent archives. Git research also compares commits of validated staged project snapshots with archive commits; neither approach synchronizes the live manuscript working directory. Local project files remain authoritative, and writing, import, preview and export must work without a connection or BookEditor account. See the [local publishing plan](planning/local-publishing-plan.md).
 
 ---
 
@@ -1038,17 +1038,16 @@ Daily word counts
 
 # 31. Import
 
-Initial import formats:
+Planned v0.2 Community import formats:
 
 ```text
+DOCX
 Markdown
 Plain Text
 HTML
 ```
 
-DOCX import should be considered after the core manuscript model is stable.
-
-DOCX import will require mapping arbitrary Word formatting into semantic book elements.
+Basic DOCX import is part of the first local publishing workflow, after the reliable v0.1 foundation. Conversion maps Word content into semantic book elements and previews chapter boundaries and located fidelity warnings before creating a new project. It must preserve source files and never silently discard unsupported author content. Exact Word page layout is outside basic interchange scope.
 
 ---
 
@@ -1063,12 +1062,7 @@ HTML
 Markdown
 ```
 
-Later:
-
-```text
-DOCX
-Project Archive
-```
+Basic editable manuscript DOCX export is planned by v0.3 in Community. It preserves supported content and semantic formatting; print appearance is supplied by PDF, not guaranteed by DOCX. Portable project archive backup/restore is planned for v0.2. HTML/Markdown export remain design intent without a scheduled implementation issue in this delivery slice.
 
 ---
 
@@ -1219,18 +1213,26 @@ Implement:
 
 ---
 
-## Version 0.2 — Book Presentation
+## Version 0.2 — Local Interchange, Book Presentation and Preview
+
+The existing GitHub milestone retains its Book Presentation & Preview name. The [local publishing plan](planning/local-publishing-plan.md) adds early interchange and editing work without reopening v0.1.
 
 Implement:
 
+- basic local DOCX, plain text, Markdown and HTML import with reviewable conversion;
+- portable local archive backup/restore and safe migrations;
+- manuscript find/replace, chapter duplicate/split/merge/status, history restore and offline spelling;
 - semantic book styles;
 - themes;
 - ebook preview;
-- print preview;
 - front matter;
 - back matter;
 - images;
 - themed scene-break presentation (semantic editing is already in v0.1).
+
+Verified print preview is delivered with the v0.4 pagination pipeline. Earlier
+HTML rendering experiments must be labelled approximate and do not satisfy that
+release requirement.
 
 ---
 
@@ -1244,7 +1246,9 @@ Implement:
 - navigation;
 - cover;
 - validation;
-- EPUB export.
+- EPUB export;
+- basic editable manuscript DOCX export;
+- validated offline DOCX-to-EPUB workflow.
 
 At this stage the application should be capable of replacing Kindle Create for straightforward fiction ebook production.
 
@@ -1262,7 +1266,9 @@ Implement:
 - running headers;
 - print preview;
 - Playwright PDF generation;
-- PDF validation.
+- PDF validation;
+- a basic large-print theme/profile and output validation;
+- packaged offline print workflow validation.
 
 At this stage the application should produce paperback interiors.
 
@@ -1290,10 +1296,9 @@ Potential features:
 - annotations;
 - revision mode;
 - manuscript snapshots;
-- compare revisions;
-- find/replace;
-- spell checking;
-- custom dictionary.
+- compare revisions.
+
+Basic manuscript find/replace, history browsing/restoration, spell checking and a local custom dictionary move to v0.2. Global reference search remains v0.5; richer revision comparison and editorial review remain later local workflows.
 
 ---
 
@@ -1325,23 +1330,20 @@ The application should be capable of producing a complete novel without requirin
 
 # 38. Future Features
 
-Possible post-1.0 capabilities include:
+Later possibilities include the following; v1.0 design issues for reusable local matter templates, parts/volumes, richer semantics and advanced themes establish scope rather than promise full implementation by v1.0:
 
 - series management;
 - multiple books in one workspace;
-- custom book themes;
-- custom trim sizes;
+- advanced custom book themes (v1.0 design decision before implementation);
 - hardcover layouts;
 - footnotes/endnotes;
 - advanced image handling;
 - poetry layouts;
 - tables;
-- DOCX import/export;
-- writing goals;
+- optional local writing goals (tracked toward v1.0);
 - revision statistics;
 - Git integration;
-- optional cloud synchronisation;
-- collaboration;
+- optional user-owned off-device archive backup, subject to separate exploration;
 - plugin system.
 
 ---

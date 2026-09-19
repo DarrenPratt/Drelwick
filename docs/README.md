@@ -15,6 +15,8 @@ The commercial architecture addendum is labelled build plan version 0.2. It supp
 
 Keep product design and technical specifications directly under `docs/`, and delivery plans and planning addenda under `docs/planning/`. Use descriptive lowercase filenames with hyphens.
 
+The [local publishing delivery plan](planning/local-publishing-plan.md) updates delivery order for DOCX, basic editing, presentation, EPUB and print. It also records optional user-owned backup research and the exclusion of cloud editing/collaboration. These remain planned capabilities.
+
 Operational documents:
 
 - [Repository audit and reconciliations](planning/repository-audit.md)
