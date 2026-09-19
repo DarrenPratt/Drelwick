@@ -54,10 +54,18 @@ export function sanitizePastedHtml(html: string): string {
 interface EditorProps {
   content: JSONContent;
   editable?: boolean;
+  title?: string;
+  chapterLabel?: string;
   onChange(content: JSONContent): void;
 }
 
-export function Editor({ content, onChange, editable = true }: EditorProps) {
+export function Editor({
+  content,
+  onChange,
+  editable = true,
+  title,
+  chapterLabel,
+}: EditorProps) {
   const editor = useEditor({
     extensions: [StarterKit, SceneBreak],
     content,
@@ -100,6 +108,7 @@ export function Editor({ content, onChange, editable = true }: EditorProps) {
         aria-label="Formatting"
         aria-orientation="horizontal"
       >
+        <span className="toolbar-label">Text</span>
         <button
           type="button"
           aria-label="Bold"
@@ -107,7 +116,7 @@ export function Editor({ content, onChange, editable = true }: EditorProps) {
           aria-pressed={editor.isActive("bold")}
           onClick={() => editor.chain().focus().toggleBold().run()}
         >
-          Bold
+          <strong>B</strong>
         </button>
         <button
           type="button"
@@ -116,7 +125,7 @@ export function Editor({ content, onChange, editable = true }: EditorProps) {
           aria-pressed={editor.isActive("italic")}
           onClick={() => editor.chain().focus().toggleItalic().run()}
         >
-          Italic
+          <em>I</em>
         </button>
         <button
           type="button"
@@ -125,7 +134,7 @@ export function Editor({ content, onChange, editable = true }: EditorProps) {
           aria-pressed={editor.isActive("blockquote")}
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
         >
-          Block quote
+          <span aria-hidden="true">❞</span>
         </button>
         <button
           type="button"
@@ -133,7 +142,7 @@ export function Editor({ content, onChange, editable = true }: EditorProps) {
           title="Insert scene break"
           onClick={() => editor.chain().focus().insertSceneBreak().run()}
         >
-          Scene break
+          <span aria-hidden="true">✧</span>
         </button>
         <button
           type="button"
@@ -142,7 +151,7 @@ export function Editor({ content, onChange, editable = true }: EditorProps) {
           onClick={() => editor.chain().focus().undo()}
           disabled={!editor.can().undo()}
         >
-          Undo
+          <span aria-hidden="true">↶</span>
         </button>
         <button
           type="button"
@@ -151,10 +160,18 @@ export function Editor({ content, onChange, editable = true }: EditorProps) {
           onClick={() => editor.chain().focus().redo()}
           disabled={!editor.can().redo()}
         >
-          Redo
+          <span aria-hidden="true">↷</span>
         </button>
       </fieldset>
-      <EditorContent editor={editor} />
+      <div className="editor-document">
+        {title && (
+          <header className="manuscript-title">
+            <p>{chapterLabel}</p>
+            <h2>{title}</h2>
+          </header>
+        )}
+        <EditorContent editor={editor} />
+      </div>
     </section>
   );
 }
