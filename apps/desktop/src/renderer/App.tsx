@@ -12,6 +12,9 @@ import {
 } from "@bookeditor/shared";
 import { NewProjectDialog } from "./NewProjectDialog.js";
 import { Editor } from "./components/Editor.js";
+import { WorkspaceLayout } from "./components/WorkspaceLayout.js";
+import { WorkspaceDemo } from "./components/WorkspaceDemo.js";
+import { WorkspaceIcon } from "./components/WorkspaceIcon.js";
 import type { JSONContent } from "@tiptap/core";
 import {
   documentReducer,
@@ -21,6 +24,7 @@ import {
 } from "./document-state.js";
 
 export function App() {
+  const [demo, setDemo] = useState(false);
   const [creating, setCreating] = useState(false);
   const [project, setProject] = useState<ProjectWorkspace | null>(null);
   const [opening, setOpening] = useState(false);
@@ -475,93 +479,324 @@ export function App() {
     }
   }
 
-  return (
-    <main className="app-shell" aria-busy={opening}>
-      <header className="app-header">
-        <p className="eyebrow">
-          {project ? "BookEditor · Project workspace" : "BookEditor"}
-        </p>
-        <h1>{project?.title ?? "Your manuscript workspace"}</h1>
-        {project && (
-          <p>
-            {project.author} · {project.language}
-          </p>
-        )}
-      </header>
-      <div className="project-actions" aria-label="Project actions">
-        {!project && (
-          <button
-            className="primary-button"
-            disabled={opening || creating || loadingRecents}
-            onClick={() => {
-              setError("");
-              setCreating(true);
-            }}
-          >
-            New project
-          </button>
-        )}
+  const projectActions = (
+    <div className="project-actions" aria-label="Project actions">
+      {!project && (
         <button
+          className="primary-button"
           disabled={opening || creating || loadingRecents}
           onClick={() => {
-            void openExistingProject();
+            setError("");
+            setCreating(true);
           }}
         >
-          {opening ? "Opening project…" : "Open project"}
+          New project
         </button>
-      </div>
-      {error && (
-        <p className="error-message project-open-error" role="alert">
-          {error}
+      )}
+      <button
+        disabled={opening || creating || loadingRecents}
+        onClick={() => {
+          void openExistingProject();
+        }}
+      >
+        {opening ? "Opening project…" : "Open project"}
+      </button>
+    </div>
+  );
+  const recentProjects = (
+    <section
+      className="welcome-panel recent-projects"
+      aria-labelledby="recent-heading"
+      aria-busy={loadingRecents}
+    >
+      <h2 id="recent-heading">Recent projects</h2>
+      {recentError && (
+        <p className="error-message" role="alert">
+          {recentError}
         </p>
       )}
+      {loadingRecents ? (
+        <p>Updating recent projects…</p>
+      ) : (
+        recents.length === 0 && <p>No recent projects yet.</p>
+      )}
+      <ul>
+        {recents.map((recent) => (
+          <li key={recent.id}>
+            <div>
+              <button
+                disabled={opening || creating || loadingRecents}
+                onClick={() => {
+                  void openExistingProject(recent.id);
+                }}
+              >
+                {recent.title}
+              </button>
+              <p className="project-path">{recent.path}</p>
+            </div>
+            <button
+              aria-label={`Remove ${recent.title} from recent projects`}
+              disabled={opening || creating || loadingRecents}
+              onClick={() => {
+                void removeRecent(recent.id);
+              }}
+            >
+              Remove
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+
+  if (demo) return <WorkspaceDemo onExit={() => setDemo(false)} />;
+
+  return (
+    <>
       {project ? (
-        <section className="welcome-panel" aria-labelledby="manuscript-heading">
-          <h2 id="manuscript-heading">Manuscript</h2>
-          {project.chapters.length === 0 && (
-            <p>
-              Your project is ready. There are no chapters yet. Create one to
-              begin writing.
-            </p>
-          )}
-          {project.chapters.length > 0 && (
+        <WorkspaceLayout
+          key={project.projectId}
+          title={project.title}
+          author={project.author}
+          library={
             <>
+              {projectActions}
+              {recentProjects}
+              <p className="project-path">Saved in {project.projectPath}</p>
+            </>
+          }
+          notice={
+            <>
+              {error && (
+                <p className="error-message" role="alert">
+                  {error}
+                </p>
+              )}
               {editorError && (
                 <p className="error-message" role="alert">
                   {editorError}
                 </p>
               )}
-              {documentReady && documentState ? (
-                <Editor
-                  key={chapterKey}
-                  editable={!changingDocument}
-                  content={documentState.content}
-                  onChange={(content) => {
-                    dispatchDocument({
-                      type: "edited",
-                      key: chapterKey,
-                      content,
-                    });
-                    autosave.current?.edited();
-                    if (!activeChapterId) return;
-                    const wordCount = countDocumentWords(content);
-                    setProject((current) =>
-                      current
-                        ? {
-                            ...current,
-                            chapters: current.chapters.map((chapter) =>
-                              chapter.id === activeChapterId
-                                ? { ...chapter, wordCount }
-                                : chapter,
-                            ),
+            </>
+          }
+          navigator={
+            <nav aria-label="Chapter navigator">
+              <div className="navigator-heading">
+                <h3>BODY</h3>
+                <span>{project.chapters.length} chapters</span>
+              </div>
+              <ol className="chapter-navigator">
+                {project.chapters.map((chapter, index) => (
+                  <li
+                    key={chapter.id}
+                    className={
+                      activeChapterId === chapter.id ? "active-chapter" : ""
+                    }
+                    draggable={!reordering}
+                    onDragStart={() => setDraggedChapterId(chapter.id)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={() => void dropChapter(chapter.id)}
+                    onKeyDown={(event) => {
+                      if (event.altKey && event.key === "ArrowUp") {
+                        event.preventDefault();
+                        void moveChapter(chapter.id, -1);
+                      } else if (event.altKey && event.key === "ArrowDown") {
+                        event.preventDefault();
+                        void moveChapter(chapter.id, 1);
+                      }
+                    }}
+                    tabIndex={0}
+                  >
+                    <button
+                      type="button"
+                      className="chapter-select"
+                      aria-current={
+                        activeChapterId === chapter.id ? "page" : undefined
+                      }
+                      onClick={() => void selectChapter(chapter.id)}
+                    >
+                      <span>
+                        <span className="chapter-index">
+                          {String(index + 1).padStart(2, "0")}
+                        </span>
+                        {chapter.title}
+                      </span>
+                      <small>
+                        {chapter.status} · {chapter.wordCount} words
+                      </small>
+                    </button>
+                    {editingChapterId === chapter.id ? (
+                      <form
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void renameSelectedChapter();
+                        }}
+                      >
+                        <label htmlFor={`chapter-title-${chapter.id}`}>
+                          Chapter title
+                        </label>
+                        <input
+                          id={`chapter-title-${chapter.id}`}
+                          value={chapterTitle}
+                          onChange={(event) =>
+                            setChapterTitle(event.target.value)
                           }
-                        : current,
-                    );
-                  }}
+                          disabled={renamingChapterId === chapter.id}
+                        />
+                        <button
+                          type="submit"
+                          disabled={
+                            renamingChapterId === chapter.id ||
+                            !chapterTitle.trim()
+                          }
+                        >
+                          {renamingChapterId === chapter.id
+                            ? "Saving…"
+                            : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={renamingChapterId === chapter.id}
+                          onClick={() => setEditingChapterId(null)}
+                        >
+                          Cancel
+                        </button>
+                      </form>
+                    ) : (
+                      <details className="chapter-menu">
+                        <summary aria-label={`Actions for ${chapter.title}`}>
+                          ⋯
+                        </summary>
+                        <div className="chapter-menu-actions">
+                          <button
+                            type="button"
+                            disabled={reordering}
+                            aria-label={`Move ${chapter.title} up`}
+                            onClick={() => {
+                              void moveChapter(chapter.id, -1);
+                            }}
+                          >
+                            Up
+                          </button>
+                          <button
+                            type="button"
+                            disabled={reordering}
+                            aria-label={`Move ${chapter.title} down`}
+                            onClick={() => {
+                              void moveChapter(chapter.id, 1);
+                            }}
+                          >
+                            Down
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingChapterId(chapter.id);
+                              setChapterTitle(chapter.title);
+                              setError("");
+                            }}
+                          >
+                            Rename
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void deleteSelectedChapter(chapter.id);
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </details>
+                    )}
+                  </li>
+                ))}
+              </ol>
+              <form
+                className="chapter-create"
+                onSubmit={(event) => void createNewChapter(event)}
+              >
+                <label htmlFor="new-chapter-title">New chapter title</label>
+                <input
+                  id="new-chapter-title"
+                  value={newChapterTitle}
+                  onChange={(event) => setNewChapterTitle(event.target.value)}
+                  placeholder="New chapter title"
+                  disabled={creatingChapter}
                 />
-              ) : (
-                <p>Select a chapter and wait for it to load before editing.</p>
-              )}
+                <button
+                  type="submit"
+                  disabled={creatingChapter || !newChapterTitle.trim()}
+                >
+                  {creatingChapter ? "Creating…" : "New chapter"}
+                </button>
+              </form>
+            </nav>
+          }
+          editor={
+            project.chapters.length === 0 ? (
+              <div className="empty-manuscript">
+                <WorkspaceIcon name="book" />
+                <span className="section-label">A NEW BEGINNING</span>
+                <h2>Your story starts here.</h2>
+                <p>
+                  Your project is ready. There are no chapters yet. Create one
+                  to begin writing.
+                </p>
+                <button
+                  onClick={() =>
+                    document.getElementById("new-chapter-title")?.focus()
+                  }
+                >
+                  Name your first chapter
+                </button>
+              </div>
+            ) : (
+              <>
+                {documentReady && documentState ? (
+                  <Editor
+                    key={chapterKey}
+                    editable={!changingDocument}
+                    title={
+                      project.chapters.find(
+                        (chapter) => chapter.id === activeChapterId,
+                      )?.title ?? "Manuscript"
+                    }
+                    chapterLabel={`CHAPTER ${String(project.chapters.findIndex((chapter) => chapter.id === activeChapterId) + 1).padStart(2, "0")}`}
+                    content={documentState.content}
+                    onChange={(content) => {
+                      dispatchDocument({
+                        type: "edited",
+                        key: chapterKey,
+                        content,
+                      });
+                      autosave.current?.edited();
+                      if (!activeChapterId) return;
+                      const wordCount = countDocumentWords(content);
+                      setProject((current) =>
+                        current
+                          ? {
+                              ...current,
+                              chapters: current.chapters.map((chapter) =>
+                                chapter.id === activeChapterId
+                                  ? { ...chapter, wordCount }
+                                  : chapter,
+                              ),
+                            }
+                          : current,
+                      );
+                    }}
+                  />
+                ) : (
+                  <p>
+                    Select a chapter and wait for it to load before editing.
+                  </p>
+                )}
+              </>
+            )
+          }
+          status={
+            <>
               <button
                 type="button"
                 aria-keyshortcuts="Control+s Meta+s"
@@ -599,197 +834,60 @@ export function App() {
                 words
               </p>
             </>
-          )}
-          <nav aria-label="Chapter navigator">
-            <div className="navigator-heading">
-              <h3>Chapters</h3>
-              <form onSubmit={(event) => void createNewChapter(event)}>
-                <label htmlFor="new-chapter-title">New chapter title</label>
-                <input
-                  id="new-chapter-title"
-                  value={newChapterTitle}
-                  onChange={(event) => setNewChapterTitle(event.target.value)}
-                  placeholder="New chapter title"
-                  disabled={creatingChapter}
-                />
-                <button
-                  type="submit"
-                  disabled={creatingChapter || !newChapterTitle.trim()}
-                >
-                  {creatingChapter ? "Creating…" : "New chapter"}
-                </button>
-              </form>
-            </div>
-            <ol className="chapter-navigator">
-              {project.chapters.map((chapter) => (
-                <li
-                  key={chapter.id}
-                  className={
-                    activeChapterId === chapter.id ? "active-chapter" : ""
-                  }
-                  draggable={!reordering}
-                  onDragStart={() => setDraggedChapterId(chapter.id)}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={() => void dropChapter(chapter.id)}
-                  onKeyDown={(event) => {
-                    if (event.altKey && event.key === "ArrowUp") {
-                      event.preventDefault();
-                      void moveChapter(chapter.id, -1);
-                    } else if (event.altKey && event.key === "ArrowDown") {
-                      event.preventDefault();
-                      void moveChapter(chapter.id, 1);
-                    }
-                  }}
-                  tabIndex={0}
-                >
-                  <button
-                    type="button"
-                    className="chapter-select"
-                    aria-current={
-                      activeChapterId === chapter.id ? "page" : undefined
-                    }
-                    onClick={() => void selectChapter(chapter.id)}
-                  >
-                    <span>{chapter.title}</span>
-                    <small>
-                      {chapter.status} · {chapter.wordCount} words
-                    </small>
-                  </button>
-                  {editingChapterId === chapter.id ? (
-                    <form
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        void renameSelectedChapter();
-                      }}
-                    >
-                      <label htmlFor={`chapter-title-${chapter.id}`}>
-                        Chapter title
-                      </label>
-                      <input
-                        id={`chapter-title-${chapter.id}`}
-                        value={chapterTitle}
-                        onChange={(event) =>
-                          setChapterTitle(event.target.value)
-                        }
-                        disabled={renamingChapterId === chapter.id}
-                      />
-                      <button
-                        type="submit"
-                        disabled={
-                          renamingChapterId === chapter.id ||
-                          !chapterTitle.trim()
-                        }
-                      >
-                        {renamingChapterId === chapter.id ? "Saving…" : "Save"}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={renamingChapterId === chapter.id}
-                        onClick={() => setEditingChapterId(null)}
-                      >
-                        Cancel
-                      </button>
-                    </form>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        disabled={reordering}
-                        aria-label={`Move ${chapter.title} up`}
-                        onClick={() => {
-                          void moveChapter(chapter.id, -1);
-                        }}
-                      >
-                        Up
-                      </button>
-                      <button
-                        type="button"
-                        disabled={reordering}
-                        aria-label={`Move ${chapter.title} down`}
-                        onClick={() => {
-                          void moveChapter(chapter.id, 1);
-                        }}
-                      >
-                        Down
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingChapterId(chapter.id);
-                          setChapterTitle(chapter.title);
-                          setError("");
-                        }}
-                      >
-                        Rename
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void deleteSelectedChapter(chapter.id);
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </nav>
-          <p className="project-path">Saved in {project.projectPath}</p>
-        </section>
+          }
+        />
       ) : (
-        <section className="welcome-panel" aria-labelledby="welcome-heading">
-          <h2 id="welcome-heading">Start writing</h2>
-          <p>
-            Create or open a project to begin shaping your manuscript. Your work
-            stays local and belongs to you.
-          </p>
-        </section>
-      )}
-      <section
-        className="welcome-panel recent-projects"
-        aria-labelledby="recent-heading"
-        aria-busy={loadingRecents}
-      >
-        <h2 id="recent-heading">Recent projects</h2>
-        {recentError && (
-          <p className="error-message" role="alert">
-            {recentError}
-          </p>
-        )}
-        {loadingRecents ? (
-          <p>Updating recent projects…</p>
-        ) : (
-          recents.length === 0 && <p>No recent projects yet.</p>
-        )}
-        <ul>
-          {recents.map((recent) => (
-            <li key={recent.id}>
-              <div>
-                <button
-                  disabled={opening || creating || loadingRecents}
-                  onClick={() => {
-                    void openExistingProject(recent.id);
-                  }}
-                >
-                  {recent.title}
-                </button>
-                <p className="project-path">{recent.path}</p>
-              </div>
+        <main className="app-shell" aria-busy={opening}>
+          <header className="app-header">
+            <p className="eyebrow">
+              <WorkspaceIcon name="book" /> BookEditor · Your words, your world
+            </p>
+            <h1>Your manuscript workspace</h1>
+            <p className="welcome-description">
+              A quiet place to write. A beautiful place to make a book.
+              <br />
+              Your work stays local, and always belongs to you.
+            </p>
+          </header>
+          {projectActions}
+          {error && (
+            <p className="error-message" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="welcome-grid">
+            <section className="welcome-panel demo-invitation">
+              <span className="section-label">A LOOK AHEAD</span>
+              <h2>Meet your next writing space.</h2>
+              <p>
+                Explore a sample book in the new workspace, with an outline, a
+                spacious editor and a look at the publishing tools to come.
+              </p>
               <button
-                aria-label={`Remove ${recent.title} from recent projects`}
-                disabled={opening || creating || loadingRecents}
-                onClick={() => {
-                  void removeRecent(recent.id);
-                }}
+                className="primary-button"
+                disabled={opening || creating}
+                onClick={() => setDemo(true)}
               >
-                Remove
+                Explore workspace
               </button>
-            </li>
-          ))}
-        </ul>
-      </section>
+              <small>Interactive demo · no project files created</small>
+              <div className="mini-workspace" aria-hidden="true">
+                <div />
+                <div>
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                </div>
+                <div>
+                  <span>Aa</span>
+                </div>
+              </div>
+            </section>
+            {recentProjects}
+          </div>
+        </main>
+      )}
       {creating && (
         <NewProjectDialog
           onCancel={() => setCreating(false)}
@@ -805,6 +903,6 @@ export function App() {
           }}
         />
       )}
-    </main>
+    </>
   );
 }
