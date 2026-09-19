@@ -51,6 +51,20 @@ These checks exercise the implemented model and persistence behavior; DOCX,
 publishing and migration coverage belongs with those later implementation
 issues.
 
+## Manuscript document schema coverage
+
+Issue #43's editor-schema acceptance criteria are covered by headless tests:
+
+| Acceptance criterion                       | Evidence                                                                                                                                                                                                |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Supported content round-trips without loss | `apps/desktop/test/manuscript-document.test.ts` JSON-serializes a paragraph with bold/italic marks, a block quote and a scene break, validates/deserializes it, then compares the restored editor JSON. |
+| Invalid nodes are rejected                 | The same test rejects unknown nodes and marks, malformed block quotes, invalid inline nodes and scene-break presentation attributes through `ManuscriptDocumentSchema`.                                 |
+| Scene breaks remain semantic               | `apps/desktop/test/scene-break.test.ts` verifies the stored node is `sceneBreak` and contains no decorative text; manuscript schema round-trip preserves that node.                                     |
+| Tests run headlessly                       | The editor schema and semantic node tests run under Vitest with jsdom; they do not launch Electron or require a visible browser.                                                                        |
+
+The schema tests verify the persisted ProseMirror document contract. Publishing
+converters and print rendering remain outside this v0.1 issue.
+
 The new-project dialog tests opt into jsdom using a per-file Vitest environment
 directive. They render React with `act`; native modal methods are stubbed because
 jsdom does not implement their focus/layout behavior. Test TypeScript includes
