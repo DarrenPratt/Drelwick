@@ -77,6 +77,36 @@ describe("persistent project schemas", () => {
     ).toThrow();
   });
 
+  it("rejects unsupported versions for each persisted project model", () => {
+    const project = {
+      schemaVersion: 2,
+      projectId,
+      ...timestamps,
+      bookFile: "book.json",
+      manuscript: { order: [chapterId] },
+    };
+    const book = {
+      schemaVersion: 2,
+      title: "The Example",
+      author: "Author",
+      language: "en-GB",
+      ...timestamps,
+    };
+    const chapter = {
+      schemaVersion: 2,
+      id: chapterId,
+      type: "chapter",
+      title: "A beginning",
+      status: "draft",
+      content: { type: "doc", content: [] },
+      ...timestamps,
+    };
+
+    expect(ProjectConfigSchema.safeParse(project).success).toBe(false);
+    expect(BookMetadataSchema.safeParse(book).success).toBe(false);
+    expect(ChapterFileSchema.safeParse(chapter).success).toBe(false);
+  });
+
   it("rejects duplicate chapter order and invalid documents", () => {
     expect(() =>
       ProjectConfigSchema.parse({
