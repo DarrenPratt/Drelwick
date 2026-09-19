@@ -35,6 +35,22 @@ settings and emits nothing. Production builds continue to include only `src/`.
 If a future suite requires TSX or a browser environment, add its corresponding
 test configuration and TypeScript settings with that implementation.
 
+## Project schema and persistence coverage
+
+The coverage requested by project-model task 41 (GitHub issue #42) is split
+between model-level and filesystem integration tests:
+
+| Acceptance criterion                                  | Evidence                                                                                                                                                                                                                                                                                       |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Valid project and chapter fixtures pass               | `packages/project-model/test/schemas.test.ts` validates project, book and chapter objects; `packages/core/test/project-loading.test.ts` creates and reopens a complete on-disk project.                                                                                                        |
+| Malformed files and unsupported versions are rejected | `packages/core/test/project-loading.test.ts` checks malformed JSON and invalid schemas for the manifest, book metadata and chapter files, and unsupported versions for each. `packages/project-model/test/schemas.test.ts` also rejects unsupported versions at each persisted model boundary. |
+| Atomic writes preserve valid data on failure          | `packages/core/test/atomic-writer.test.ts` covers serialization, temporary-file creation and rename failures, preservation of the prior target, and cleanup behavior.                                                                                                                          |
+| Chapter ordering persists and reopens correctly       | `packages/core/test/chapter-ordering.test.ts` checks manifest order after reopen, unchanged chapter-file bytes, invalid requests, and preservation after manifest-write failure.                                                                                                               |
+
+These checks exercise the implemented model and persistence behavior; DOCX,
+publishing and migration coverage belongs with those later implementation
+issues.
+
 The new-project dialog tests opt into jsdom using a per-file Vitest environment
 directive. They render React with `act`; native modal methods are stubbed because
 jsdom does not implement their focus/layout behavior. Test TypeScript includes
