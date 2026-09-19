@@ -75,6 +75,19 @@ The two initial tests verify loading the shared TypeScript entry and resolving
 the built workspace dependency through its separate consumer. They validate the
 test infrastructure; application behaviour tests arrive with their issues.
 
+## Autosave and recovery audit (#44)
+
+| Requirement                              | Executable evidence                                                                                                                                                                                                                                                            |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Debounce, retries and dirty-state races  | `packages/core/test/autosave.test.ts` uses fake timers for idle deadlines, in-flight edits, failed/rejected saves, concurrent flush failure and retry of the latest revision. `apps/desktop/test/document-state.test.ts` checks captured revisions and stale acknowledgements. |
+| Failed writes preserve the previous file | `packages/core/test/chapter-saving.test.ts` injects atomic replacement failure, checks unchanged file bytes, and retries successfully. `packages/core/test/recovery.test.ts` covers failed snapshot/replacement operations.                                                    |
+| Safe chapter switch and shutdown         | `apps/desktop/test/project-workflows.test.ts` exercises failed switches, immediate edits, close-triggered flush and retry. `apps/desktop/test/recovery-lifecycle.test.ts` checks clean-marker gating.                                                                          |
+| History and newer recovery candidates    | `packages/core/test/history.test.ts` verifies snapshot suppression, failure and retention. `packages/core/test/recovery.test.ts` tests newer temporary/history candidates, timestamp boundaries, stale candidates and explicit recovery decisions.                             |
+
+These are deterministic unit and filesystem integration checks. Native Electron
+end-to-end testing and forced-process/platform shutdown validation remain separate
+work; this audit does not claim those have been performed.
+
 ## Coverage
 
 Open `coverage/index.html` for the HTML report or use `coverage/lcov.info` with CI

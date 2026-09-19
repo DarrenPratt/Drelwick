@@ -152,6 +152,40 @@ describe("autosave scheduling", () => {
     expect(dirty()).toBe(false);
   });
 
+  it.each(["reported", "rejected"] as const)(
+    "shares a %s save failure between flush callers and retries the latest revision",
+    async (failure) => {
+      const { coordinator, write, edit, dirty } = fixture();
+      let fail!: () => void;
+      write.mockReturnValueOnce(
+        new Promise<boolean>((resolve, reject) => {
+          fail = () => {
+            if (failure === "rejected") reject(new Error("Save failed"));
+            else resolve(false);
+          };
+        }),
+      );
+      edit();
+      const first = coordinator.flush();
+      await vi.advanceTimersByTimeAsync(0);
+      edit();
+      const second = coordinator.flush();
+      expect(write.mock.calls).toEqual([[1]]);
+
+      fail();
+      expect(await Promise.all([first, second])).toEqual([false, false]);
+      expect(dirty()).toBe(true);
+      await vi.advanceTimersByTimeAsync(30000);
+      expect(write.mock.calls).toEqual([[1]]);
+
+      expect(await coordinator.flush()).toBe(true);
+      expect(write.mock.calls).toEqual([[1], [2]]);
+      expect(dirty()).toBe(false);
+      await vi.advanceTimersByTimeAsync(30000);
+      expect(write).toHaveBeenCalledTimes(2);
+    },
+  );
+
   it.each([100, 750])(
     "preserves a newer edit's autosave when an older write fails after %i ms",
     async (elapsed) => {

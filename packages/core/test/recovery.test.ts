@@ -135,6 +135,38 @@ it("ignores invalid, tied, and older recovery data", async () => {
   });
 });
 
+it.each([
+  ["2026-09-18T15:59:59.999Z", false],
+  ["2026-09-18T16:00:00.000Z", false],
+  ["2026-09-18T16:00:00.001Z", true],
+] as const)(
+  "offers a temporary document dated %s only when strictly newer",
+  async (modified, expected) => {
+    const { root, chapterId, chapter } = await fixture();
+    const path = join(root, "manuscript", `${chapterId}.json.tmp`);
+    const temporary = JSON.stringify({
+      ...chapter,
+      modified,
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "Recovered draft" }],
+          },
+        ],
+      },
+    });
+    await writeFile(path, temporary, "utf8");
+
+    const { candidates } = await scanRecoveryCandidates(root);
+    expect(candidates).toHaveLength(expected ? 1 : 0);
+    if (expected)
+      expect(candidates[0]).toMatchObject({ chapterId, source: "temporary" });
+    expect(await readFile(path, "utf8")).toBe(temporary);
+  },
+);
+
 it("does not modify the authoritative manuscript", async () => {
   const { root, chapterId } = await fixture();
   const path = join(root, "manuscript", `${chapterId}.json`);
