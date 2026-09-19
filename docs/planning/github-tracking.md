@@ -1,10 +1,16 @@
 # GitHub tracking register
 
-Reconciled 14 September 2026. Plan IDs remain stable source-document identifiers; GitHub numbers below are the actual created issues. All-state issue/title/marker searches preceded each creation. The initial repository had no issues or milestones, so none of the implementation issues was reused. No application task is marked implemented.
+Reconciled 14 September 2026. Plan IDs remain stable source-document identifiers; GitHub numbers below are the actual created issues. All-state issue/title/marker searches preceded each creation. The initial repository had no issues or milestones, so none of the implementation issues was reused. This paragraph describes the initial planning snapshot, not the current implementation state. Consult live issues and the dated update below.
 
 The original requirements from the two build plans are retained in each issue, supplemented with missing objective/scope/components/tests and product classification. Original prerequisites and additional readiness prerequisites are explicitly separated. The combined graph is acyclic.
 
 Planning foundation: [#1](https://github.com/DarrenPratt/BookEditor/issues/1), completed by merged PR #63. Project board setup: [#62](https://github.com/DarrenPratt/BookEditor/issues/62). Projects access is now available through the account-authorized GitHub CLI; the original access blocker is resolved. The existing private [@BookEditor project](https://github.com/users/DarrenPratt/projects/1) is linked to this repository and reused; no duplicate board was created.
+
+## Local publishing update — 19 September 2026
+
+The [local publishing plan](local-publishing-plan.md) maps new issue numbers and dependencies. Basic DOCX import moves to v0.2 and manuscript DOCX export to v0.3, both CORE. The application remains local; user-owned remote archive backup is separate exploration. The original task IDs and milestone names below remain unchanged.
+
+At the start of this update, main was `37a7bb8`, with 44 closed and 19 open issues and no open PRs. Chapter editing, persistence and recovery were implemented; publishing was not. The readiness and Project initialization sections below are historical records, not a live board snapshot. New publishing issues are added as Backlog, not automatically Ready.
 
 ## Milestones
 

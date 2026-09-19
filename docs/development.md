@@ -17,7 +17,7 @@ Every implementation issue has one primary product classification and matching l
 | SERVICE        | `product:service`   | Hosted infrastructure or continuing operating costs.                                                                                       |
 | ECOSYSTEM      | `product:ecosystem` | Themes, plugins or third-party extensions. The public extension API itself is CORE.                                                        |
 
-Split work that delivers independently scoped products. Basic themes are CORE, premium first-party themes are PRO, third-party theme packages are ECOSYSTEM. Optional hosted AI is SERVICE; an AI provider extension can be ECOSYSTEM. Classification is not a legal conclusion.
+Split work that delivers independently scoped products. Basic themes are CORE, premium first-party themes are PRO, third-party theme packages are ECOSYSTEM. Optional hosted AI is SERVICE; an AI provider extension can be ECOSYSTEM. Basic local DOCX import and manuscript export, archive backup/restore, and ordinary EPUB/PDF publishing are CORE. Cloud editing and collaboration are outside the current roadmap. A future client for user-owned backup storage is not automatically SERVICE; classify its implementation after the backup exploration. Classification is not a legal conclusion.
 
 ## Architecture guardrails
 

@@ -1,11 +1,18 @@
 # BookEditor
 
-A planned cross-platform, local-first, open-core desktop editor for writing, organising and publishing books, built around a local, open project format.
+A cross-platform, local-first, open-core desktop editor in private development for writing, organising and publishing books, built around a local, open project format.
 
-The repository contains design documents and a pnpm/TypeScript workspace with an
-initial Electron desktop shell. The first planned release focuses on reliable
-manuscript editing, autosave and recovery; EPUB and print PDF publishing follow
-in later releases.
+The repository implements local project/chapter management, manuscript editing,
+autosave, retained history snapshots and crash recovery. v0.1 testing, hardening
+and release validation remain open. DOCX import, presentation, EPUB and print PDF
+are planned work, not implemented publishing features. See the
+[local publishing delivery plan](docs/planning/local-publishing-plan.md).
+
+Basic DOCX import and manuscript DOCX export are planned Community capabilities.
+The delivery roadmap is a local desktop workflow with no account or hosted
+conversion requirement. Optional backup to user-owned storage such as Google
+Drive or Wasabi is research only; cloud editing and collaboration are outside
+the current roadmap.
 
 Start with the [documentation index](docs/README.md) for the design, technical specification and build plans.
 

@@ -15,6 +15,10 @@
 
 Task 60 is future work, after the Community/Pro package boundary is established and the extension design is ready. It does not instruct creation of Pro during this planning run. Task 56 designs the public API; a full plugin runtime is outside v0.1. CORE classification for shared governance reflects the Community foundation, not a decision that commercial functionality is free.
 
+## Local delivery update — 19 September 2026
+
+Basic DOCX import is CORE in v0.2; basic manuscript DOCX export is CORE by v0.3. Cloud editing, hosted conversion and collaboration are outside the current roadmap. Optional Google Drive/Wasabi backup is exploration of user-owned storage, not a BookEditor hosted service. Client-side integration does not automatically imply SERVICE classification; provider fees and any future BookEditor-operated infrastructure are separate decisions. See the [local publishing plan](local-publishing-plan.md). The rest of the feature-boundary review remains open in actual GitHub issue #52.
+
 # Commercial Architecture Milestone
 
 Create an additional GitHub milestone:
@@ -51,6 +55,8 @@ Semantic formatting
 Autosave/recovery
 History
 Basic themes
+Basic local DOCX import and manuscript DOCX export
+Portable local backup and restore
 EPUB 3
 Basic print PDF
 Basic validation
@@ -65,7 +71,7 @@ Advanced print
 KDP profiles
 KDP preflight
 Advanced validation
-DOCX
+Advanced Word layout fidelity (only if separately designed)
 Premium themes
 Series management
 Advanced continuity
