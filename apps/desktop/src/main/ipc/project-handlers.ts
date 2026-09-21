@@ -30,6 +30,21 @@ import {
   type SafeLogger,
 } from "@bookeditor/shared";
 import type { RecentProjects } from "../recent-projects.js";
+import { HistoryRuntime } from "../history-runtime.js";
+
+interface HistoryTasks {
+  scheduleSnapshot(input: {
+    projectPath: string;
+    projectId: string;
+    chapterId: string;
+    document: Record<string, unknown>;
+  }): void;
+  scheduleRetention(input: { projectPath: string; projectId: string }): void;
+  settleProject(projectPath: string): Promise<void>;
+  closeProject(projectPath: string): Promise<void>;
+  settleAll(): Promise<void>;
+  shutdown(): Promise<void>;
+}
 
 interface Dependencies {
   startupBlocked(): boolean;
@@ -45,6 +60,7 @@ interface Dependencies {
   reorder: typeof reorderChapters;
   recents?: RecentProjects;
   logger: SafeLogger;
+  history?: HistoryTasks;
 }
 
 const dependencies: Dependencies = {
@@ -86,8 +102,13 @@ export function registerProjectHandlers(
   getWindow: () => BrowserWindow | undefined,
   rendererUrl: string,
   overrides: Partial<Dependencies> = {},
-): void {
+): {
+  settleHistory(): Promise<void>;
+  stopHistory(): Promise<void>;
+} {
   const services = { ...dependencies, ...overrides };
+  const history =
+    services.history ?? new HistoryRuntime({ logger: services.logger });
   let location:
     | { owner: IpcMainInvokeEvent["senderFrame"]; token: string; path: string }
     | undefined;
@@ -163,9 +184,14 @@ export function registerProjectHandlers(
               "PROJECT_ACCESS_DENIED",
               "Project window changed. Open the project again.",
             );
+          if (activeProjectPath) await history.closeProject(activeProjectPath);
           location = undefined;
           activeProjectPath = opened.projectPath;
           activeProjectId = opened.project.projectId;
+          history.scheduleRetention({
+            projectPath: opened.projectPath,
+            projectId: opened.project.projectId,
+          });
           services.logger.info("project.opened", {
             projectId: opened.project.projectId,
             source: channel === IPC.RECENT_OPEN ? "recent" : "folder_picker",
@@ -241,7 +267,7 @@ export function registerProjectHandlers(
 
   ipcMain.handle(
     IPC.PROJECT_CLOSE,
-    (event, payload: unknown): ProjectOperationResult<null> => {
+    async (event, payload: unknown): Promise<ProjectOperationResult<null>> => {
       if (!trusted(event))
         return failure(
           "PROJECT_ACCESS_DENIED",
@@ -254,9 +280,15 @@ export function registerProjectHandlers(
           "PROJECT_BUSY",
           "Please wait for the current project operation.",
         );
-      activeProjectPath = undefined;
-      activeProjectId = undefined;
-      return { ok: true, value: null };
+      busy = true;
+      try {
+        if (activeProjectPath) await history.closeProject(activeProjectPath);
+        activeProjectPath = undefined;
+        activeProjectId = undefined;
+        return { ok: true, value: null };
+      } finally {
+        busy = false;
+      }
     },
   );
 
@@ -405,9 +437,14 @@ export function registerProjectHandlers(
           language: parsed.data.language,
           projectPath: location.path,
         });
+        if (activeProjectPath) await history.closeProject(activeProjectPath);
         location = undefined;
         activeProjectPath = created.projectPath;
         activeProjectId = created.project.projectId;
+        history.scheduleRetention({
+          projectPath: created.projectPath,
+          projectId: created.project.projectId,
+        });
         services.logger.info("project.created", {
           projectId: created.project.projectId,
           durationMs: Date.now() - startedAt,
@@ -823,6 +860,13 @@ export function registerProjectHandlers(
         source: parsed.data.source,
         durationMs: Date.now() - startedAt,
       });
+      if (activeProjectId)
+        history.scheduleSnapshot({
+          projectPath: activeProjectPath,
+          projectId: activeProjectId,
+          chapterId: saved.id,
+          document: parsed.data.document,
+        });
       if (!trusted(event))
         return failure(
           "PROJECT_ACCESS_DENIED",
@@ -915,4 +959,9 @@ export function registerProjectHandlers(
       }
     },
   );
+
+  return {
+    settleHistory: () => history.settleAll(),
+    stopHistory: () => history.shutdown(),
+  };
 }

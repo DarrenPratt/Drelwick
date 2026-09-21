@@ -1,9 +1,14 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createProject, createChapter, saveChapter } from "@bookeditor/core";
+import {
+  createProject,
+  createChapter,
+  createHistorySnapshot,
+  saveChapter,
+} from "@bookeditor/core";
 import { createAutosaveCoordinator } from "@bookeditor/core/autosave";
 import {
   IPC,
@@ -42,7 +47,21 @@ async function fixture() {
     path: join(root, "manuscript", `${chapter.id}.json`),
   };
 }
-function setup(path: string, save = saveChapter) {
+interface HistoryTestTasks {
+  scheduleSnapshot(input: {
+    projectPath: string;
+    projectId: string;
+    chapterId: string;
+    document: Record<string, unknown>;
+  }): void;
+  scheduleRetention(input: { projectPath: string; projectId: string }): void;
+  settleProject(projectPath: string): Promise<void>;
+  closeProject(projectPath: string): Promise<void>;
+  settleAll(): Promise<void>;
+  shutdown(): Promise<void>;
+}
+
+function setup(path: string, save = saveChapter, history?: HistoryTestTasks) {
   handle.mockReset();
   const frame = { url: "file:///app/index.html" };
   const webContents = { mainFrame: frame };
@@ -60,10 +79,11 @@ function setup(path: string, save = saveChapter) {
     warn: vi.fn(),
     error: vi.fn(),
   } satisfies SafeLogger;
-  registerProjectHandlers(() => window, frame.url, {
+  const handlers = registerProjectHandlers(() => window, frame.url, {
     selectExistingFolder: async () => path,
     saveChapter: save,
     logger,
+    ...(history ? { history } : {}),
   });
   const invoke = (
     channel: string,
@@ -78,7 +98,13 @@ function setup(path: string, save = saveChapter) {
     ) => Promise<ProjectOperationResult<unknown>>;
     return handler(source, payload);
   };
-  return { invoke, event, frame, logger };
+  return {
+    invoke,
+    event,
+    frame,
+    logger,
+    settleHistory: handlers.settleHistory,
+  };
 }
 const document = {
   type: "doc",
@@ -121,6 +147,50 @@ it("round trips validated IPC through disk and a fresh main session", async () =
   expect(
     await restarted.invoke(IPC.PROJECT_LOAD_CHAPTER, { chapterId }),
   ).toEqual({ ok: true, value: { id: chapterId, content: document } });
+});
+
+it("retains history on project open and snapshots only successfully saved content", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-09-21T12:00:00.000Z"));
+  try {
+    const { root, chapterId, path } = await fixture();
+    const oldSnapshot = await createHistorySnapshot({
+      projectPath: root,
+      chapterId,
+      document,
+      now: "2026-08-01T12:00:00.000Z",
+      reason: "manual",
+    });
+    const authoritativeBefore = await readFile(path, "utf8");
+    const { invoke, settleHistory } = setup(root);
+    expect((await invoke(IPC.PROJECT_OPEN)).ok).toBe(true);
+    await settleHistory();
+    expect(
+      await readdir(join(root, ".history", "snapshots", chapterId)),
+    ).toEqual([]);
+    expect(await readFile(path, "utf8")).toBe(authoritativeBefore);
+
+    expect(
+      await invoke(IPC.PROJECT_SAVE_CHAPTER, { chapterId, document }),
+    ).toMatchObject({ ok: true });
+    await settleHistory();
+    const snapshots = await readdir(
+      join(root, ".history", "snapshots", chapterId),
+    );
+    expect(snapshots).toHaveLength(1);
+    expect(snapshots[0]).not.toBe(`${oldSnapshot!.id}.json`);
+    expect(
+      JSON.parse(
+        await readFile(
+          join(root, ".history", "snapshots", chapterId, snapshots[0]!),
+          "utf8",
+        ),
+      ),
+    ).toMatchObject({ chapterId, reason: "interval", content: document });
+    expect(JSON.parse(await readFile(path, "utf8")).content).toEqual(document);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it("autosaves a debounced revision through validated IPC to the chapter file", async () => {
@@ -245,4 +315,36 @@ it("blocks overlapping writes and project replacement, and sanitizes failures", 
     "sensitive manuscript body",
   );
   expect((await invoke(IPC.PROJECT_OPEN)).ok).toBe(true);
+});
+
+it("does not schedule history for a failed chapter write", async () => {
+  const { root, chapterId } = await fixture();
+  const history = {
+    scheduleSnapshot: vi.fn<HistoryTestTasks["scheduleSnapshot"]>(),
+    scheduleRetention: vi.fn<HistoryTestTasks["scheduleRetention"]>(),
+    settleProject: vi
+      .fn<HistoryTestTasks["settleProject"]>()
+      .mockResolvedValue(undefined),
+    closeProject: vi
+      .fn<HistoryTestTasks["closeProject"]>()
+      .mockResolvedValue(undefined),
+    settleAll: vi
+      .fn<HistoryTestTasks["settleAll"]>()
+      .mockResolvedValue(undefined),
+    shutdown: vi
+      .fn<HistoryTestTasks["shutdown"]>()
+      .mockResolvedValue(undefined),
+  };
+  const save = vi
+    .fn<typeof saveChapter>()
+    .mockRejectedValue(new Error("disk full"));
+  const { invoke } = setup(root, save, history);
+  await invoke(IPC.PROJECT_OPEN);
+  expect(history.scheduleRetention).toHaveBeenCalledOnce();
+  expect(
+    await invoke(IPC.PROJECT_SAVE_CHAPTER, { chapterId, document }),
+  ).toMatchObject({ ok: false, error: { code: "CHAPTER_SAVE_FAILED" } });
+  expect(history.scheduleSnapshot).not.toHaveBeenCalled();
+  expect(await invoke(IPC.PROJECT_CLOSE)).toMatchObject({ ok: true });
+  expect(history.closeProject).toHaveBeenCalledWith(root);
 });

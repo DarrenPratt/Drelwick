@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import {
   applyHistoryRetention,
   createHistorySnapshot,
@@ -111,6 +111,12 @@ it("ignores invalid history files and reports write failures", async () => {
       },
       {
         mkdir: async () => undefined,
+        lstat: async () => ({
+          isDirectory: () => true,
+          isFile: () => false,
+          isSymbolicLink: () => false,
+        }),
+        realpath: async (path) => path,
         readdir: async () => [],
         readFile: async () => "",
         writeJson: async () => {
@@ -120,6 +126,44 @@ it("ignores invalid history files and reports write failures", async () => {
       },
     ),
   ).rejects.toMatchObject({ code: "HISTORY_SNAPSHOT_WRITE_FAILED" });
+});
+
+it("does not follow symbolic links in project history paths", async () => {
+  const root = await setup();
+  const historyPath = join(root, ".history");
+  const readdirSpy = vi.fn(async () => [] as string[]);
+  const unlinkSpy = vi.fn(async () => undefined);
+  const fakeFileSystem = {
+    mkdir: vi.fn(async () => undefined),
+    lstat: async (path: string) => ({
+      isDirectory: () => path === root,
+      isFile: () => false,
+      isSymbolicLink: () => path === historyPath,
+    }),
+    realpath: async (path: string) => path,
+    readdir: readdirSpy,
+    readFile: async () => "",
+    writeJson: vi.fn(async () => undefined),
+    unlink: unlinkSpy,
+  };
+
+  await expect(
+    createHistorySnapshot(
+      {
+        projectPath: root,
+        chapterId: "123e4567-e89b-42d3-a456-426614174001",
+        document,
+      },
+      fakeFileSystem,
+    ),
+  ).rejects.toMatchObject({ code: "PROJECT_PATH_INVALID" });
+  expect(fakeFileSystem.mkdir).not.toHaveBeenCalled();
+  expect(fakeFileSystem.writeJson).not.toHaveBeenCalled();
+  await expect(
+    applyHistoryRetention(root, undefined, fakeFileSystem),
+  ).resolves.toEqual({ removed: 0, retained: 0 });
+  expect(readdirSpy).not.toHaveBeenCalled();
+  expect(unlinkSpy).not.toHaveBeenCalled();
 });
 
 it("retains recent, hourly, and daily history without touching manuscript files", async () => {

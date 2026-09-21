@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   listeners: new Map<string, (...args: unknown[]) => void>(),
   start: vi.fn(),
   markClean: vi.fn(),
+  stopHistory: vi.fn(),
   exit: vi.fn(),
   quit: vi.fn(),
   list: vi.fn(),
@@ -69,7 +70,7 @@ vi.mock("../src/main/logging/file-logger.js", () => ({
   ),
 }));
 vi.mock("../src/main/ipc/project-handlers.js", () => ({
-  registerProjectHandlers: vi.fn(),
+  registerProjectHandlers: vi.fn(() => ({ stopHistory: mocks.stopHistory })),
 }));
 vi.mock("../src/main/application-menu.js", () => ({
   installApplicationMenu: vi.fn(),
@@ -90,6 +91,7 @@ beforeEach(() => {
   mocks.listeners.clear();
   mocks.fatalHandler = undefined;
   mocks.start.mockResolvedValue({ wasUnclean: true });
+  mocks.stopHistory.mockResolvedValue(undefined);
   mocks.list.mockResolvedValue([{ path: "/book" }]);
   mocks.scanProject.mockResolvedValue({ candidates: [] });
   mocks.getCandidates.mockReturnValue([{ id: "candidate" }]);
@@ -125,7 +127,11 @@ it("normal shutdown still waits for the renderer and marks clean only after reco
   await mocks.handlers.get(IPC.APPLICATION_SHUTDOWN_READY)!(event, {
     saved: true,
   });
+  expect(mocks.stopHistory).toHaveBeenCalledOnce();
   expect(mocks.markClean).toHaveBeenCalledOnce();
+  expect(mocks.stopHistory.mock.invocationCallOrder[0]).toBeLessThan(
+    mocks.markClean.mock.invocationCallOrder[0]!,
+  );
   expect(mocks.exit).toHaveBeenCalledWith(0);
   expect(mocks.logInfo).toHaveBeenCalledWith("application.shutdown", {
     reason: "normal",
