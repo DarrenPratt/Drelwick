@@ -2090,6 +2090,15 @@ These are writing-environment settings, not publication formatting.
 
 Actions should be represented as commands rather than tightly coupled UI callbacks.
 
+The initial Electron menu is installed by the main process and exposes New
+Project, Open Project, Save, Close Project and Exit with native Edit, View and
+Help menus. New/Open/Close requests cross the restricted preload API as
+allowlisted commands; Save reuses the existing save request. The renderer keeps
+project transitions behind its existing dirty-state guard. Closing a project
+clears its privileged main-process access only after the renderer confirms it
+can leave the active chapter. Windows/Linux show Exit in File; macOS uses its
+standard application menu for Quit and does not duplicate Exit there.
+
 Examples:
 
 ```text

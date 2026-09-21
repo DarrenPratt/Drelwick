@@ -155,6 +155,27 @@ describe("existing project IPC", () => {
     expect(open).not.toHaveBeenCalled();
   });
 
+  it("clears privileged project access when the trusted renderer closes a project", async () => {
+    const { invoke, event } = setup();
+    await fixture();
+    expect((await invoke()).ok).toBe(true);
+
+    expect(await invoke(undefined, event, IPC.PROJECT_CLOSE)).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect(
+      await invoke(
+        { chapterId: createUuid() },
+        event,
+        IPC.PROJECT_LOAD_CHAPTER,
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "PROJECT_NOT_OPEN" },
+    });
+  });
+
   it.each(["missing", "malformed", "unsupported"])(
     "reports a real %s project clearly",
     async (kind) => {

@@ -22,6 +22,7 @@ const workspace = {
   chapters: [],
 };
 const create = vi.fn<BookEditorApi["project"]["create"]>();
+const closeProject = vi.fn<BookEditorApi["project"]["close"]>();
 const selectLocation = vi.fn<BookEditorApi["project"]["selectLocation"]>();
 const open = vi.fn<BookEditorApi["project"]["open"]>();
 const listRecent = vi.fn<BookEditorApi["project"]["listRecent"]>();
@@ -37,10 +38,14 @@ let root: Root;
 let container: HTMLDivElement;
 const saveListeners = new Set<() => void>();
 const shutdownListeners = new Set<() => Promise<boolean>>();
+const menuListeners = new Set<
+  (command: "new-project" | "open-project" | "close-project") => void
+>();
 
 beforeEach(async () => {
   saveListeners.clear();
   shutdownListeners.clear();
+  menuListeners.clear();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   // jsdom has no native modal implementation; Electron smoke testing covers it.
   HTMLDialogElement.prototype.showModal = function () {
@@ -52,6 +57,7 @@ beforeEach(async () => {
   create.mockReset().mockResolvedValue({ ok: true, value: workspace });
   selectLocation.mockReset().mockResolvedValue({ ok: true, value: selected });
   open.mockReset().mockResolvedValue({ ok: true, value: workspace });
+  closeProject.mockReset().mockResolvedValue({ ok: true, value: null });
   listRecent.mockReset().mockResolvedValue({ ok: true, value: [] });
   openRecent.mockReset().mockResolvedValue({ ok: true, value: workspace });
   removeRecent.mockReset().mockResolvedValue({ ok: true, value: [] });
@@ -97,8 +103,13 @@ beforeEach(async () => {
         shutdownListeners.delete(callback);
       };
     }),
+    onApplicationMenuCommand: vi.fn((callback) => {
+      menuListeners.add(callback);
+      return () => menuListeners.delete(callback);
+    }),
     project: {
       create,
+      close: closeProject,
       selectLocation,
       open,
       listRecent,
@@ -373,6 +384,32 @@ describe("new project dialog", () => {
 });
 
 describe("existing project workflow", () => {
+  it("routes native menu commands through the guarded project workflows", async () => {
+    const emit = async (
+      command: "new-project" | "open-project" | "close-project",
+    ) => {
+      await act(async () => {
+        for (const listener of menuListeners) listener(command);
+      });
+    };
+
+    await emit("new-project");
+    expect(container.querySelector("dialog h2")?.textContent).toBe(
+      "New project",
+    );
+    await click("Cancel");
+
+    await emit("open-project");
+    expect(open).toHaveBeenCalledOnce();
+    expect(container.querySelector("h1")?.textContent).toBe("Example");
+
+    await emit("close-project");
+    expect(closeProject).toHaveBeenCalledOnce();
+    expect(container.querySelector("h1")?.textContent).toBe(
+      "Your manuscript workspace",
+    );
+  });
+
   it("opens from the welcome screen and replaces the workspace on the next successful open", async () => {
     await click("Open project");
     expect(open).toHaveBeenCalledWith();

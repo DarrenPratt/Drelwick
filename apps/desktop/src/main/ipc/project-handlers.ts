@@ -239,6 +239,27 @@ export function registerProjectHandlers(
       },
     );
 
+  ipcMain.handle(
+    IPC.PROJECT_CLOSE,
+    (event, payload: unknown): ProjectOperationResult<null> => {
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      if (!IpcRequestSchemas[IPC.PROJECT_CLOSE].safeParse(payload).success)
+        return failure("PROJECT_INPUT_INVALID", "Unable to close the project.");
+      if (busy)
+        return failure(
+          "PROJECT_BUSY",
+          "Please wait for the current project operation.",
+        );
+      activeProjectPath = undefined;
+      activeProjectId = undefined;
+      return { ok: true, value: null };
+    },
+  );
+
   async function remember(
     path: string,
     title: string,

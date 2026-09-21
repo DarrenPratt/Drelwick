@@ -42,7 +42,16 @@ export type IpcChannel = (typeof IPC)[keyof typeof IPC];
 
 // Main-to-renderer notifications are separate from validated invoke requests.
 export const SAVE_COMMAND_CHANNEL = "command:save";
+export const APPLICATION_MENU_COMMAND_CHANNEL = "command:application-menu";
 export const SHUTDOWN_REQUEST_CHANNEL = "application:shutdown-request";
+export const ApplicationMenuCommandSchema = z.enum([
+  "new-project",
+  "open-project",
+  "close-project",
+]);
+export type ApplicationMenuCommand = z.infer<
+  typeof ApplicationMenuCommandSchema
+>;
 
 const chapterId = z.string().trim().min(1);
 const chapterTitle = z.string().trim().min(1).max(200);
@@ -161,6 +170,9 @@ export interface BookEditorApi {
   };
 
   onSaveRequested(callback: () => void): () => void;
+  onApplicationMenuCommand(
+    callback: (command: ApplicationMenuCommand) => void,
+  ): () => void;
   onShutdownRequested(callback: () => Promise<boolean>): () => void;
   project: {
     create(
@@ -172,6 +184,7 @@ export interface BookEditorApi {
     openRecent(
       id: string,
     ): Promise<ProjectOperationResult<ProjectWorkspace | null>>;
+    close(): Promise<ProjectOperationResult<null>>;
     removeRecent(id: string): Promise<ProjectOperationResult<RecentProject[]>>;
     renameChapter(
       input: RenameChapterRequest,

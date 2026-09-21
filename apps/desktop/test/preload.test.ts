@@ -40,6 +40,21 @@ describe("preload API", () => {
     expect(callback).toHaveBeenCalledExactlyOnceWith();
     unsubscribe();
     expect(removeListener).toHaveBeenCalledWith("command:save", listener);
+    const menuCommand = vi.fn();
+    const removeMenuCommand = api.onApplicationMenuCommand(menuCommand);
+    expect(on).toHaveBeenCalledWith(
+      "command:application-menu",
+      expect.any(Function),
+    );
+    const menuListener = on.mock.calls[1]?.[1] as (...args: unknown[]) => void;
+    menuListener({}, "open-project");
+    menuListener({}, { unexpected: true });
+    expect(menuCommand).toHaveBeenCalledExactlyOnceWith("open-project");
+    removeMenuCommand();
+    expect(removeListener).toHaveBeenCalledWith(
+      "command:application-menu",
+      menuListener,
+    );
     const input = {
       title: "Book",
       author: "Author",
@@ -77,7 +92,7 @@ describe("preload API", () => {
       "application:shutdown-request",
       expect.any(Function),
     );
-    const shutdownListener = on.mock.calls[1]?.[1] as () => void;
+    const shutdownListener = on.mock.calls[2]?.[1] as () => void;
     shutdownListener();
     await Promise.resolve();
     expect(shutdownCallback).toHaveBeenCalledOnce();
@@ -105,5 +120,7 @@ describe("preload API", () => {
       "application:shutdown-request",
       shutdownListener,
     );
+    await api.project.close();
+    expect(invoke).toHaveBeenLastCalledWith("project:close");
   });
 });
