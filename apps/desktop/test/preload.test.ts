@@ -22,6 +22,8 @@ describe("preload API", () => {
         project: expect.objectContaining({
           create: expect.any(Function),
           open: expect.any(Function),
+          backup: expect.any(Function),
+          restore: expect.any(Function),
         }),
         onShutdownRequested: expect.any(Function),
         dialog: expect.objectContaining({
@@ -122,5 +124,11 @@ describe("preload API", () => {
     );
     await api.project.close();
     expect(invoke).toHaveBeenLastCalledWith("project:close");
+    await api.project.backup({ includeHistory: false });
+    expect(invoke).toHaveBeenLastCalledWith("project:backup", {
+      includeHistory: false,
+    });
+    await api.project.restore();
+    expect(invoke).toHaveBeenLastCalledWith("project:restore");
   });
 });

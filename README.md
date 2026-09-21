@@ -42,6 +42,12 @@ to reopen it or **Remove** to forget the entry without deleting the project.
 The list persists in application settings across restarts; project files remain
 portable. See [recent project tracking](docs/recent-projects.md).
 
+Use **File → Back Up Project** to create a checksummed ZIP copy, optionally
+including version history, or **File → Restore Project Backup** to restore into
+a separate new project folder. Pending edits are saved first; backups remain
+copies while the project files stay authoritative. See
+[portable project backups](docs/project-backups.md).
+
 ## Development setup
 
 Use Node.js 24.x and pnpm 10.34.5. The root manifest pins pnpm and TypeScript

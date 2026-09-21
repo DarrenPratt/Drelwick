@@ -23,6 +23,8 @@ const workspace = {
 };
 const create = vi.fn<BookEditorApi["project"]["create"]>();
 const closeProject = vi.fn<BookEditorApi["project"]["close"]>();
+const backupProject = vi.fn<BookEditorApi["project"]["backup"]>();
+const restoreProject = vi.fn<BookEditorApi["project"]["restore"]>();
 const selectLocation = vi.fn<BookEditorApi["project"]["selectLocation"]>();
 const open = vi.fn<BookEditorApi["project"]["open"]>();
 const listRecent = vi.fn<BookEditorApi["project"]["listRecent"]>();
@@ -39,7 +41,14 @@ let container: HTMLDivElement;
 const saveListeners = new Set<() => void>();
 const shutdownListeners = new Set<() => Promise<boolean>>();
 const menuListeners = new Set<
-  (command: "new-project" | "open-project" | "close-project") => void
+  (
+    command:
+      | "new-project"
+      | "open-project"
+      | "close-project"
+      | "backup-project"
+      | "restore-project",
+  ) => void
 >();
 
 beforeEach(async () => {
@@ -58,6 +67,11 @@ beforeEach(async () => {
   selectLocation.mockReset().mockResolvedValue({ ok: true, value: selected });
   open.mockReset().mockResolvedValue({ ok: true, value: workspace });
   closeProject.mockReset().mockResolvedValue({ ok: true, value: null });
+  backupProject.mockReset().mockResolvedValue({
+    ok: true,
+    value: { created: true },
+  });
+  restoreProject.mockReset().mockResolvedValue({ ok: true, value: null });
   listRecent.mockReset().mockResolvedValue({ ok: true, value: [] });
   openRecent.mockReset().mockResolvedValue({ ok: true, value: workspace });
   removeRecent.mockReset().mockResolvedValue({ ok: true, value: [] });
@@ -110,6 +124,8 @@ beforeEach(async () => {
     project: {
       create,
       close: closeProject,
+      backup: backupProject,
+      restore: restoreProject,
       selectLocation,
       open,
       listRecent,
@@ -386,7 +402,12 @@ describe("new project dialog", () => {
 describe("existing project workflow", () => {
   it("routes native menu commands through the guarded project workflows", async () => {
     const emit = async (
-      command: "new-project" | "open-project" | "close-project",
+      command:
+        | "new-project"
+        | "open-project"
+        | "close-project"
+        | "backup-project"
+        | "restore-project",
     ) => {
       await act(async () => {
         for (const listener of menuListeners) listener(command);
@@ -408,6 +429,15 @@ describe("existing project workflow", () => {
     expect(container.querySelector("h1")?.textContent).toBe(
       "Your manuscript workspace",
     );
+
+    await emit("open-project");
+    await emit("backup-project");
+    expect(backupProject).toHaveBeenCalledWith({ includeHistory: true });
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(
+      "Project backup created successfully.",
+    );
+    await emit("restore-project");
+    expect(restoreProject).toHaveBeenCalledOnce();
   });
 
   it("opens from the welcome screen and replaces the workspace on the next successful open", async () => {
@@ -722,6 +752,24 @@ describe("chapter editor persistence", () => {
     await act(async () => root.render(null));
     expect(saveListeners.size).toBe(0);
     expect((await shortcut({ ctrlKey: true })).defaultPrevented).toBe(false);
+  });
+
+  it("flushes dirty editor content before a backup command starts", async () => {
+    await openChapter();
+    await editText();
+    await act(async () => {
+      menuListeners.forEach((callback) => callback("backup-project"));
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(backupProject).toHaveBeenCalledOnce());
+    expect(saveChapter).toHaveBeenCalledExactlyOnceWith({
+      chapterId: "123e4567-e89b-42d3-a456-426614174001",
+      document: editor().getJSON(),
+      source: "autosave",
+    });
+    expect(saveChapter.mock.invocationCallOrder[0]).toBeLessThan(
+      backupProject.mock.invocationCallOrder[0]!,
+    );
   });
 
   async function openChapter() {

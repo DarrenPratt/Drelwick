@@ -160,4 +160,28 @@ export const HistorySnapshotSchema = z.object({
 });
 export type HistorySnapshot = z.infer<typeof HistorySnapshotSchema>;
 
+/** Versioned inventory for a portable project archive. Paths always use `/`. */
+export const ProjectArchiveManifestSchema = z
+  .object({
+    schemaVersion,
+    projectId: uuid,
+    created: isoDate,
+    includesHistory: z.boolean(),
+    files: z
+      .array(
+        z
+          .object({
+            path: z.string().min(1).max(1024),
+            size: z.number().int().nonnegative(),
+            sha256: z.string().regex(/^[a-f0-9]{64}$/),
+          })
+          .strict(),
+      )
+      .max(10000),
+  })
+  .strict();
+export type ProjectArchiveManifest = z.infer<
+  typeof ProjectArchiveManifestSchema
+>;
+
 export { ManuscriptDocumentSchema };

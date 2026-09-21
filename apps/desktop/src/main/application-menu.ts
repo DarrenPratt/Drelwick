@@ -11,7 +11,12 @@ import {
 
 function sendCommand(
   window: BaseWindow | undefined,
-  command: "new-project" | "open-project" | "close-project",
+  command:
+    | "new-project"
+    | "open-project"
+    | "close-project"
+    | "backup-project"
+    | "restore-project",
 ): void {
   if (!window || window.isDestroyed()) return;
   BrowserWindow.fromId(window.id)?.webContents.send(
@@ -47,6 +52,15 @@ export function installApplicationMenu(platform = process.platform): void {
               SAVE_COMMAND_CHANNEL,
             );
           },
+        },
+        { type: "separator" },
+        {
+          label: "Back Up Project…",
+          click: (_item, window) => sendCommand(window, "backup-project"),
+        },
+        {
+          label: "Restore Project Backup…",
+          click: (_item, window) => sendCommand(window, "restore-project"),
         },
         { type: "separator" },
         {
