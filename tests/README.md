@@ -92,6 +92,28 @@ The two initial tests verify loading the shared TypeScript entry and resolving
 the built workspace dependency through its separate consumer. They validate the
 test infrastructure; application behaviour tests arrive with their issues.
 
+## Standard project fixtures
+
+Canonical, publication-safe project fixtures live under `tests/fixtures/`. Their
+UUIDs, timestamps and synthetic manuscript content are deterministic.
+
+| Fixture              | Purpose                                                                                         |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| `minimal-book`       | Small valid project with one empty paragraph chapter.                                           |
+| `multi-chapter-book` | Three valid chapters whose manifest order differs from filename order.                          |
+| `formatted-book`     | Nodes and marks accepted by the current `ManuscriptDocumentSchema`.                             |
+| `unicode-book`       | UTF-8 punctuation, accents, Greek, Japanese and Arabic synthetic text.                          |
+| `invalid-project`    | Valid book/chapter files with one deliberate error: a duplicated manifest chapter ID.           |
+| `recovery-project`   | Valid authoritative chapter plus a newer, tracked manual history snapshot offered for recovery. |
+
+Use `copyFixture` from `tests/helpers/fixture-projects.ts` instead of modifying a
+canonical fixture. It recursively copies a named fixture to a unique temporary
+directory and returns its project path plus an idempotent cleanup function. The
+fixture validation tests open every intended-valid copy through the production
+project loader, check the intentional invalid error, exercise recovery scanning,
+verify Unicode bytes survive copying and confirm recovery history remains tracked
+and unignored.
+
 ## Autosave and recovery audit (#44)
 
 | Requirement                              | Executable evidence                                                                                                                                                                                                                                                            |
@@ -126,5 +148,3 @@ compilation and at runtime. A missing package, declaration or JavaScript entry
 point fails the command.
 
 This smoke consumer is bootstrap validation, not application behaviour testing.
-Manuscript fixtures and other test suites will arrive with their implementation
-issues.

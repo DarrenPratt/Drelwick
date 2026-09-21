@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "00000000-0000-4000-8000-000000000411",
+  "type": "chapter",
+  "title": "Départ à l’aube",
+  "status": "draft",
+  "created": "2026-01-04T10:00:00.000Z",
+  "modified": "2026-01-04T10:05:00.000Z",
+  "content": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "“Bonjour,” dit l’autrice — déjà prête; l’étape suivante dura vingt–deux minutes."
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "Español: mañana. Ελληνικά: Καλημέρα κόσμε. 日本語: こんにちは世界。 العربية: مرحبًا بالعالم."
+          }
+        ]
+      }
+    ]
+  }
+}

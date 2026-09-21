@@ -17,6 +17,7 @@
     "apps/*/test/**/*.ts",
     "apps/*/src/renderer/window.d.ts",
     "tests/e2e/**/*.ts",
+    "tests/helpers/**/*.ts",
     "tests/workspace-smoke/test/**/*.ts"
   ]
 }

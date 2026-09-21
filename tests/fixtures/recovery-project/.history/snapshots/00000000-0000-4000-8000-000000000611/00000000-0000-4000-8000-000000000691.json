@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "00000000-0000-4000-8000-000000000691",
+  "chapterId": "00000000-0000-4000-8000-000000000611",
+  "created": "2026-01-06T12:05:00.000Z",
+  "reason": "manual",
+  "content": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "Newer synthetic text available for recovery."
+          }
+        ]
+      }
+    ]
+  }
+}
