@@ -4,7 +4,10 @@ import {
   ApplicationError,
   IPC,
   IpcRequestSchemas,
+  noopLogger,
+  safeErrorContext,
   type RecoveryCandidateSummary,
+  type SafeLogger,
 } from "@bookeditor/shared";
 
 export function registerRecoveryHandlers(
@@ -13,6 +16,7 @@ export function registerRecoveryHandlers(
   service: RecoveryService,
   cancelStartup: () => void,
   scanError?: string,
+  logger: SafeLogger = noopLogger,
 ): void {
   let busy = false;
   const summaries = (): RecoveryCandidateSummary[] =>
@@ -64,6 +68,10 @@ export function registerRecoveryHandlers(
             "Startup recovery has already completed.",
           );
         // Bypass normal clean shutdown: unresolved files must be scanned next time.
+        logger.warn("recovery.cancelled", {
+          candidateCount: service.getCandidates().length,
+          scanFailed: Boolean(scanError),
+        });
         cancelStartup();
         return { ok: true, value: null };
       }
@@ -71,6 +79,11 @@ export function registerRecoveryHandlers(
       if (channel === IPC.RECOVERY_LIST)
         return { ok: true, value: summaries() };
       busy = true;
+      const startedAt = Date.now();
+      const candidate = parsed.data
+        ? service.getCandidates().find(({ id }) => id === parsed.data?.id)
+        : undefined;
+      const action = channel === IPC.RECOVERY_RECOVER ? "recover" : "discard";
       try {
         if (!parsed.data)
           return failure("RECOVERY_INPUT_INVALID", "Invalid recovery request.");
@@ -78,8 +91,21 @@ export function registerRecoveryHandlers(
           channel === IPC.RECOVERY_RECOVER
             ? await service.recoverCandidate(parsed.data.id)
             : await service.discardCandidate(parsed.data.id);
+        logger.info(`recovery.${action}ed`, {
+          candidateId: parsed.data.id,
+          ...(candidate ? { chapterId: candidate.chapterId } : {}),
+          ...(candidate ? { source: candidate.source } : {}),
+          durationMs: Date.now() - startedAt,
+        });
         return { ok: true, value: summaries(), ...result };
       } catch (error) {
+        logger.error(`recovery.${action}_failed`, {
+          ...(parsed.data ? { candidateId: parsed.data.id } : {}),
+          ...(candidate ? { chapterId: candidate.chapterId } : {}),
+          ...(candidate ? { source: candidate.source } : {}),
+          durationMs: Date.now() - startedAt,
+          ...safeErrorContext(error),
+        });
         return error instanceof ApplicationError
           ? failure(error.code, error.message)
           : failure(

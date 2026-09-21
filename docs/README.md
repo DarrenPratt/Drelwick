@@ -28,6 +28,7 @@ Operational documents:
 - [Chapter creation and failure recovery](chapter-creation.md)
 - [Chapter document persistence](chapter-persistence.md)
 - [Manuscript recovery](manuscript-recovery.md)
+- [Application logging](application-logging.md)
 - [Authoring workspace demonstration](workspace-demo.md)
 - [GitHub tracking register](planning/github-tracking.md)
 - [Public Community release checklist](planning/public-release-checklist.md)

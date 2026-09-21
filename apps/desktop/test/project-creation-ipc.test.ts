@@ -9,6 +9,7 @@ import {
   IPC,
   type ProjectOperationResult,
   type ProjectLocation,
+  type SafeLogger,
 } from "@bookeditor/shared";
 
 const { handle, showOpenDialog } = vi.hoisted(() => ({
@@ -46,9 +47,16 @@ function setup(create = vi.fn(createProject)) {
   const selectFolder = vi
     .fn<() => Promise<string | null>>()
     .mockResolvedValue("/chosen/folder");
+  const logger = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  } satisfies SafeLogger;
   registerProjectHandlers(() => window, rendererUrl, {
     selectFolder,
     create,
+    logger,
   });
   const invoke = (
     channel: string,
@@ -73,7 +81,7 @@ function setup(create = vi.fn(createProject)) {
       locationToken: selected.value.token,
     };
   };
-  return { frame, event, selectFolder, create, invoke, request };
+  return { frame, event, selectFolder, create, invoke, request, logger };
 }
 
 describe("project creation IPC", () => {
@@ -125,7 +133,7 @@ describe("project creation IPC", () => {
   });
 
   it("creates a real project only in the native-selected folder", async () => {
-    const { selectFolder, invoke, request, create } = setup();
+    const { selectFolder, invoke, request, create, logger } = setup();
     const path = await mkdtemp(join(tmpdir(), "bookeditor-dialog-"));
     directories.push(path);
     selectFolder.mockResolvedValue(path);
@@ -143,6 +151,13 @@ describe("project creation IPC", () => {
       error: { code: "PROJECT_LOCATION_REQUIRED" },
     });
     expect(create).toHaveBeenCalledOnce();
+    expect(logger.info).toHaveBeenCalledWith(
+      "project.created",
+      expect.objectContaining({
+        projectId: expect.any(String),
+        durationMs: expect.any(Number),
+      }),
+    );
   });
 
   it("handles cancelled selection without creating a project", async () => {
@@ -209,7 +224,7 @@ describe("project creation IPC", () => {
     "PROJECT_CREATE_CLEANUP_FAILED",
     "unknown",
   ])("returns safe actionable errors for %s", async (code) => {
-    const { invoke, request, create } = setup();
+    const { invoke, request, create, logger } = setup();
     create.mockRejectedValue(
       new ApplicationError(code, "private author content"),
     );
@@ -219,6 +234,17 @@ describe("project creation IPC", () => {
       error: { code: code === "unknown" ? "PROJECT_CREATE_FAILED" : code },
     });
     expect(JSON.stringify(result)).not.toContain("private author content");
+    expect(JSON.stringify(logger.error.mock.calls)).not.toContain(
+      "private author content",
+    );
+    expect(logger.error).toHaveBeenCalledWith(
+      "project.create_failed",
+      expect.objectContaining({
+        errorName: "ApplicationError",
+        errorCode: code,
+        durationMs: expect.any(Number),
+      }),
+    );
   });
 
   it("serializes requests so repeated submissions cannot create twice", async () => {

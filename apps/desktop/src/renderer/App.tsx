@@ -66,6 +66,7 @@ export function App() {
   const savePending = useRef(false);
   const nextSaveRequest = useRef(0);
   const autosave = useRef<AutosaveCoordinator | null>(null);
+  const saveSource = useRef<"autosave" | "manual">("autosave");
   const changingDocument =
     opening || creatingChapter || deletingChapter || switchingChapter;
 
@@ -116,6 +117,7 @@ export function App() {
       const result = await window.bookEditor.project.saveChapter({
         chapterId: snapshot.chapterId,
         document: snapshot.content,
+        source: saveSource.current,
       });
       if (result.ok && result.value.id === snapshot.chapterId) {
         dispatchDocument({
@@ -194,7 +196,12 @@ export function App() {
   const saveActiveChapter = useCallback(() => {
     if (!documentReady || changingDocument) return;
     setError("");
-    void autosave.current?.flush();
+    const coordinator = autosave.current;
+    if (!coordinator) return;
+    saveSource.current = "manual";
+    void coordinator.flush().finally(() => {
+      saveSource.current = "autosave";
+    });
   }, [documentReady, changingDocument]);
 
   useEffect(() => {

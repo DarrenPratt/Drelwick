@@ -5,6 +5,7 @@ import {
   IPC,
   createUuid,
   type ProjectOperationResult,
+  type SafeLogger,
 } from "@bookeditor/shared";
 const { handle } = vi.hoisted(() => ({ handle: vi.fn() }));
 vi.mock("electron", () => ({ ipcMain: { handle }, dialog: {} }));
@@ -26,6 +27,12 @@ function setup(scanError?: string) {
   } as unknown as IpcMainInvokeEvent;
   const service = new RecoveryService();
   const cancel = vi.fn();
+  const logger = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  } satisfies SafeLogger;
   const candidate = {
     id: createUuid(),
     projectPath: "/books/book",
@@ -49,7 +56,14 @@ function setup(scanError?: string) {
       list.mockReturnValue([]);
       return {};
     });
-  registerRecoveryHandlers(() => window, frame.url, service, cancel, scanError);
+  registerRecoveryHandlers(
+    () => window,
+    frame.url,
+    service,
+    cancel,
+    scanError,
+    logger,
+  );
   const invoke = (
     channel: string,
     payload?: unknown,
@@ -73,10 +87,11 @@ function setup(scanError?: string) {
     window,
     frame,
     list,
+    logger,
   };
 }
 it("returns metadata only and routes explicit decisions by opaque ID", async () => {
-  const { invoke, candidate, recover } = setup();
+  const { invoke, candidate, recover, logger } = setup();
   const result = await invoke(IPC.RECOVERY_LIST);
   expect(result).toEqual({
     ok: true,
@@ -96,6 +111,13 @@ it("returns metadata only and routes explicit decisions by opaque ID", async () 
     value: [],
   });
   expect(recover).toHaveBeenCalledExactlyOnceWith(candidate.id);
+  expect(logger.info).toHaveBeenCalledWith("recovery.recovered", {
+    candidateId: candidate.id,
+    chapterId: candidate.chapterId,
+    source: candidate.source,
+    durationMs: expect.any(Number),
+  });
+  expect(JSON.stringify(logger.info.mock.calls)).not.toContain("manuscript");
 });
 it("routes discard and cancel without recovering", async () => {
   const { invoke, candidate, recover, discard, cancel } = setup();
@@ -177,6 +199,9 @@ it("reports safe errors and allows cancellation after a scan failure", async () 
       message: "Recovery could not complete. Retry or cancel startup.",
     },
   });
+  expect(JSON.stringify(first.logger.error.mock.calls)).not.toContain(
+    "private manuscript",
+  );
   const second = setup("Scan failed; cancel startup and retry.");
   expect(await second.invoke(IPC.RECOVERY_LIST)).toMatchObject({
     ok: false,

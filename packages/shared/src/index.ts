@@ -3,6 +3,7 @@ import { z } from "zod";
 export * from "./dates.js";
 export * from "./errors.js";
 export * from "./identifiers.js";
+export * from "./logging.js";
 export * from "./paths.js";
 export * from "./result.js";
 export * from "./word-count.js";
@@ -99,6 +100,7 @@ export const IpcRequestSchemas = {
     .object({
       chapterId: z.string().uuid(),
       document: z.record(z.string(), z.unknown()),
+      source: z.enum(["autosave", "manual"]).default("autosave"),
     })
     .strict(),
   [IPC.CHAPTER_CREATE]: z.object({ title: chapterTitle }),
@@ -207,6 +209,7 @@ export interface ChapterContent {
 export interface SaveChapterRequest {
   chapterId: string;
   document: Record<string, unknown>;
+  source?: "autosave" | "manual";
 }
 
 export interface ChapterSaveReceipt {
