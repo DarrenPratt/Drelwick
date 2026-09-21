@@ -20,12 +20,16 @@ The root README documents the pinned pnpm wrapper if pnpm is not installed globa
 ## Desktop end-to-end tests
 
 `pnpm test:e2e` builds the workspace and uses Playwright's Electron support to
-launch the packaged development application. The initial scenario creates an
-isolated temporary project through the renderer, creates a chapter, enters and
-saves exact synthetic prose, verifies the authoritative chapter file, closes
-through the normal shutdown handshake, relaunches with the same isolated settings,
-reopens the project from Recents and verifies the prose in the editor. The test
-removes only its own temporary directory.
+launch the source-built desktop application. The Windows release-validation
+scenario creates an isolated project, creates ten chapters, reorders them, writes
+formatted prose and a scene break, verifies autosave and the authoritative
+project files, then restarts and reopens the project. A second scenario force
+terminates Electron, relaunches with the unclean session marker, recovers a
+synthetic history candidate and verifies that recovery preserved the prior
+chapter in history. Both tests use isolated temporary project/user-data folders
+and remove only their own temporary data. The suite verifies the Windows runtime
+path; standalone installer testing remains pending packaging issue #107, and
+macOS/Linux execution requires those platforms.
 
 The suite uses the Electron binary already pinned by the desktop workspace, so it
 does not require a Playwright browser download. Linux agents without a display can

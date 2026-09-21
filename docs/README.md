@@ -30,6 +30,7 @@ Operational documents:
 - [Manuscript recovery](manuscript-recovery.md)
 - [Application logging](application-logging.md)
 - [Global error handling](error-handling.md)
+- [v0.1 release validation](v0.1-release-validation.md)
 - [Authoring workspace demonstration](workspace-demo.md)
 - [GitHub tracking register](planning/github-tracking.md)
 - [Public Community release checklist](planning/public-release-checklist.md)
