@@ -24,6 +24,7 @@ Operational documents:
 - [Existing project loading and summary cache](project-loading.md)
 - [New project dialog and IPC](project-creation-ui.md)
 - [Existing project open workflow](project-open-ui.md)
+- [Portable project backups and restore](project-backups.md)
 - [Recent project tracking](recent-projects.md)
 - [Chapter creation and failure recovery](chapter-creation.md)
 - [Chapter document persistence](chapter-persistence.md)

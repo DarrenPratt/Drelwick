@@ -5,6 +5,7 @@ import {
   type IpcMainInvokeEvent,
 } from "electron";
 import {
+  createProjectArchive,
   createProject,
   createChapter,
   deleteChapter,
@@ -12,6 +13,7 @@ import {
   saveChapter,
   openProject,
   reorderChapters,
+  restoreProjectArchive,
   renameChapter,
   type ReorderChaptersInput,
   type RenameChapterInput,
@@ -31,6 +33,7 @@ import {
 } from "@bookeditor/shared";
 import type { RecentProjects } from "../recent-projects.js";
 import { HistoryRuntime } from "../history-runtime.js";
+import { basename, dirname, join } from "node:path";
 
 interface HistoryTasks {
   scheduleSnapshot(input: {
@@ -52,6 +55,14 @@ interface Dependencies {
   create: typeof createProject;
   createChapter: typeof createChapter;
   selectExistingFolder(window: BrowserWindow): Promise<string | null>;
+  selectBackupDestination(
+    window: BrowserWindow,
+    projectPath: string,
+  ): Promise<string | null>;
+  selectBackupArchive(window: BrowserWindow): Promise<string | null>;
+  selectRestoreParent(window: BrowserWindow): Promise<string | null>;
+  createArchive: typeof createProjectArchive;
+  restoreArchive: typeof restoreProjectArchive;
   open: typeof openProject;
   rename: typeof renameChapter;
   delete: typeof deleteChapter;
@@ -83,6 +94,37 @@ const dependencies: Dependencies = {
     });
     return result.canceled ? null : (result.filePaths[0] ?? null);
   },
+  selectBackupDestination: async (window, projectPath) => {
+    const result = await dialog.showSaveDialog(window, {
+      title: "Back Up BookEditor Project",
+      buttonLabel: "Create backup",
+      defaultPath: join(
+        dirname(projectPath),
+        `${basename(projectPath)}.bookeditor.zip`,
+      ),
+      filters: [{ name: "BookEditor project backup", extensions: ["zip"] }],
+    });
+    return result.canceled ? null : result.filePath;
+  },
+  selectBackupArchive: async (window) => {
+    const result = await dialog.showOpenDialog(window, {
+      title: "Choose a BookEditor project backup",
+      buttonLabel: "Choose backup",
+      properties: ["openFile"],
+      filters: [{ name: "BookEditor project backup", extensions: ["zip"] }],
+    });
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  },
+  selectRestoreParent: async (window) => {
+    const result = await dialog.showOpenDialog(window, {
+      title: "Choose where to restore the project",
+      buttonLabel: "Restore here",
+      properties: ["openDirectory", "createDirectory"],
+    });
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  },
+  createArchive: createProjectArchive,
+  restoreArchive: restoreProjectArchive,
   open: openProject,
   rename: renameChapter,
   delete: deleteChapter,
@@ -96,6 +138,59 @@ const failure = (code: string, message: string) => ({
   ok: false as const,
   error: { code, message },
 });
+
+function backupFailure(error: unknown): ProjectOperationResult<never> {
+  if (error instanceof ApplicationError) {
+    const messages: Record<string, string> = {
+      PROJECT_ARCHIVE_IN_PROJECT:
+        "Choose a backup location outside the open project folder.",
+      PROJECT_ARCHIVE_SYMLINK:
+        "The project or backup contains a symbolic link. Remove it and try again.",
+      PROJECT_ARCHIVE_CHANGED:
+        "The project changed while the backup was being created. Save and try again.",
+      PROJECT_ARCHIVE_TOO_LARGE:
+        "The project or backup exceeds the supported size limit.",
+      PROJECT_ARCHIVE_TOO_MANY_FILES:
+        "The project contains more files than the backup format supports.",
+      PROJECT_ARCHIVE_INVALID:
+        "This file is not a valid BookEditor project backup.",
+      PROJECT_ARCHIVE_PATH_INVALID:
+        "The selected path or a path in the backup is unsafe or unavailable.",
+      PROJECT_ARCHIVE_CHECKSUM_INVALID:
+        "A backup file failed its integrity check. No project was restored.",
+      PROJECT_ARCHIVE_DESTINATION_IN_PROJECT:
+        "Choose a restore location outside all existing BookEditor project folders.",
+      PROJECT_ARCHIVE_DISK_SPACE:
+        "There is not enough disk space to complete the operation. Free space and try again.",
+      PROJECT_ARCHIVE_READ_FAILED:
+        "Unable to read the selected backup. Check its location and try again.",
+      PROJECT_ARCHIVE_CREATE_FAILED:
+        "Unable to create the backup. Check folder permissions and available disk space.",
+      PROJECT_ARCHIVE_RESTORE_FAILED:
+        "Unable to restore the backup. Check folder permissions and disk space; no existing project was replaced.",
+      PROJECT_FILE_MISSING:
+        "The open project is incomplete. Restore its missing project files before backing it up.",
+      PROJECT_JSON_INVALID:
+        "The open project contains invalid JSON. Repair or restore it before backing it up.",
+      PROJECT_SCHEMA_INVALID:
+        "The open project has an invalid format. Repair or restore it before backing it up.",
+      PROJECT_SCHEMA_UNSUPPORTED:
+        "This project format cannot be backed up by this version of BookEditor.",
+      PROJECT_ORDER_INVALID:
+        "The manuscript chapter order is invalid. Repair the project before backing it up.",
+    };
+    return failure(
+      error.code,
+      Object.hasOwn(messages, error.code)
+        ? messages[error.code]!
+        : "Unable to complete the project backup operation. Check the project and try again.",
+    );
+  }
+  return failure(
+    "PROJECT_ARCHIVE_FAILED",
+    "Unable to complete the project backup operation. Check folder permissions and available disk space.",
+  );
+}
 
 /** Folder grants belong to the trusted top-level frame and are never renderer paths. */
 export function registerProjectHandlers(
@@ -264,6 +359,179 @@ export function registerProjectHandlers(
         }
       },
     );
+
+  ipcMain.handle(
+    IPC.PROJECT_BACKUP,
+    async (
+      event,
+      payload: unknown,
+    ): Promise<ProjectOperationResult<{ created: boolean }>> => {
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      const parsed = IpcRequestSchemas[IPC.PROJECT_BACKUP].safeParse(payload);
+      if (!parsed.success)
+        return failure("PROJECT_INPUT_INVALID", "Choose valid backup options.");
+      if (busy)
+        return failure(
+          "PROJECT_BUSY",
+          "Please wait for the current project operation.",
+        );
+      if (!activeProjectPath || !activeProjectId)
+        return failure(
+          "PROJECT_NOT_OPEN",
+          "Open a project before creating a backup.",
+        );
+      const window = getWindow();
+      if (!window)
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project window is unavailable.",
+        );
+      busy = true;
+      const projectPath = activeProjectPath;
+      const projectId = activeProjectId;
+      const startedAt = Date.now();
+      try {
+        const archivePath = await services.selectBackupDestination(
+          window,
+          projectPath,
+        );
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project window changed. Try the backup again.",
+          );
+        if (!archivePath) return { ok: true, value: { created: false } };
+        await history.settleProject(projectPath);
+        await services.createArchive({
+          projectPath,
+          archivePath,
+          includeHistory: parsed.data.includeHistory,
+        });
+        services.logger.info("project.backup_created", {
+          projectId,
+          reason: "backup_created",
+          durationMs: Date.now() - startedAt,
+        });
+        return { ok: true, value: { created: true } };
+      } catch (error) {
+        services.logger.error("project.backup_failed", {
+          projectId,
+          durationMs: Date.now() - startedAt,
+          ...safeErrorContext(error),
+        });
+        return backupFailure(error);
+      } finally {
+        busy = false;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC.PROJECT_RESTORE,
+    async (
+      event,
+      payload: unknown,
+    ): Promise<ProjectOperationResult<ProjectWorkspace | null>> => {
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      if (!IpcRequestSchemas[IPC.PROJECT_RESTORE].safeParse(payload).success)
+        return failure(
+          "PROJECT_INPUT_INVALID",
+          "Choose a backup using the file picker.",
+        );
+      if (busy)
+        return failure(
+          "PROJECT_BUSY",
+          "Please wait for the current project operation.",
+        );
+      const window = getWindow();
+      if (!window)
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project window is unavailable.",
+        );
+      busy = true;
+      const startedAt = Date.now();
+      try {
+        const archivePath = await services.selectBackupArchive(window);
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project window changed. Try restoring again.",
+          );
+        if (!archivePath) return { ok: true, value: null };
+        const destinationParent = await services.selectRestoreParent(window);
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project window changed. Try restoring again.",
+          );
+        if (!destinationParent) return { ok: true, value: null };
+        const restored = await services.restoreArchive({
+          archivePath,
+          destinationParent,
+        });
+        const opened = await services.open(restored.projectPath);
+        if (opened.project.projectId !== restored.projectId)
+          throw new ApplicationError(
+            "PROJECT_ARCHIVE_INVALID",
+            "Restored project identity did not match its archive.",
+          );
+        if (activeProjectPath) await history.closeProject(activeProjectPath);
+        activeProjectPath = opened.projectPath;
+        activeProjectId = opened.project.projectId;
+        history.scheduleRetention({
+          projectPath: opened.projectPath,
+          projectId: opened.project.projectId,
+        });
+        const warning = await remember(opened.projectPath, opened.book.title);
+        services.logger.info("project.backup_restored", {
+          projectId: opened.project.projectId,
+          reason: "backup_restored",
+          durationMs: Date.now() - startedAt,
+        });
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project window changed. Open the restored project again.",
+          );
+        return {
+          ok: true,
+          ...(warning ? { warning } : {}),
+          value: {
+            projectId: opened.project.projectId,
+            projectPath: opened.projectPath,
+            title: opened.book.title,
+            author: opened.book.author,
+            language: opened.book.language,
+            chapters: opened.chapters.map(
+              ({ id, title, status, wordCount }) => ({
+                id,
+                title,
+                status,
+                wordCount,
+              }),
+            ),
+          },
+        };
+      } catch (error) {
+        services.logger.error("project.backup_restore_failed", {
+          durationMs: Date.now() - startedAt,
+          ...safeErrorContext(error),
+        });
+        return backupFailure(error);
+      } finally {
+        busy = false;
+      }
+    },
+  );
 
   ipcMain.handle(
     IPC.PROJECT_CLOSE,

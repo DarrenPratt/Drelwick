@@ -28,6 +28,8 @@ export const IPC = {
   RECENT_OPEN: "project:recent-open",
   RECENT_REMOVE: "project:recent-remove",
   PROJECT_CLOSE: "project:close",
+  PROJECT_BACKUP: "project:backup",
+  PROJECT_RESTORE: "project:restore",
   PROJECT_LOAD_CHAPTER: "project:load-chapter",
   PROJECT_SAVE_CHAPTER: "project:save-chapter",
   CHAPTER_CREATE: "chapter:create",
@@ -48,6 +50,8 @@ export const ApplicationMenuCommandSchema = z.enum([
   "new-project",
   "open-project",
   "close-project",
+  "backup-project",
+  "restore-project",
 ]);
 export type ApplicationMenuCommand = z.infer<
   typeof ApplicationMenuCommandSchema
@@ -116,6 +120,8 @@ export const IpcRequestSchemas = {
   [IPC.RECENT_OPEN]: z.object({ id: z.string().uuid() }).strict(),
   [IPC.RECENT_REMOVE]: z.object({ id: z.string().uuid() }).strict(),
   [IPC.PROJECT_CLOSE]: z.undefined(),
+  [IPC.PROJECT_BACKUP]: z.object({ includeHistory: z.boolean() }).strict(),
+  [IPC.PROJECT_RESTORE]: z.undefined(),
   [IPC.PROJECT_LOAD_CHAPTER]: z
     .object({ chapterId: z.string().uuid() })
     .strict(),
@@ -185,6 +191,10 @@ export interface BookEditorApi {
       id: string,
     ): Promise<ProjectOperationResult<ProjectWorkspace | null>>;
     close(): Promise<ProjectOperationResult<null>>;
+    backup(input: {
+      includeHistory: boolean;
+    }): Promise<ProjectOperationResult<{ created: boolean }>>;
+    restore(): Promise<ProjectOperationResult<ProjectWorkspace | null>>;
     removeRecent(id: string): Promise<ProjectOperationResult<RecentProject[]>>;
     renameChapter(
       input: RenameChapterRequest,

@@ -19,6 +19,12 @@
   },
   "dependencies": {
     "@bookeditor/project-model": "workspace:*",
-    "@bookeditor/shared": "workspace:*"
+    "@bookeditor/shared": "workspace:*",
+    "yauzl": "^3.4.0",
+    "yazl": "^3.3.1"
+  },
+  "devDependencies": {
+    "@types/yauzl": "^3.4.0",
+    "@types/yazl": "^3.3.1"
   }
 }

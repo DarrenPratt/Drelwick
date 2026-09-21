@@ -191,6 +191,10 @@ input:focus-visible {
   color: #a52323;
   margin: 1rem 0 0;
 }
+
+.success-message {
+  color: #246b4f;
+}
 .welcome-panel .project-path {
   margin-top: 1rem;
   overflow-wrap: anywhere;

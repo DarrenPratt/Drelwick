@@ -29,6 +29,10 @@ export function App() {
   const [creating, setCreating] = useState(false);
   const [project, setProject] = useState<ProjectWorkspace | null>(null);
   const [opening, setOpening] = useState(false);
+  const [projectTask, setProjectTask] = useState<"backup" | "restore" | null>(
+    null,
+  );
+  const [projectMessage, setProjectMessage] = useState("");
   const [error, setError] = useState("");
   const pending = useRef(false);
   const [recents, setRecents] = useState<RecentProject[]>([]);
@@ -69,7 +73,11 @@ export function App() {
   const autosave = useRef<AutosaveCoordinator | null>(null);
   const saveSource = useRef<"autosave" | "manual">("autosave");
   const changingDocument =
-    opening || creatingChapter || deletingChapter || switchingChapter;
+    opening ||
+    creatingChapter ||
+    deletingChapter ||
+    switchingChapter ||
+    projectTask !== null;
 
   useEffect(() => {
     if (!projectPath || !activeChapterId) return;
@@ -378,6 +386,112 @@ export function App() {
     }
   }, [canLeaveChapter, creating, project]);
 
+  const backupCurrentProject = useCallback(async () => {
+    if (!project) {
+      setError("Open a project before creating a backup.");
+      return;
+    }
+    if (pending.current || opening || creating || projectTask) return;
+    const includeHistory = window.confirm(
+      "Include saved version history in this project backup?",
+    );
+    pending.current = true;
+    setProjectTask("backup");
+    setProjectMessage("");
+    setError("");
+    try {
+      if (activeChapterId && !documentReady) {
+        setError(
+          "Wait for the selected chapter to finish loading before creating a backup.",
+        );
+        return;
+      }
+      if (savePending.current || isDocumentDirty(documentRef.current)) {
+        const saved = await autosave.current?.flush();
+        if (
+          !saved ||
+          savePending.current ||
+          isDocumentDirty(documentRef.current)
+        ) {
+          setError(
+            "Unable to save the current chapter. Your edits remain open; retry the backup after saving.",
+          );
+          return;
+        }
+      }
+      const result = await window.bookEditor.project.backup({ includeHistory });
+      if (!result.ok) setError(result.error.message);
+      else if (result.value.created)
+        setProjectMessage("Project backup created successfully.");
+    } catch {
+      setError(
+        "Unable to create the project backup. Your project remains open; please try again.",
+      );
+    } finally {
+      pending.current = false;
+      setProjectTask(null);
+    }
+  }, [activeChapterId, creating, documentReady, opening, project, projectTask]);
+
+  const restoreProject = useCallback(async () => {
+    if (pending.current || opening || creating || projectTask) return;
+    pending.current = true;
+    setProjectTask("restore");
+    setProjectMessage("");
+    setError("");
+    try {
+      if (project && activeChapterId && !documentReady) {
+        setError(
+          "Wait for the selected chapter to finish loading before restoring a backup.",
+        );
+        return;
+      }
+      if (
+        project &&
+        (savePending.current || isDocumentDirty(documentRef.current))
+      ) {
+        const saved = await autosave.current?.flush();
+        if (
+          !saved ||
+          savePending.current ||
+          isDocumentDirty(documentRef.current)
+        ) {
+          setError(
+            "Unable to save the current chapter. Your edits remain open; retry the restore after saving.",
+          );
+          return;
+        }
+      }
+      const result = await window.bookEditor.project.restore();
+      if (!result.ok) setError(result.error.message);
+      else if (result.value) {
+        setProject(result.value);
+        setDocumentSession((session) => session + 1);
+        setActiveChapterId(result.value.chapters[0]?.id ?? null);
+        setProjectMessage(
+          `Restored “${result.value.title}” as a separate project.`,
+        );
+        if (result.warning) setRecentError(result.warning);
+        await refreshRecents();
+      }
+    } catch {
+      setError(
+        "Unable to restore the project backup. The current project remains open; please try again.",
+      );
+    } finally {
+      pending.current = false;
+      setProjectTask(null);
+    }
+  }, [
+    activeChapterId,
+    creating,
+    documentReady,
+    opening,
+    project,
+    projectTask,
+    refreshRecents,
+  ]);
+
   useEffect(() => {
     return window.bookEditor.onApplicationMenuCommand((command) => {
       if (command === "new-project") {
@@ -393,17 +507,23 @@ export function App() {
         setCreating(true);
       } else if (command === "open-project") {
         void openExistingProject();
-      } else {
+      } else if (command === "close-project") {
         void closeCurrentProject();
+      } else if (command === "backup-project") {
+        void backupCurrentProject();
+      } else {
+        void restoreProject();
       }
     });
   }, [
     canLeaveChapter,
+    backupCurrentProject,
     closeCurrentProject,
     creating,
     loadingRecents,
     openExistingProject,
     opening,
+    restoreProject,
   ]);
 
   async function renameSelectedChapter() {
@@ -543,7 +663,9 @@ export function App() {
       {!project && (
         <button
           className="primary-button"
-          disabled={opening || creating || loadingRecents}
+          disabled={
+            opening || creating || loadingRecents || projectTask !== null
+          }
           onClick={() => {
             setError("");
             setCreating(true);
@@ -553,12 +675,18 @@ export function App() {
         </button>
       )}
       <button
-        disabled={opening || creating || loadingRecents}
+        disabled={opening || creating || loadingRecents || projectTask !== null}
         onClick={() => {
           void openExistingProject();
         }}
       >
-        {opening ? "Opening project…" : "Open project"}
+        {projectTask === "backup"
+          ? "Creating backup…"
+          : projectTask === "restore"
+            ? "Restoring backup…"
+            : opening
+              ? "Opening project…"
+              : "Open project"}
       </button>
     </div>
   );
@@ -629,6 +757,11 @@ export function App() {
               {error && (
                 <p className="error-message" role="alert">
                   {error}
+                </p>
+              )}
+              {projectMessage && (
+                <p className="success-message" role="status">
+                  {projectMessage}
                 </p>
               )}
               {editorError && (
@@ -896,7 +1029,7 @@ export function App() {
           }
         />
       ) : (
-        <main className="app-shell" aria-busy={opening}>
+        <main className="app-shell" aria-busy={opening || projectTask !== null}>
           <header className="app-header">
             <p className="eyebrow">
               <WorkspaceIcon name="book" /> BookEditor · Your words, your world
@@ -912,6 +1045,11 @@ export function App() {
           {error && (
             <p className="error-message" role="alert">
               {error}
+            </p>
+          )}
+          {projectMessage && (
+            <p className="success-message" role="status">
+              {projectMessage}
             </p>
           )}
           <div className="welcome-grid">

@@ -49,6 +49,9 @@ it.each(["win32", "darwin", "linux"] as const)(
             undefined,
             "Save",
             undefined,
+            "Back Up Project…",
+            "Restore Project Backup…",
+            undefined,
             "Close Project",
           ]
         : [
@@ -56,6 +59,9 @@ it.each(["win32", "darwin", "linux"] as const)(
             "Open Project",
             undefined,
             "Save",
+            undefined,
+            "Back Up Project…",
+            "Restore Project Backup…",
             undefined,
             "Close Project",
             "Exit",
@@ -70,7 +76,17 @@ it.each(["win32", "darwin", "linux"] as const)(
       isDestroyed: () => false,
     } as unknown as BrowserWindow;
     fromId.mockReturnValue({ webContents: { send } });
-    const [newProject, openProject, , save, , closeProject] = file;
+    const [
+      newProject,
+      openProject,
+      ,
+      save,
+      ,
+      backupProject,
+      restoreProject,
+      ,
+      closeProject,
+    ] = file;
     expect(newProject?.accelerator).toBe("CommandOrControl+N");
     expect(openProject?.accelerator).toBe("CommandOrControl+O");
     expect(save?.accelerator).toBe("CommandOrControl+S");
@@ -90,6 +106,16 @@ it.each(["win32", "darwin", "linux"] as const)(
     expect(send).toHaveBeenLastCalledWith(
       APPLICATION_MENU_COMMAND_CHANNEL,
       "close-project",
+    );
+    backupProject?.click!({} as MenuItem, window, {});
+    expect(send).toHaveBeenLastCalledWith(
+      APPLICATION_MENU_COMMAND_CHANNEL,
+      "backup-project",
+    );
+    restoreProject?.click!({} as MenuItem, window, {});
+    expect(send).toHaveBeenLastCalledWith(
+      APPLICATION_MENU_COMMAND_CHANNEL,
+      "restore-project",
     );
     expect(() =>
       closeProject?.click!({} as MenuItem, undefined, {}),
