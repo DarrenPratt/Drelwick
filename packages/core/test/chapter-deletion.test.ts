@@ -1,9 +1,10 @@
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, rmdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   CHAPTER_TRASH_DIRECTORY,
+  CHAPTER_CREATION_LOCK,
   createChapter,
   createProject,
   deleteChapter,
@@ -34,6 +35,48 @@ async function fixture() {
 }
 
 describe("chapter deletion", () => {
+  it("preserves an existing operation lock and project bytes until its owner releases it", async () => {
+    const { root, chapter } = await fixture();
+    const lock = join(root, CHAPTER_CREATION_LOCK);
+    const manifestPath = join(root, "project.json");
+    const chapterPath = join(root, "manuscript", `${chapter.id}.json`);
+    const manifestBefore = await readFile(manifestPath);
+    const chapterBefore = await readFile(chapterPath);
+    await mkdir(lock);
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await expect(
+        deleteChapter({ projectPath: root, chapterId: chapter.id }),
+      ).rejects.toMatchObject({ code: "PROJECT_BUSY" });
+      expect(await readdir(lock)).toEqual([]);
+      expect(await readFile(manifestPath)).toEqual(manifestBefore);
+      expect(await readFile(chapterPath)).toEqual(chapterBefore);
+      expect(await readdir(join(root, ".history"))).not.toContain("deleted");
+    }
+
+    await rmdir(lock);
+    const deleted = await deleteChapter({
+      projectPath: root,
+      chapterId: chapter.id,
+    });
+    expect(await readFile(deleted.trashPath)).toEqual(chapterBefore);
+    expect(deleted.session.chapters).toEqual([]);
+    expect(await readdir(root)).not.toContain(CHAPTER_CREATION_LOCK);
+  });
+
+  it("allows successive deletions into the existing trash directory", async () => {
+    const { root, chapter } = await fixture();
+    const second = await createChapter({ projectPath: root, title: "Second" });
+    for (const id of [chapter.id, second.chapter.id]) {
+      const before = await readFile(join(root, "manuscript", `${id}.json`));
+      const deleted = await deleteChapter({ projectPath: root, chapterId: id });
+      expect(await readFile(deleted.trashPath)).toEqual(before);
+      expect(await readdir(root)).not.toContain(CHAPTER_CREATION_LOCK);
+    }
+    expect((await openProject(root)).chapters).toEqual([]);
+    expect(await readdir(join(root, CHAPTER_TRASH_DIRECTORY))).toHaveLength(2);
+  });
+
   it("removes the chapter from order and retains its recoverable copy", async () => {
     const { root, chapter } = await fixture();
     const deleted = await deleteChapter({
