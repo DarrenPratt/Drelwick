@@ -14,12 +14,14 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm build && pnpm -r typecheck && tsc -p tsconfig.test.json",
     "test": "pnpm build && vitest run",
+    "test:e2e": "pnpm build && playwright test",
     "test:watch": "pnpm build && vitest",
     "test:coverage": "pnpm build && vitest run --coverage",
     "check:workspace": "pnpm build && pnpm --filter @bookeditor/workspace-smoke smoke"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
+    "@playwright/test": "1.63.0",
     "@types/node": "24.13.4",
     "@vitest/coverage-v8": "4.1.11",
     "eslint": "9.39.5",
