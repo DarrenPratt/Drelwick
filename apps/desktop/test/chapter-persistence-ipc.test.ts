@@ -5,7 +5,11 @@ import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createProject, createChapter, saveChapter } from "@bookeditor/core";
 import { createAutosaveCoordinator } from "@bookeditor/core/autosave";
-import { IPC, type ProjectOperationResult } from "@bookeditor/shared";
+import {
+  IPC,
+  type ProjectOperationResult,
+  type SafeLogger,
+} from "@bookeditor/shared";
 const { handle } = vi.hoisted(() => ({ handle: vi.fn() }));
 vi.mock("electron", () => ({ ipcMain: { handle }, dialog: {} }));
 import { registerProjectHandlers } from "../src/main/ipc/project-handlers.js";
@@ -50,9 +54,16 @@ function setup(path: string, save = saveChapter) {
     sender: webContents,
     senderFrame: frame,
   } as unknown as IpcMainInvokeEvent;
+  const logger = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  } satisfies SafeLogger;
   registerProjectHandlers(() => window, frame.url, {
     selectExistingFolder: async () => path,
     saveChapter: save,
+    logger,
   });
   const invoke = (
     channel: string,
@@ -67,7 +78,7 @@ function setup(path: string, save = saveChapter) {
     ) => Promise<ProjectOperationResult<unknown>>;
     return handler(source, payload);
   };
-  return { invoke, event, frame };
+  return { invoke, event, frame, logger };
 }
 const document = {
   type: "doc",
@@ -89,11 +100,22 @@ const document = {
 
 it("round trips validated IPC through disk and a fresh main session", async () => {
   const { root, chapterId } = await fixture();
-  const { invoke } = setup(root);
+  const { invoke, logger } = setup(root);
   expect((await invoke(IPC.PROJECT_OPEN)).ok).toBe(true);
   expect(
     await invoke(IPC.PROJECT_SAVE_CHAPTER, { chapterId, document }),
   ).toMatchObject({ ok: true, value: { id: chapterId } });
+  expect(logger.info).toHaveBeenCalledWith(
+    "chapter.saved",
+    expect.objectContaining({
+      chapterId,
+      source: "autosave",
+      durationMs: expect.any(Number),
+    }),
+  );
+  expect(JSON.stringify(logger.info.mock.calls)).not.toContain(
+    "Formatted prose",
+  );
   const restarted = setup(root);
   await restarted.invoke(IPC.PROJECT_OPEN);
   expect(
@@ -187,7 +209,7 @@ it("blocks overlapping writes and project replacement, and sanitizes failures", 
         reject = fail;
       }),
   );
-  const { invoke } = setup(root, save);
+  const { invoke, logger } = setup(root, save);
   await invoke(IPC.PROJECT_OPEN);
   const request = { chapterId, document };
   const pending = invoke(IPC.PROJECT_SAVE_CHAPTER, request);
@@ -207,5 +229,20 @@ it("blocks overlapping writes and project replacement, and sanitizes failures", 
   });
   expect(JSON.stringify(result)).not.toContain("sensitive");
   expect(save).toHaveBeenCalledTimes(1);
+  expect(logger.error).toHaveBeenCalledWith(
+    "chapter.save_failed",
+    expect.objectContaining({
+      chapterId,
+      source: "autosave",
+      errorName: "Error",
+    }),
+  );
+  expect(logger.warn).toHaveBeenCalledWith(
+    "autosave.failed",
+    expect.objectContaining({ chapterId, source: "autosave" }),
+  );
+  expect(JSON.stringify(logger.error.mock.calls)).not.toContain(
+    "sensitive manuscript body",
+  );
   expect((await invoke(IPC.PROJECT_OPEN)).ok).toBe(true);
 });

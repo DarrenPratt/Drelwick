@@ -645,6 +645,7 @@ describe("chapter editor persistence", () => {
       expect(saveChapter).toHaveBeenCalledExactlyOnceWith({
         chapterId: "123e4567-e89b-42d3-a456-426614174001",
         document: editor().getJSON(),
+        source: "manual",
       });
       expect(saveStatus()).toBe("Unsaved changes");
       expect(container.querySelector('[role="alert"]')?.textContent).toContain(
@@ -732,6 +733,7 @@ describe("chapter editor persistence", () => {
     expect(saveChapter).toHaveBeenLastCalledWith({
       chapterId: "123e4567-e89b-42d3-a456-426614174001",
       document,
+      source: "manual",
     });
     expect(container.textContent).toContain("Chapter saved.");
     expect(loadChapter).toHaveBeenCalledTimes(1);
@@ -1039,6 +1041,7 @@ describe("chapter editor persistence", () => {
       expect(saveChapter).toHaveBeenCalledExactlyOnceWith({
         chapterId: "123e4567-e89b-42d3-a456-426614174001",
         document: editor().getJSON(),
+        source: "autosave",
       });
       expect(saveStatus()).toBe("All changes saved");
       await advance(2000);

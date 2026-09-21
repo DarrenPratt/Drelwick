@@ -22,9 +22,12 @@ import {
   CreateProjectRequestSchema,
   IPC,
   IpcRequestSchemas,
+  noopLogger,
+  safeErrorContext,
   type ProjectLocation,
   type ProjectOperationResult,
   type ProjectWorkspace,
+  type SafeLogger,
 } from "@bookeditor/shared";
 import type { RecentProjects } from "../recent-projects.js";
 
@@ -41,6 +44,7 @@ interface Dependencies {
   saveChapter: typeof saveChapter;
   reorder: typeof reorderChapters;
   recents?: RecentProjects;
+  logger: SafeLogger;
 }
 
 const dependencies: Dependencies = {
@@ -69,6 +73,7 @@ const dependencies: Dependencies = {
   loadChapter,
   saveChapter,
   reorder: reorderChapters,
+  logger: noopLogger,
 };
 
 const failure = (code: string, message: string) => ({
@@ -88,6 +93,7 @@ export function registerProjectHandlers(
     | undefined;
   let busy = false;
   let activeProjectPath: string | undefined;
+  let activeProjectId: string | undefined;
   const trusted = (event: IpcMainInvokeEvent) => {
     const window = getWindow();
     return (
@@ -131,6 +137,7 @@ export function registerProjectHandlers(
             "Project window is unavailable.",
           );
         busy = true;
+        const startedAt = Date.now();
         try {
           const recent =
             channel === IPC.RECENT_OPEN && parsed.data
@@ -158,6 +165,12 @@ export function registerProjectHandlers(
             );
           location = undefined;
           activeProjectPath = opened.projectPath;
+          activeProjectId = opened.project.projectId;
+          services.logger.info("project.opened", {
+            projectId: opened.project.projectId,
+            source: channel === IPC.RECENT_OPEN ? "recent" : "folder_picker",
+            durationMs: Date.now() - startedAt,
+          });
           const warning = await remember(opened.projectPath, opened.book.title);
           if (!trusted(event))
             return failure(
@@ -184,6 +197,11 @@ export function registerProjectHandlers(
             },
           };
         } catch (error) {
+          services.logger.error("project.open_failed", {
+            source: channel === IPC.RECENT_OPEN ? "recent" : "folder_picker",
+            durationMs: Date.now() - startedAt,
+            ...safeErrorContext(error),
+          });
           const messages: Record<string, string> = {
             PROJECT_FILE_MISSING:
               "This folder is missing project.json or another required project file. Choose a complete BookEditor project folder.",
@@ -358,6 +376,7 @@ export function registerProjectHandlers(
         );
       }
       busy = true;
+      const startedAt = Date.now();
       try {
         const created = await services.create({
           title: parsed.data.title,
@@ -367,6 +386,11 @@ export function registerProjectHandlers(
         });
         location = undefined;
         activeProjectPath = created.projectPath;
+        activeProjectId = created.project.projectId;
+        services.logger.info("project.created", {
+          projectId: created.project.projectId,
+          durationMs: Date.now() - startedAt,
+        });
         const warning = await remember(created.projectPath, created.book.title);
         if (!trusted(event))
           return failure(
@@ -386,6 +410,10 @@ export function registerProjectHandlers(
           },
         };
       } catch (error) {
+        services.logger.error("project.create_failed", {
+          durationMs: Date.now() - startedAt,
+          ...safeErrorContext(error),
+        });
         if (
           error instanceof ApplicationError &&
           error.code === "PROJECT_DESTINATION_NOT_EMPTY"
@@ -737,18 +765,42 @@ export function registerProjectHandlers(
         "PROJECT_INPUT_INVALID",
         "Choose a valid chapter document to save.",
       );
-    if (!activeProjectPath)
+    const saveFailureContext = (errorCode: string) => ({
+      ...(activeProjectId ? { projectId: activeProjectId } : {}),
+      chapterId: parsed.data.chapterId,
+      source: parsed.data.source,
+      errorCode,
+    });
+    const logRejectedSave = (errorCode: string) => {
+      const context = saveFailureContext(errorCode);
+      services.logger.error("chapter.save_failed", context);
+      if (parsed.data.source === "autosave")
+        services.logger.warn("autosave.failed", context);
+    };
+    if (!activeProjectPath) {
+      logRejectedSave("PROJECT_NOT_OPEN");
       return failure("PROJECT_NOT_OPEN", "Open a project before saving.");
-    if (busy)
+    }
+    if (busy) {
+      logRejectedSave("PROJECT_BUSY");
       return failure(
         "PROJECT_BUSY",
         "Please wait for the current project operation.",
       );
+    }
     busy = true;
+    const startedAt = Date.now();
     try {
       const saved = await services.saveChapter({
-        ...parsed.data,
+        chapterId: parsed.data.chapterId,
+        document: parsed.data.document,
         projectPath: activeProjectPath,
+      });
+      services.logger.info("chapter.saved", {
+        ...(activeProjectId ? { projectId: activeProjectId } : {}),
+        chapterId: saved.id,
+        source: parsed.data.source,
+        durationMs: Date.now() - startedAt,
       });
       if (!trusted(event))
         return failure(
@@ -761,6 +813,16 @@ export function registerProjectHandlers(
         ...(saved.warning ? { warning: saved.warning } : {}),
       };
     } catch (error) {
+      const context = {
+        ...(activeProjectId ? { projectId: activeProjectId } : {}),
+        chapterId: parsed.data.chapterId,
+        source: parsed.data.source,
+        durationMs: Date.now() - startedAt,
+        ...safeErrorContext(error),
+      };
+      services.logger.error("chapter.save_failed", context);
+      if (parsed.data.source === "autosave")
+        services.logger.warn("autosave.failed", context);
       const messages: Record<string, string> = {
         CHAPTER_NOT_FOUND: "The selected chapter is no longer available.",
         CHAPTER_DOCUMENT_INVALID:

@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   scanProject: vi.fn(),
   getCandidates: vi.fn(),
   send: vi.fn(),
+  logInfo: vi.fn(),
+  logError: vi.fn(),
   frame: { url: "file:///app/index.html" },
 }));
 vi.mock("electron", () => ({
@@ -44,6 +46,15 @@ vi.mock("../src/main/session-marker.js", () => ({
     start = mocks.start;
     markClean = mocks.markClean;
   },
+}));
+vi.mock("../src/main/logging/file-logger.js", () => ({
+  FileLogger: class {
+    debug = vi.fn();
+    info = mocks.logInfo;
+    warn = vi.fn();
+    error = mocks.logError;
+  },
+  installProcessErrorLogging: vi.fn(),
 }));
 vi.mock("../src/main/ipc/project-handlers.js", () => ({
   registerProjectHandlers: vi.fn(),
@@ -103,6 +114,9 @@ it("normal shutdown still waits for the renderer and marks clean only after reco
   });
   expect(mocks.markClean).toHaveBeenCalledOnce();
   expect(mocks.exit).toHaveBeenCalledWith(0);
+  expect(mocks.logInfo).toHaveBeenCalledWith("application.shutdown", {
+    reason: "normal",
+  });
 });
 it("scan failure prevents clean shutdown and permits cancel", async () => {
   mocks.scanProject.mockRejectedValue(new Error("unavailable"));
@@ -120,4 +134,7 @@ it("does not scan a previously clean session", async () => {
   mocks.getCandidates.mockReturnValue([]);
   await start();
   expect(mocks.scanProject).not.toHaveBeenCalled();
+  expect(mocks.logInfo).toHaveBeenCalledWith("application.startup", {
+    platform: process.platform,
+  });
 });

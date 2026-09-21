@@ -14,6 +14,7 @@ import {
   IPC,
   type ProjectOperationResult,
   type ProjectWorkspace,
+  type SafeLogger,
 } from "@bookeditor/shared";
 
 const { handle, showOpenDialog } = vi.hoisted(() => ({
@@ -52,7 +53,13 @@ function setup() {
     senderFrame: frame,
   } as unknown as IpcMainInvokeEvent;
   const open = vi.fn(openProject);
-  registerProjectHandlers(() => window, rendererUrl, { open });
+  const logger = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  } satisfies SafeLogger;
+  registerProjectHandlers(() => window, rendererUrl, { open, logger });
   const invoke = (
     payload?: unknown,
     source = event,
@@ -66,7 +73,7 @@ function setup() {
     ) => Promise<ProjectOperationResult<ProjectWorkspace | null>>;
     return handler(source, payload);
   };
-  return { frame, event, window, open, invoke };
+  return { frame, event, window, open, invoke, logger };
 }
 
 async function fixture() {
@@ -84,7 +91,7 @@ async function fixture() {
 
 describe("existing project IPC", () => {
   it("uses native folder selection and returns validated metadata and body-free chapter summaries", async () => {
-    const { invoke, window } = setup();
+    const { invoke, window, logger } = setup();
     const { path, project } = await fixture();
     const id = createUuid();
     await writeJsonAtomically(join(path, "project.json"), {
@@ -125,6 +132,17 @@ describe("existing project IPC", () => {
         properties: ["openDirectory"],
         buttonLabel: "Open project",
       }),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      "project.opened",
+      expect.objectContaining({
+        projectId: project.projectId,
+        source: "folder_picker",
+        durationMs: expect.any(Number),
+      }),
+    );
+    expect(JSON.stringify(logger.info.mock.calls)).not.toContain(
+      "Synthetic text",
     );
     expect(await readFile(join(path, "project.json"), "utf8")).toBe(before);
     expect(JSON.stringify(await invoke())).not.toContain("Synthetic text");
