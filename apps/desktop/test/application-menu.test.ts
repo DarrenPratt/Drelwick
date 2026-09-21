@@ -4,6 +4,10 @@ import type {
   MenuItem,
   MenuItemConstructorOptions,
 } from "electron";
+import {
+  APPLICATION_MENU_COMMAND_CHANNEL,
+  SAVE_COMMAND_CHANNEL,
+} from "@bookeditor/shared";
 import { installApplicationMenu } from "../src/main/application-menu.js";
 
 const { buildFromTemplate, setApplicationMenu, fromId } = vi.hoisted(() => ({
@@ -18,8 +22,14 @@ vi.mock("electron", () => ({
   Menu: { buildFromTemplate, setApplicationMenu },
 }));
 
+function submenu(
+  item: MenuItemConstructorOptions,
+): MenuItemConstructorOptions[] {
+  return item.submenu as MenuItemConstructorOptions[];
+}
+
 it.each(["win32", "darwin", "linux"] as const)(
-  "routes Save to the focused window on %s",
+  "installs native project menus and platform conventions on %s",
   (platform) => {
     installApplicationMenu(platform);
     const template = buildFromTemplate.mock.lastCall![0];
@@ -27,14 +37,62 @@ it.each(["win32", "darwin", "linux"] as const)(
     expect(template.some((item) => item.role === "appMenu")).toBe(
       platform === "darwin",
     );
-    const file = template.find((item) => item.label === "File")!;
-    const save = (file.submenu as MenuItemConstructorOptions[])[0]!;
-    expect(save.accelerator).toBe("CommandOrControl+S");
+    expect(
+      template.some((item) => item.label === "Help" || item.role === "help"),
+    ).toBe(true);
+    const file = submenu(template.find((item) => item.label === "File")!);
+    expect(file.map((item) => item.label ?? item.role)).toEqual(
+      platform === "darwin"
+        ? [
+            "New Project",
+            "Open Project",
+            undefined,
+            "Save",
+            undefined,
+            "Close Project",
+          ]
+        : [
+            "New Project",
+            "Open Project",
+            undefined,
+            "Save",
+            undefined,
+            "Close Project",
+            "Exit",
+          ],
+    );
+    expect(template.find((item) => item.role === "editMenu")).toBeDefined();
+    expect(template.find((item) => item.role === "viewMenu")).toBeDefined();
+
     const send = vi.fn();
+    const window = {
+      id: 7,
+      isDestroyed: () => false,
+    } as unknown as BrowserWindow;
     fromId.mockReturnValue({ webContents: { send } });
-    save.click!({} as MenuItem, { id: 7 } as BrowserWindow, {});
-    expect(send).toHaveBeenCalledExactlyOnceWith("command:save");
-    expect(fromId).toHaveBeenLastCalledWith(7);
-    expect(() => save.click!({} as MenuItem, undefined, {})).not.toThrow();
+    const [newProject, openProject, , save, , closeProject] = file;
+    expect(newProject?.accelerator).toBe("CommandOrControl+N");
+    expect(openProject?.accelerator).toBe("CommandOrControl+O");
+    expect(save?.accelerator).toBe("CommandOrControl+S");
+    newProject?.click!({} as MenuItem, window, {});
+    expect(send).toHaveBeenLastCalledWith(
+      APPLICATION_MENU_COMMAND_CHANNEL,
+      "new-project",
+    );
+    openProject?.click!({} as MenuItem, window, {});
+    expect(send).toHaveBeenLastCalledWith(
+      APPLICATION_MENU_COMMAND_CHANNEL,
+      "open-project",
+    );
+    save?.click!({} as MenuItem, window, {});
+    expect(send).toHaveBeenLastCalledWith(SAVE_COMMAND_CHANNEL);
+    closeProject?.click!({} as MenuItem, window, {});
+    expect(send).toHaveBeenLastCalledWith(
+      APPLICATION_MENU_COMMAND_CHANNEL,
+      "close-project",
+    );
+    expect(() =>
+      closeProject?.click!({} as MenuItem, undefined, {}),
+    ).not.toThrow();
   },
 );

@@ -226,7 +226,7 @@ export function App() {
     };
   }, [saveActiveChapter]);
 
-  function canLeaveChapter() {
+  const canLeaveChapter = useCallback(() => {
     if (
       !changingDocument &&
       (savePending.current || isDocumentDirty(documentRef.current))
@@ -244,7 +244,7 @@ export function App() {
       return false;
     }
     return true;
-  }
+  }, [changingDocument]);
 
   async function selectChapter(chapterId: string) {
     if (
@@ -300,7 +300,7 @@ export function App() {
     };
   }, []);
 
-  async function refreshRecents() {
+  const refreshRecents = useCallback(async () => {
     try {
       const result = await window.bookEditor.project.listRecent();
       if (result.ok) {
@@ -310,7 +310,7 @@ export function App() {
     } catch {
       setRecentError("Unable to load recent projects. Please try again.");
     }
-  }
+  }, []);
 
   async function removeRecent(id: string) {
     if (pending.current || creating || loadingRecents) return;
@@ -329,31 +329,82 @@ export function App() {
     }
   }
 
-  async function openExistingProject(id?: string) {
-    if (pending.current || creating || loadingRecents || !canLeaveChapter())
-      return;
+  const openExistingProject = useCallback(
+    async (id?: string) => {
+      if (pending.current || creating || loadingRecents || !canLeaveChapter())
+        return;
+      pending.current = true;
+      setOpening(true);
+      setError("");
+      try {
+        const result = await (id
+          ? window.bookEditor.project.openRecent(id)
+          : window.bookEditor.project.open());
+        if (!result.ok) setError(result.error.message);
+        else if (result.value) {
+          setProject(result.value);
+          setDocumentSession((session) => session + 1);
+          setActiveChapterId(result.value.chapters[0]?.id ?? null);
+        }
+        if (result.ok && result.value) await refreshRecents();
+        if (result.ok && result.warning) setRecentError(result.warning);
+      } catch {
+        setError("Unable to open the project. Please try again.");
+      } finally {
+        pending.current = false;
+        setOpening(false);
+      }
+    },
+    [canLeaveChapter, creating, loadingRecents, refreshRecents],
+  );
+
+  const closeCurrentProject = useCallback(async () => {
+    if (!project || pending.current || creating || !canLeaveChapter()) return;
     pending.current = true;
-    setOpening(true);
     setError("");
     try {
-      const result = await (id
-        ? window.bookEditor.project.openRecent(id)
-        : window.bookEditor.project.open());
-      if (!result.ok) setError(result.error.message);
-      else if (result.value) {
-        setProject(result.value);
-        setDocumentSession((session) => session + 1);
-        setActiveChapterId(result.value.chapters[0]?.id ?? null);
+      const result = await window.bookEditor.project.close();
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
       }
-      if (result.ok && result.value) await refreshRecents();
-      if (result.ok && result.warning) setRecentError(result.warning);
+      setProject(null);
+      setActiveChapterId(null);
+      setDocumentSession((session) => session + 1);
     } catch {
-      setError("Unable to open the project. Please try again.");
+      setError("Unable to close the project. Please try again.");
     } finally {
       pending.current = false;
-      setOpening(false);
     }
-  }
+  }, [canLeaveChapter, creating, project]);
+
+  useEffect(() => {
+    return window.bookEditor.onApplicationMenuCommand((command) => {
+      if (command === "new-project") {
+        if (
+          pending.current ||
+          opening ||
+          creating ||
+          loadingRecents ||
+          !canLeaveChapter()
+        )
+          return;
+        setError("");
+        setCreating(true);
+      } else if (command === "open-project") {
+        void openExistingProject();
+      } else {
+        void closeCurrentProject();
+      }
+    });
+  }, [
+    canLeaveChapter,
+    closeCurrentProject,
+    creating,
+    loadingRecents,
+    openExistingProject,
+    opening,
+  ]);
 
   async function renameSelectedChapter() {
     if (!project || !editingChapterId || !chapterTitle.trim()) return;

@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
   IPC,
+  APPLICATION_MENU_COMMAND_CHANNEL,
+  ApplicationMenuCommandSchema,
   SAVE_COMMAND_CHANNEL,
   SHUTDOWN_REQUEST_CHANNEL,
 } from "@bookeditor/shared";
@@ -13,6 +15,15 @@ const api: BookEditorApi = {
     const listener = () => callback();
     ipcRenderer.on(SAVE_COMMAND_CHANNEL, listener);
     return () => ipcRenderer.removeListener(SAVE_COMMAND_CHANNEL, listener);
+  },
+  onApplicationMenuCommand: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+      const parsed = ApplicationMenuCommandSchema.safeParse(payload);
+      if (parsed.success) callback(parsed.data);
+    };
+    ipcRenderer.on(APPLICATION_MENU_COMMAND_CHANNEL, listener);
+    return () =>
+      ipcRenderer.removeListener(APPLICATION_MENU_COMMAND_CHANNEL, listener);
   },
   onShutdownRequested: (callback) => {
     const listener = () => {
@@ -33,6 +44,7 @@ const api: BookEditorApi = {
     create: (input) => ipcRenderer.invoke(IPC.PROJECT_CREATE, input),
     selectLocation: () => ipcRenderer.invoke(IPC.PROJECT_SELECT_LOCATION),
     open: () => ipcRenderer.invoke(IPC.PROJECT_OPEN),
+    close: () => ipcRenderer.invoke(IPC.PROJECT_CLOSE),
     listRecent: () => ipcRenderer.invoke(IPC.RECENT_LIST),
     openRecent: (id) => ipcRenderer.invoke(IPC.RECENT_OPEN, { id }),
     removeRecent: (id) => ipcRenderer.invoke(IPC.RECENT_REMOVE, { id }),
