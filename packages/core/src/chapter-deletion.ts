@@ -39,7 +39,7 @@ export interface DeletedChapter {
 }
 
 export interface ChapterDeletionFileSystem extends ProjectLoadingFileSystem {
-  mkdir(path: string): Promise<unknown>;
+  mkdir(path: string, options?: { recursive: true }): Promise<unknown>;
   rmdir(path: string): Promise<void>;
   rename(source: string, destination: string): Promise<void>;
   writeManifest(path: string, project: ProjectConfig): Promise<void>;
@@ -49,7 +49,7 @@ const defaults: ChapterDeletionFileSystem = {
   lstat,
   readFile,
   realpath,
-  mkdir: (path) => mkdir(path, { recursive: true }),
+  mkdir,
   rmdir,
   rename,
   writeJson: writeJsonAtomically,
@@ -107,7 +107,7 @@ export async function deleteChapter(
       CHAPTER_TRASH_DIRECTORY,
       `${input.chapterId}-${createUuid()}.json`,
     );
-    await fs.mkdir(join(root, CHAPTER_TRASH_DIRECTORY));
+    await fs.mkdir(join(root, CHAPTER_TRASH_DIRECTORY), { recursive: true });
     await fs.rename(sourcePath, trashPath);
     moved = true;
 

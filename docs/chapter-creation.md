@@ -30,6 +30,9 @@ chapter. A lock-release failure returns a warning with the successful result,
 so callers do not retry an already committed creation.
 
 The lock coordinates creation across processes, including root symlink aliases.
+Chapter deletion acquires the same lock exclusively. An existing lock makes
+deletion return `PROJECT_BUSY` before reading or changing project files; it does
+not remove that lock. Only creation of the history/trash directory is recursive.
 It is not a general project session lock. Other programs that ignore it can still
 modify files; a manifest comparison detects edits before commit but is not an
 atomic filesystem compare-and-swap. Do not edit a project concurrently in external
