@@ -9,12 +9,14 @@
   },
   "include": [
     "vitest.config.ts",
+    "playwright.config.ts",
     "packages/*/vitest.config.ts",
     "apps/*/vitest.config.ts",
     "tests/workspace-smoke/vitest.config.ts",
     "packages/*/test/**/*.ts",
     "apps/*/test/**/*.ts",
     "apps/*/src/renderer/window.d.ts",
+    "tests/e2e/**/*.ts",
     "tests/workspace-smoke/test/**/*.ts"
   ]
 }

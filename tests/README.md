@@ -4,6 +4,7 @@ From the repository root:
 
 ```sh
 pnpm test
+pnpm test:e2e
 pnpm test:watch
 pnpm test:coverage
 pnpm test --project @bookeditor/shared
@@ -15,6 +16,22 @@ and return a nonzero exit code on failure. They do not enter watch mode, so CI c
 use them directly. `test:watch` builds once before watching test/source changes;
 rebuild dependencies if you change a package consumed through its `dist` exports.
 The root README documents the pinned pnpm wrapper if pnpm is not installed globally.
+
+## Desktop end-to-end tests
+
+`pnpm test:e2e` builds the workspace and uses Playwright's Electron support to
+launch the packaged development application. The initial scenario creates an
+isolated temporary project through the renderer, creates a chapter, enters and
+saves exact synthetic prose, verifies the authoritative chapter file, closes
+through the normal shutdown handshake, relaunches with the same isolated settings,
+reopens the project from Recents and verifies the prose in the editor. The test
+removes only its own temporary directory.
+
+The suite uses the Electron binary already pinned by the desktop workspace, so it
+does not require a Playwright browser download. Linux agents without a display can
+run it through `xvfb-run --auto-servernum pnpm test:e2e`. Playwright retains a
+trace under `test-results/` when a run fails; generated reports and results are
+ignored by Git.
 
 Vitest and its V8 coverage provider are both pinned to 4.1.11, which passes this
 repository's TypeScript 5.9 strict checks without suppressing declaration errors.
