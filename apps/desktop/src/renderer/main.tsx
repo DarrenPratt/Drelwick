@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 
 import { RecoveryStartup } from "./RecoveryStartup.js";
 import { App } from "./App.js";
+import { RendererErrorBoundary } from "./RendererErrorBoundary.js";
 
 const rootElement = document.getElementById("root");
 if (!rootElement) {
@@ -11,8 +12,10 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <RecoveryStartup>
-      <App />
-    </RecoveryStartup>
+    <RendererErrorBoundary>
+      <RecoveryStartup>
+        <App />
+      </RecoveryStartup>
+    </RendererErrorBoundary>
   </StrictMode>,
 );

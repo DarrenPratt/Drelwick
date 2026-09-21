@@ -241,7 +241,7 @@ describe("project creation IPC", () => {
       "project.create_failed",
       expect.objectContaining({
         errorName: "ApplicationError",
-        errorCode: code,
+        errorCode: code === "unknown" ? "UNKNOWN_ERROR" : code,
         durationMs: expect.any(Number),
       }),
     );

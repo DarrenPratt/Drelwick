@@ -78,6 +78,7 @@ beforeEach(async () => {
     vi.fn(() => true),
   );
   window.bookEditor = {
+    reportRendererError: vi.fn(),
     recovery: {
       list: vi.fn(),
       recover: vi.fn(),

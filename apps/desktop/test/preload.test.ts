@@ -96,6 +96,10 @@ describe("preload API", () => {
     });
     await api.recovery.cancel();
     expect(invoke).toHaveBeenLastCalledWith("recovery:cancel");
+    await api.reportRendererError({ errorName: "TypeError" });
+    expect(invoke).toHaveBeenLastCalledWith("application:renderer-error", {
+      errorName: "TypeError",
+    });
     removeShutdown();
     expect(removeListener).toHaveBeenCalledWith(
       "application:shutdown-request",

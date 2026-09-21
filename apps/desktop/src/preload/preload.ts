@@ -7,6 +7,8 @@ import {
 import type { BookEditorApi } from "@bookeditor/shared";
 
 const api: BookEditorApi = {
+  reportRendererError: (input) =>
+    ipcRenderer.invoke(IPC.APPLICATION_RENDERER_ERROR, input),
   onSaveRequested: (callback) => {
     const listener = () => callback();
     ipcRenderer.on(SAVE_COMMAND_CHANNEL, listener);

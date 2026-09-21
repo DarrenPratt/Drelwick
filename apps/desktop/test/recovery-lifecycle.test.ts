@@ -13,6 +13,10 @@ const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   logInfo: vi.fn(),
   logError: vi.fn(),
+  showErrorBox: vi.fn(),
+  fatalHandler: undefined as
+    | ((source: "uncaught_exception" | "unhandled_rejection") => void)
+    | undefined,
   frame: { url: "file:///app/index.html" },
 }));
 vi.mock("electron", () => ({
@@ -25,6 +29,7 @@ vi.mock("electron", () => ({
       mocks.listeners.set(name, listener),
   },
   BrowserWindow: { getAllWindows: () => [] },
+  dialog: { showErrorBox: mocks.showErrorBox },
   ipcMain: {
     handle: (channel: string, handler: (...args: unknown[]) => unknown) =>
       mocks.handlers.set(channel, handler),
@@ -54,7 +59,14 @@ vi.mock("../src/main/logging/file-logger.js", () => ({
     warn = vi.fn();
     error = mocks.logError;
   },
-  installProcessErrorLogging: vi.fn(),
+  installProcessErrorHandling: vi.fn(
+    (
+      _logger: unknown,
+      handler: (source: "uncaught_exception" | "unhandled_rejection") => void,
+    ) => {
+      mocks.fatalHandler = handler;
+    },
+  ),
 }));
 vi.mock("../src/main/ipc/project-handlers.js", () => ({
   registerProjectHandlers: vi.fn(),
@@ -76,6 +88,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.handlers.clear();
   mocks.listeners.clear();
+  mocks.fatalHandler = undefined;
   mocks.start.mockResolvedValue({ wasUnclean: true });
   mocks.list.mockResolvedValue([{ path: "/book" }]);
   mocks.scanProject.mockResolvedValue({ candidates: [] });
@@ -137,4 +150,24 @@ it("does not scan a previously clean session", async () => {
   expect(mocks.logInfo).toHaveBeenCalledWith("application.startup", {
     platform: process.platform,
   });
+});
+
+it("shows a safe fatal-error message and exits without marking the session clean", async () => {
+  mocks.getCandidates.mockReturnValue([]);
+  await start();
+  mocks.fatalHandler?.("uncaught_exception");
+
+  expect(mocks.showErrorBox).toHaveBeenCalledWith(
+    "BookEditor encountered an unexpected error",
+    expect.stringContaining("Saved project files have been preserved"),
+  );
+  expect(mocks.exit).toHaveBeenCalledWith(1);
+  expect(mocks.markClean).not.toHaveBeenCalled();
+  expect(mocks.logInfo).toHaveBeenCalledWith("application.shutdown", {
+    reason: "fatal_uncaught_exception",
+  });
+
+  mocks.fatalHandler?.("unhandled_rejection");
+  expect(mocks.showErrorBox).toHaveBeenCalledOnce();
+  expect(mocks.exit).toHaveBeenCalledOnce();
 });

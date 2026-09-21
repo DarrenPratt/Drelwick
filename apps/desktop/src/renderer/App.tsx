@@ -15,6 +15,7 @@ import { Editor } from "./components/Editor.js";
 import { WorkspaceLayout } from "./components/WorkspaceLayout.js";
 import { WorkspaceDemo } from "./components/WorkspaceDemo.js";
 import { WorkspaceIcon } from "./components/WorkspaceIcon.js";
+import { RendererErrorBoundary } from "./RendererErrorBoundary.js";
 import type { JSONContent } from "@tiptap/core";
 import {
   documentReducer,
@@ -558,7 +559,7 @@ export function App() {
 
   if (demo) return <WorkspaceDemo onExit={() => setDemo(false)} />;
 
-  return (
+  const content = (
     <>
       {project ? (
         <WorkspaceLayout
@@ -911,5 +912,11 @@ export function App() {
         />
       )}
     </>
+  );
+
+  return (
+    <RendererErrorBoundary preserveWorkspaceState>
+      {content}
+    </RendererErrorBoundary>
   );
 }

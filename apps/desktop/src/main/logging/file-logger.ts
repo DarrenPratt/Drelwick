@@ -126,23 +126,29 @@ function sanitizeContext(context?: SafeLogContext): SafeLogContext {
 
 interface ProcessErrorEvents {
   on(
-    event: "uncaughtExceptionMonitor",
+    event: "uncaughtException",
     listener: (error: Error, origin: string) => void,
   ): unknown;
   on(event: "unhandledRejection", listener: (reason: unknown) => void): unknown;
 }
 
-export function installProcessErrorLogging(
+export type FatalProcessErrorSource =
+  "uncaught_exception" | "unhandled_rejection";
+
+export function installProcessErrorHandling(
   logger: SafeLogger,
+  onFatalError: (source: FatalProcessErrorSource) => void,
   target: ProcessErrorEvents = process,
 ): void {
-  target.on("uncaughtExceptionMonitor", (error, origin) => {
+  target.on("uncaughtException", (error, origin) => {
     logger.error("application.uncaught_exception", {
       origin,
       ...safeErrorContext(error),
     });
+    onFatalError("uncaught_exception");
   });
   target.on("unhandledRejection", (reason) => {
     logger.error("application.unhandled_rejection", safeErrorContext(reason));
+    onFatalError("unhandled_rejection");
   });
 }
