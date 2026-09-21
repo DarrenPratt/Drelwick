@@ -9,8 +9,16 @@ import {
   createUuid,
   isUuid,
 } from "@bookeditor/shared";
-import { mkdir, readdir, readFile, unlink } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
+import {
+  lstat,
+  mkdir,
+  readdir,
+  readFile,
+  realpath,
+  unlink,
+} from "node:fs/promises";
+import { isAbsolute, join, relative, sep } from "node:path";
+import type { Stats } from "node:fs";
 import { writeJsonAtomically } from "./index.js";
 
 export const HISTORY_SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
@@ -28,6 +36,10 @@ export interface HistorySnapshotInput {
 
 export interface HistoryFileSystem {
   mkdir(path: string): Promise<void>;
+  lstat(
+    path: string,
+  ): Promise<Pick<Stats, "isDirectory" | "isFile" | "isSymbolicLink">>;
+  realpath(path: string): Promise<string>;
   readdir(path: string): Promise<string[]>;
   readFile(path: string, encoding: "utf8"): Promise<string>;
   writeJson(path: string, value: unknown): Promise<void>;
@@ -36,8 +48,10 @@ export interface HistoryFileSystem {
 
 const defaultFileSystem: HistoryFileSystem = {
   mkdir: async (path) => {
-    await mkdir(path, { recursive: true });
+    await mkdir(path);
   },
+  lstat,
+  realpath,
   readdir: async (path) => readdir(path),
   readFile: async (path, encoding) => readFile(path, encoding),
   writeJson: writeJsonAtomically,
@@ -79,16 +93,19 @@ export async function createHistorySnapshot(
       "The history snapshot timestamp is invalid.",
     );
   }
-  const directory = join(
-    input.projectPath,
-    ".history",
-    "snapshots",
-    input.chapterId,
-  );
+  const root = await fileSystem.realpath(input.projectPath);
+  if (!(await isSafeDirectory(root, root, fileSystem)))
+    throw unsafeHistoryPath();
+  const historyDirectory = join(root, ".history");
+  const snapshotsDirectory = join(historyDirectory, "snapshots");
+  const directory = join(snapshotsDirectory, input.chapterId);
+  await ensureHistoryDirectory(root, historyDirectory, fileSystem);
+  await ensureHistoryDirectory(root, snapshotsDirectory, fileSystem);
+  await ensureHistoryDirectory(root, directory, fileSystem);
   const latest =
     input.reason === "before-recovery"
       ? null
-      : await readLatestSnapshot(directory, fileSystem);
+      : await readLatestSnapshot(directory, fileSystem, root);
   if (
     latest &&
     JSON.stringify(latest.content) === JSON.stringify(document.data)
@@ -108,7 +125,6 @@ export async function createHistorySnapshot(
     content: document.data,
   };
   try {
-    await fileSystem.mkdir(directory);
     await fileSystem.writeJson(
       join(directory, `${snapshot.id}.json`),
       snapshot,
@@ -140,7 +156,20 @@ export async function applyHistoryRetention(
       "The history retention timestamp is invalid.",
     );
   }
-  const snapshotsRoot = join(projectPath, ".history", "snapshots");
+  let root: string;
+  try {
+    root = await fileSystem.realpath(projectPath);
+  } catch {
+    throw unsafeHistoryPath();
+  }
+  if (!(await isSafeDirectory(root, root, fileSystem)))
+    throw unsafeHistoryPath();
+  const historyRoot = join(root, ".history");
+  const snapshotsRoot = join(historyRoot, "snapshots");
+  if (!(await isSafeDirectory(root, historyRoot, fileSystem)))
+    return { removed: 0, retained: 0 };
+  if (!(await isSafeDirectory(root, snapshotsRoot, fileSystem)))
+    return { removed: 0, retained: 0 };
   let chapterIds: string[];
   try {
     chapterIds = await fileSystem.readdir(snapshotsRoot);
@@ -156,6 +185,7 @@ export async function applyHistoryRetention(
   for (const chapterId of chapterIds) {
     if (!isUuid(chapterId)) continue;
     const directory = join(snapshotsRoot, chapterId);
+    if (!(await isSafeDirectory(root, directory, fileSystem))) continue;
     let names: string[];
     try {
       names = await fileSystem.readdir(directory);
@@ -169,6 +199,7 @@ export async function applyHistoryRetention(
     for (const name of names) {
       if (!name.endsWith(".json")) continue;
       const path = join(directory, name);
+      if (!(await isSafeFile(root, path, fileSystem))) continue;
       try {
         const parsed = HistorySnapshotSchema.safeParse(
           JSON.parse(await fileSystem.readFile(path, "utf8")),
@@ -209,6 +240,7 @@ export async function applyHistoryRetention(
   let removed = 0;
   for (const stored of snapshots) {
     if (keep.has(stored.path)) continue;
+    if (!(await isSafeFile(root, stored.path, fileSystem))) continue;
     try {
       await fileSystem.unlink(stored.path);
     } catch {
@@ -225,6 +257,7 @@ export async function applyHistoryRetention(
 async function readLatestSnapshot(
   directory: string,
   fileSystem: HistoryFileSystem,
+  root: string,
 ): Promise<HistorySnapshot | null> {
   let names: string[];
   try {
@@ -245,9 +278,11 @@ async function readLatestSnapshot(
   let latest: HistorySnapshot | null = null;
   for (const name of names) {
     if (!name.endsWith(".json")) continue;
+    const path = join(directory, name);
+    if (!(await isSafeFile(root, path, fileSystem))) continue;
     try {
       const parsed = HistorySnapshotSchema.safeParse(
-        JSON.parse(await fileSystem.readFile(join(directory, name), "utf8")),
+        JSON.parse(await fileSystem.readFile(path, "utf8")),
       );
       if (
         parsed.success &&
@@ -260,6 +295,81 @@ async function readLatestSnapshot(
     }
   }
   return latest;
+}
+
+async function ensureHistoryDirectory(
+  root: string,
+  directory: string,
+  fileSystem: HistoryFileSystem,
+): Promise<void> {
+  try {
+    await fileSystem.lstat(directory);
+  } catch (error) {
+    if (!isMissing(error)) throw unsafeHistoryPath();
+    try {
+      await fileSystem.mkdir(directory);
+    } catch (mkdirError) {
+      if (!isAlreadyExists(mkdirError)) throw unsafeHistoryPath();
+    }
+  }
+  if (!(await isSafeDirectory(root, directory, fileSystem)))
+    throw unsafeHistoryPath();
+}
+
+async function isSafeDirectory(
+  root: string,
+  path: string,
+  fileSystem: HistoryFileSystem,
+): Promise<boolean> {
+  try {
+    const stats = await fileSystem.lstat(path);
+    if (!stats.isDirectory() || stats.isSymbolicLink()) return false;
+    return isWithin(root, await fileSystem.realpath(path));
+  } catch (error) {
+    if (isMissing(error)) return false;
+    throw unsafeHistoryPath();
+  }
+}
+
+async function isSafeFile(
+  root: string,
+  path: string,
+  fileSystem: HistoryFileSystem,
+): Promise<boolean> {
+  try {
+    const stats = await fileSystem.lstat(path);
+    if (!stats.isFile() || stats.isSymbolicLink()) return false;
+    return isWithin(root, await fileSystem.realpath(path));
+  } catch (error) {
+    if (isMissing(error)) return false;
+    throw unsafeHistoryPath();
+  }
+}
+
+function isWithin(root: string, path: string): boolean {
+  const relativePath = relative(root, path);
+  return (
+    relativePath === "" ||
+    (relativePath !== ".." &&
+      !relativePath.startsWith(`..${sep}`) &&
+      !isAbsolute(relativePath))
+  );
+}
+
+function unsafeHistoryPath(): ApplicationError {
+  return new ApplicationError(
+    "PROJECT_PATH_INVALID",
+    "Manuscript history contains an unsafe filesystem path.",
+  );
+}
+
+function isAlreadyExists(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "EEXIST"
+  );
 }
 
 function isMissing(error: unknown): boolean {

@@ -144,6 +144,31 @@ test("validates Windows authoring, autosave, formatting, ordering and restart", 
         { type: "sceneBreak" },
       ]),
     );
+    const historyDirectory = join(
+      projectDirectory,
+      ".history",
+      "snapshots",
+      chapterId,
+    );
+    await expect
+      .poll(async () => {
+        try {
+          return await readdir(historyDirectory);
+        } catch {
+          return [];
+        }
+      })
+      .toHaveLength(1);
+    const history = JSON.parse(
+      await readFile(
+        join(historyDirectory, (await readdir(historyDirectory))[0]!),
+        "utf8",
+      ),
+    ) as { reason: string; content: { content: unknown[] } };
+    expect(history).toMatchObject({
+      reason: "interval",
+      content: chapter.content,
+    });
 
     await application.close();
     application = undefined;
@@ -172,6 +197,27 @@ test("validates Windows authoring, autosave, formatting, ordering and restart", 
 
 test("recovers a history version after a forced process shutdown", async () => {
   const { projectPath, cleanup } = await copyFixture("recovery-project");
+  const manifest = JSON.parse(
+    await readFile(join(projectPath, "project.json"), "utf8"),
+  ) as { manuscript: { order: string[] } };
+  const fixtureChapterId = manifest.manuscript.order[0]!;
+  const fixtureHistoryPath = join(
+    projectPath,
+    ".history",
+    "snapshots",
+    fixtureChapterId,
+  );
+  for (const file of await readdir(fixtureHistoryPath)) {
+    const snapshotPath = join(fixtureHistoryPath, file);
+    const snapshot = JSON.parse(await readFile(snapshotPath, "utf8")) as {
+      created: string;
+    };
+    await writeFile(
+      snapshotPath,
+      JSON.stringify({ ...snapshot, created: new Date().toISOString() }),
+      "utf8",
+    );
+  }
   const userDataDirectory = await mkdtemp(
     join(tmpdir(), "bookeditor-recovery-e2e-"),
   );

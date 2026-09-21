@@ -137,6 +137,18 @@ service validates snapshots before writing, limits interval snapshots to one
 per five minutes per chapter, and suppresses identical content. Snapshot
 failures are reported without affecting the authoritative chapter file.
 
+The privileged desktop process schedules an initial snapshot after each
+successful chapter save and tracks the latest saved document for that chapter.
+While saves continue, it attempts another snapshot every five minutes; the core
+history service enforces the interval and duplicate-content rules. If a chapter
+has not been saved for a full interval, its timer stops until the next successful
+save. Snapshot jobs are serialized with retention for each project and run
+outside the save response path. Retention is scheduled after a project opens.
+Closing or replacing a project cancels its timers and settles queued work, and a
+clean application shutdown cancels all timers and waits for queued history work.
+History failures are logged using project/chapter identifiers and error
+classification only; they never change save results or log manuscript content.
+
 Retention keeps all snapshots for 24 hours, then one per UTC hour through seven
 days and one per UTC day through 30 days; older validated snapshots are removed.
 Invalid history files and authoritative manuscript files are left untouched.

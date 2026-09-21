@@ -26,6 +26,7 @@ let quitting = false;
 let shutdownPending = false;
 let shutdownLogged = false;
 let fatalErrorHandled = false;
+let stopHistory: (() => Promise<void>) | undefined;
 const recoveryService = new RecoveryService();
 const logger = new FileLogger(app.getPath("userData"));
 installProcessErrorHandling(logger, handleFatalProcessError);
@@ -92,11 +93,16 @@ void app.whenReady().then(async () => {
     exitApplication("startup_failed");
     return;
   }
-  registerProjectHandlers(() => mainWindow, getRendererUrl(), {
-    recents: new RecentProjects(app.getPath("userData")),
-    startupBlocked: recoveryPending,
-    logger,
-  });
+  const projectHandlers = registerProjectHandlers(
+    () => mainWindow,
+    getRendererUrl(),
+    {
+      recents: new RecentProjects(app.getPath("userData")),
+      startupBlocked: recoveryPending,
+      logger,
+    },
+  );
+  stopHistory = projectHandlers.stopHistory;
   registerRecoveryHandlers(
     () => mainWindow,
     getRendererUrl(),
@@ -123,6 +129,7 @@ void app.whenReady().then(async () => {
       return;
     }
     try {
+      await stopHistory?.();
       if (!recoveryPending()) await sessionMarker?.markClean();
       exitApplication("normal");
     } catch (error) {
