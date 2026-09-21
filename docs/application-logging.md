@@ -7,9 +7,10 @@ backups and rotates the active file before it would exceed 1 MiB.
 
 Logged lifecycle and persistence events include application startup and
 shutdown, project opening and creation, chapter saves, autosave failures,
-recovery scans and decisions, and unhandled main-process errors. Project and
-chapter UUIDs, operation source, duration and stable error classification give
-diagnostic context.
+recovery scans and decisions, and unhandled main-process or renderer errors.
+Project and chapter UUIDs, operation source, duration and stable error
+classification give diagnostic context. Renderer failures contribute only a
+validated error name through the restricted preload boundary.
 
 Logging metadata must never include manuscript bodies, document or IPC
 payloads, project paths, chapter titles, raw errors, error messages, stacks or

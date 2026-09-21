@@ -1,5 +1,18 @@
 import { ApplicationError } from "./errors.js";
 
+const safeErrorNames = new Set([
+  "AggregateError",
+  "ApplicationError",
+  "Error",
+  "EvalError",
+  "RangeError",
+  "ReferenceError",
+  "SyntaxError",
+  "TypeError",
+  "URIError",
+]);
+const safeErrorCode = /^[A-Z][A-Z0-9_]{0,99}$/u;
+
 export const LOG_LEVELS = ["debug", "info", "warn", "error"] as const;
 export const SAFE_LOG_FIELDS = [
   "platform",
@@ -45,7 +58,13 @@ export const noopLogger: SafeLogger = {
 /** Retain diagnostic classification without copying an error message or stack. */
 export function safeErrorContext(error: unknown): SafeLogContext {
   if (error instanceof ApplicationError)
-    return { errorName: error.name, errorCode: error.code };
-  if (error instanceof Error) return { errorName: error.name };
+    return {
+      errorName: "ApplicationError",
+      errorCode: safeErrorCode.test(error.code) ? error.code : "UNKNOWN_ERROR",
+    };
+  if (error instanceof Error)
+    return {
+      errorName: safeErrorNames.has(error.name) ? error.name : "UnknownError",
+    };
   return { errorName: "UnknownError" };
 }

@@ -7,7 +7,7 @@ import {
   FileLogger,
   LOG_DIRECTORY_NAME,
   LOG_FILE_NAME,
-  installProcessErrorLogging,
+  installProcessErrorHandling,
 } from "../src/main/logging/file-logger.js";
 
 const directories: string[] = [];
@@ -108,18 +108,22 @@ it("captures unhandled process errors without their message or stack", () => {
     warn: vi.fn(),
     error: vi.fn(),
   };
-  installProcessErrorLogging(logger, {
+  const onFatalError = vi.fn();
+  installProcessErrorHandling(logger, onFatalError, {
     on: (event: string, listener: (...args: never[]) => void) =>
       listeners.set(event, listener),
   } as never);
 
-  listeners.get("uncaughtExceptionMonitor")?.(
+  listeners.get("uncaughtException")?.(
     new Error("SENTINEL MANUSCRIPT PROSE") as never,
     "unhandledRejection" as never,
   );
   listeners.get("unhandledRejection")?.(
     new Error("SENTINEL MANUSCRIPT PROSE") as never,
   );
+  const unsafeName = new Error("failure");
+  unsafeName.name = "SENTINEL MANUSCRIPT PROSE";
+  listeners.get("unhandledRejection")?.(unsafeName as never);
 
   expect(logger.error).toHaveBeenNthCalledWith(
     1,
@@ -131,5 +135,13 @@ it("captures unhandled process errors without their message or stack", () => {
     "application.unhandled_rejection",
     { errorName: "Error" },
   );
+  expect(logger.error).toHaveBeenNthCalledWith(
+    3,
+    "application.unhandled_rejection",
+    { errorName: "UnknownError" },
+  );
+  expect(onFatalError).toHaveBeenNthCalledWith(1, "uncaught_exception");
+  expect(onFatalError).toHaveBeenNthCalledWith(2, "unhandled_rejection");
+  expect(onFatalError).toHaveBeenNthCalledWith(3, "unhandled_rejection");
   expect(JSON.stringify(logger.error.mock.calls)).not.toContain("SENTINEL");
 });

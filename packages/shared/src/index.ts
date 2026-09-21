@@ -34,6 +34,7 @@ export const IPC = {
   CHAPTER_RENAME: "chapter:rename",
   CHAPTER_DELETE: "chapter:delete",
   CHAPTER_REORDER: "chapter:reorder",
+  APPLICATION_RENDERER_ERROR: "application:renderer-error",
   APPLICATION_SHUTDOWN_READY: "application:shutdown-ready",
 } as const;
 
@@ -45,6 +46,19 @@ export const SHUTDOWN_REQUEST_CHANNEL = "application:shutdown-request";
 
 const chapterId = z.string().trim().min(1);
 const chapterTitle = z.string().trim().min(1).max(200);
+export const RendererErrorNameSchema = z.enum([
+  "AggregateError",
+  "ApplicationError",
+  "Error",
+  "EvalError",
+  "RangeError",
+  "ReferenceError",
+  "SyntaxError",
+  "TypeError",
+  "URIError",
+  "UnknownError",
+]);
+export type RendererErrorName = z.infer<typeof RendererErrorNameSchema>;
 
 export const CreateProjectRequestSchema = z
   .object({
@@ -107,6 +121,9 @@ export const IpcRequestSchemas = {
   [IPC.CHAPTER_RENAME]: z.object({ chapterId, title: chapterTitle }),
   [IPC.CHAPTER_DELETE]: z.object({ chapterId }),
   [IPC.CHAPTER_REORDER]: z.object({ chapterIds: z.array(chapterId).min(1) }),
+  [IPC.APPLICATION_RENDERER_ERROR]: z
+    .object({ errorName: RendererErrorNameSchema })
+    .strict(),
   [IPC.APPLICATION_SHUTDOWN_READY]: z.object({ saved: z.boolean() }).strict(),
 } as const;
 
@@ -131,6 +148,7 @@ export interface RecoveryCandidateSummary {
 }
 
 export interface BookEditorApi {
+  reportRendererError(input: RendererErrorReport): Promise<void>;
   recovery: {
     list(): Promise<ProjectOperationResult<RecoveryCandidateSummary[]>>;
     recover(
@@ -178,6 +196,10 @@ export interface BookEditorApi {
     selectImage(): Promise<void>;
     selectExportLocation(): Promise<void>;
   };
+}
+
+export interface RendererErrorReport {
+  errorName: RendererErrorName;
 }
 
 export interface RenameChapterRequest {

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import {
   IPC,
   SHUTDOWN_REQUEST_CHANNEL,
@@ -10,12 +10,14 @@ import { RecoveryService } from "@bookeditor/core";
 import { createMainWindow, getRendererUrl } from "./windows/main-window.js";
 import { registerProjectHandlers } from "./ipc/project-handlers.js";
 import { registerRecoveryHandlers } from "./ipc/recovery-handlers.js";
+import { registerRendererErrorHandler } from "./ipc/renderer-error-handler.js";
 import { RecentProjects } from "./recent-projects.js";
 import { installApplicationMenu } from "./application-menu.js";
 import { SessionMarkerService } from "./session-marker.js";
 import {
   FileLogger,
-  installProcessErrorLogging,
+  installProcessErrorHandling,
+  type FatalProcessErrorSource,
 } from "./logging/file-logger.js";
 
 let mainWindow: BrowserWindow | undefined;
@@ -23,9 +25,10 @@ let sessionMarker: SessionMarkerService | undefined;
 let quitting = false;
 let shutdownPending = false;
 let shutdownLogged = false;
+let fatalErrorHandled = false;
 const recoveryService = new RecoveryService();
 const logger = new FileLogger(app.getPath("userData"));
-installProcessErrorLogging(logger);
+installProcessErrorHandling(logger, handleFatalProcessError);
 let recoveryScanError: string | undefined;
 const recoveryPending = () =>
   Boolean(recoveryScanError) || recoveryService.getCandidates().length > 0;
@@ -44,9 +47,22 @@ function logShutdown(reason: string): void {
   }
 }
 
-function exitApplication(reason: string): void {
+function exitApplication(reason: string, code = 0): void {
   logShutdown(reason);
-  app.exit(0);
+  app.exit(code);
+}
+
+function handleFatalProcessError(source: FatalProcessErrorSource): void {
+  if (fatalErrorHandled) return;
+  fatalErrorHandled = true;
+  try {
+    dialog.showErrorBox(
+      "BookEditor encountered an unexpected error",
+      "Saved project files have been preserved. BookEditor must close without marking this session clean. Restart the application to check for recoverable manuscript changes.",
+    );
+  } finally {
+    exitApplication(`fatal_${source}`, 1);
+  }
 }
 
 void app.whenReady().then(async () => {
@@ -89,6 +105,7 @@ void app.whenReady().then(async () => {
     recoveryScanError,
     logger,
   );
+  registerRendererErrorHandler(() => mainWindow, getRendererUrl(), logger);
   ipcMain.handle(IPC.APPLICATION_SHUTDOWN_READY, async (event, payload) => {
     if (
       !shutdownPending ||

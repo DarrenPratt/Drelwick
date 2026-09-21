@@ -127,6 +127,17 @@ These are deterministic unit and filesystem integration checks. Native Electron
 end-to-end testing and forced-process/platform shutdown validation remain separate
 work; this audit does not claim those have been performed.
 
+## Global error handling
+
+Issue #49's failure tests cover the renderer and main-process boundaries:
+
+| Requirement                            | Executable evidence                                                                                                                                                                                       |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Main failures are logged and visible   | `apps/desktop/test/file-logger.test.ts` verifies sanitized uncaught-error records; `recovery-lifecycle.test.ts` verifies the native message, failure exit code and unchanged clean-session marker.        |
+| Renderer failures show a useful screen | `apps/desktop/test/renderer-error-boundary.test.ts` injects render failures and checks the fallback and retry flow.                                                                                       |
+| Dirty and on-disk content is preserved | The boundary test keeps synthetic dirty state above the failed subtree, restores it on retry and verifies that a copied fixture chapter remains byte-for-byte unchanged.                                  |
+| Renderer reports remain sanitized      | The boundary sends only the error name; `renderer-error-ipc.test.ts` verifies sender authorization and rejects raw messages, extra payload fields, oversized values and untrusted frames without logging. |
+
 ## Coverage
 
 Open `coverage/index.html` for the HTML report or use `coverage/lcov.info` with CI

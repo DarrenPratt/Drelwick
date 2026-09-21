@@ -19,5 +19,19 @@ describe("IPC contracts", () => {
     expect(() =>
       validateIpcPayload(IPC.PROJECT_CREATE, { path: "outside-project" }),
     ).toThrow();
+    expect(() =>
+      validateIpcPayload(IPC.APPLICATION_RENDERER_ERROR, {
+        errorName: "Error",
+        message: "manuscript content",
+      }),
+    ).toThrow();
+  });
+
+  it("accepts sanitized renderer error classification only", () => {
+    expect(
+      validateIpcPayload(IPC.APPLICATION_RENDERER_ERROR, {
+        errorName: "TypeError",
+      }),
+    ).toEqual({ errorName: "TypeError" });
   });
 });

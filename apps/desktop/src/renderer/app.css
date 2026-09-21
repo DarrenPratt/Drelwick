@@ -26,6 +26,33 @@ body {
   padding: 4rem clamp(2rem, 8vw, 8rem);
 }
 
+.renderer-error-screen {
+  align-items: center;
+  display: flex;
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+.renderer-error-screen section {
+  background: #ffffff;
+  border: 1px solid #dbe2ed;
+  border-radius: 1rem;
+  box-shadow: 0 1rem 3rem rgb(36 48 68 / 8%);
+  margin: 0 auto;
+  max-width: 38rem;
+  padding: 2rem;
+}
+
+.renderer-error-screen h1 {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  margin-bottom: 1.5rem;
+}
+
+.renderer-error-screen p:not(.eyebrow) {
+  color: #5a6b88;
+  line-height: 1.6;
+}
+
 .app-header {
   max-width: 52rem;
 }
