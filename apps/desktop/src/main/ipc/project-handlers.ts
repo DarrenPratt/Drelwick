@@ -12,6 +12,8 @@ import {
   loadChapter,
   saveChapter,
   openProject,
+  openProjectForEditing,
+  MIGRATION_ERRORS,
   reorderChapters,
   restoreProjectArchive,
   renameChapter,
@@ -63,7 +65,7 @@ interface Dependencies {
   selectRestoreParent(window: BrowserWindow): Promise<string | null>;
   createArchive: typeof createProjectArchive;
   restoreArchive: typeof restoreProjectArchive;
-  open: typeof openProject;
+  open: (path: string) => ReturnType<typeof openProject>;
   rename: typeof renameChapter;
   delete: typeof deleteChapter;
   loadChapter: typeof loadChapter;
@@ -125,7 +127,7 @@ const dependencies: Dependencies = {
   },
   createArchive: createProjectArchive,
   restoreArchive: restoreProjectArchive,
-  open: openProject,
+  open: openProjectForEditing,
   rename: renameChapter,
   delete: deleteChapter,
   loadChapter,
@@ -273,6 +275,12 @@ export function registerProjectHandlers(
               "Project window changed. Open the project again.",
             );
           if (!path) return { ok: true, value: null };
+          if (activeProjectPath) await history.settleProject(activeProjectPath);
+          if (!trusted(event))
+            return failure(
+              "PROJECT_ACCESS_DENIED",
+              "Project window changed. Open the project again.",
+            );
           const opened = await services.open(path);
           if (!trusted(event))
             return failure(
@@ -324,6 +332,7 @@ export function registerProjectHandlers(
             ...safeErrorContext(error),
           });
           const messages: Record<string, string> = {
+            ...MIGRATION_ERRORS,
             PROJECT_FILE_MISSING:
               "This folder is missing project.json or another required project file. Choose a complete BookEditor project folder.",
             PROJECT_JSON_INVALID:
@@ -331,7 +340,7 @@ export function registerProjectHandlers(
             PROJECT_SCHEMA_INVALID:
               "A project file has an invalid format. Restore a valid copy before opening this project.",
             PROJECT_SCHEMA_UNSUPPORTED:
-              "This project uses an unsupported format version. Open it with a compatible version of BookEditor.",
+              MIGRATION_ERRORS.PROJECT_SCHEMA_UNSUPPORTED,
             PROJECT_ORDER_INVALID:
               "The manuscript chapter order is invalid or references a missing chapter. Check the project files before trying again.",
             PROJECT_PATH_INVALID:

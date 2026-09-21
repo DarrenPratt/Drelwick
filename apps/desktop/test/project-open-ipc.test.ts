@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createProject,
   openProject,
+  openProjectForEditing,
+  migrateProject,
+  MIGRATION_DIRECTORY,
   writeJsonAtomically,
 } from "@bookeditor/core";
 import {
@@ -16,6 +19,10 @@ import {
   type ProjectWorkspace,
   type SafeLogger,
 } from "@bookeditor/shared";
+import {
+  copyFixture,
+  type FixtureCopy,
+} from "../../../tests/helpers/fixture-projects.js";
 
 const { handle, showOpenDialog } = vi.hoisted(() => ({
   handle: vi.fn(),
@@ -29,11 +36,13 @@ import { registerProjectHandlers } from "../src/main/ipc/project-handlers.js";
 
 const rendererUrl = "file:///app/index.html";
 const directories: string[] = [];
+const fixtureCopies: FixtureCopy[] = [];
 beforeEach(() => {
   handle.mockReset();
   showOpenDialog.mockReset();
 });
 afterEach(async () => {
+  await Promise.all(fixtureCopies.splice(0).map((copy) => copy.cleanup()));
   await Promise.all(
     directories
       .splice(0)
@@ -41,7 +50,7 @@ afterEach(async () => {
   );
 });
 
-function setup() {
+function setup(useMigration = false) {
   const frame = { url: rendererUrl };
   const webContents = { mainFrame: frame };
   const window = {
@@ -59,7 +68,10 @@ function setup() {
     warn: vi.fn(),
     error: vi.fn(),
   } satisfies SafeLogger;
-  registerProjectHandlers(() => window, rendererUrl, { open, logger });
+  registerProjectHandlers(() => window, rendererUrl, {
+    ...(useMigration ? {} : { open }),
+    logger,
+  });
   const invoke = (
     payload?: unknown,
     source = event,
@@ -90,6 +102,66 @@ async function fixture() {
 }
 
 describe("existing project IPC", () => {
+  it("uses the production migration path before exposing a v1 project to the editor", async () => {
+    const { invoke, logger } = setup(true);
+    const copy = await copyFixture("unicode-book");
+    fixtureCopies.push(copy);
+    showOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: [copy.projectPath],
+    });
+    expect(await invoke()).toMatchObject({ ok: true });
+    const opened = await openProject(copy.projectPath);
+    expect(opened.project.schemaVersion).toBe(2);
+    expect(
+      JSON.parse(
+        await readFile(
+          join(copy.projectPath, MIGRATION_DIRECTORY, "state.json"),
+          "utf8",
+        ),
+      ),
+    ).toMatchObject({ phase: "complete" });
+    expect(JSON.stringify(logger.info.mock.calls)).not.toContain("l’autrice");
+  });
+
+  it("resumes an interrupted commit through the production project-open boundary", async () => {
+    const { invoke } = setup(true);
+    const copy = await copyFixture("formatted-book");
+    fixtureCopies.push(copy);
+    await expect(
+      migrateProject(copy.projectPath, {
+        checkpoint: async (point) => {
+          if (point === "after-format-commit") throw new Error("interrupted");
+        },
+      }),
+    ).rejects.toMatchObject({ code: "MIGRATION_COMMIT_FAILED" });
+    showOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: [copy.projectPath],
+    });
+    expect(await invoke()).toMatchObject({ ok: true });
+    expect(
+      (await openProjectForEditing(copy.projectPath)).project.schemaVersion,
+    ).toBe(2);
+  });
+
+  it("does not start migration for an untrusted frame", async () => {
+    const { invoke, event } = setup(true);
+    const copy = await copyFixture("unicode-book");
+    fixtureCopies.push(copy);
+    showOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: [copy.projectPath],
+    });
+    expect(
+      await invoke(undefined, {
+        ...event,
+        senderFrame: { url: rendererUrl },
+      } as IpcMainInvokeEvent),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_ACCESS_DENIED" } });
+    expect((await openProject(copy.projectPath)).project.schemaVersion).toBe(1);
+    expect(showOpenDialog).not.toHaveBeenCalled();
+  });
   it("uses native folder selection and returns validated metadata and body-free chapter summaries", async () => {
     const { invoke, window, logger } = setup();
     const { path, project } = await fixture();

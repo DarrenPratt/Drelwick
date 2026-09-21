@@ -15,6 +15,7 @@ import {
 } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { createHistorySnapshot } from "./history.js";
+import { assertMigrationReadable } from "./migration-state.js";
 import {
   CHAPTER_CREATION_LOCK,
   writeJsonAtomically,
@@ -316,6 +317,7 @@ async function readProject(
   root: string,
   fileSystem: RecoveryFileSystem,
 ): Promise<{ manuscript: { order: string[] } }> {
+  await assertMigrationReadable(root, fileSystem);
   await assertSafePath(join(root, "project.json"), fileSystem);
   const raw = await readJson(join(root, "project.json"), fileSystem);
   const parsed = ProjectConfigSchema.safeParse(raw);

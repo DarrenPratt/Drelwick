@@ -2,7 +2,8 @@
 
 Issue #17 adds **Open project** to the welcome screen and project workspace.
 The native picker selects the existing project root (the folder containing
-`project.json`), then core's `openProject` validates and loads it. The workspace
+`project.json`), then core's `openProjectForEditing` inspects compatibility,
+recovers or migrates when needed, and validates it before activation. The workspace
 shows the selected book's title, author, language, location, chapter count and
 derived word total. Chapter editing and the interactive navigator are separate
 issues; chapter bodies are not exposed by this operation.
@@ -28,7 +29,10 @@ paths and concurrent chapter changes. Raw exceptions and author content are not
 logged or forwarded. Native picker and unexpected failures have a safe generic
 message. The [loader/cache strategy](project-loading.md) remains unchanged:
 authoritative files are preserved and only the disposable summary cache may be
-rebuilt. No persisted schema changes or migration are needed.
+rebuilt after a successful open. Issue #111 adds the
+[verified-backup and journaled V1 -> V2 migration](project-format.md); an
+unfinished or invalid migration cannot be exposed to the editor. Newer formats
+produce an explicit newer-compatible-BookEditor error without mutation.
 
 ## Switching and pending changes
 

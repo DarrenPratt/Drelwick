@@ -5,7 +5,7 @@ import {
   safeErrorContext,
   validateIpcPayload,
 } from "@bookeditor/shared";
-import { RecoveryService } from "@bookeditor/core";
+import { RecoveryService, recoverProjectMigration } from "@bookeditor/core";
 
 import { createMainWindow, getRendererUrl } from "./windows/main-window.js";
 import { registerProjectHandlers } from "./ipc/project-handlers.js";
@@ -76,8 +76,10 @@ void app.whenReady().then(async () => {
         const recentProjects = await new RecentProjects(
           app.getPath("userData"),
         ).list();
-        for (const project of recentProjects)
+        for (const project of recentProjects) {
+          await recoverProjectMigration(project.path);
           await recoveryService.scanProject(project.path);
+        }
         logger.info("recovery.scan_completed", {
           projectCount: recentProjects.length,
           candidateCount: recoveryService.getCandidates().length,

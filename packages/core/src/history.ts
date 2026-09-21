@@ -20,6 +20,7 @@ import {
 import { isAbsolute, join, relative, sep } from "node:path";
 import type { Stats } from "node:fs";
 import { writeJsonAtomically } from "./index.js";
+import { assertMigrationReadable } from "./migration-state.js";
 
 export const HISTORY_SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
 export const HISTORY_KEEP_ALL_MS = 24 * 60 * 60 * 1000;
@@ -94,6 +95,7 @@ export async function createHistorySnapshot(
     );
   }
   const root = await fileSystem.realpath(input.projectPath);
+  await assertMigrationReadable(root, fileSystem);
   if (!(await isSafeDirectory(root, root, fileSystem)))
     throw unsafeHistoryPath();
   const historyDirectory = join(root, ".history");
@@ -162,6 +164,7 @@ export async function applyHistoryRetention(
   } catch {
     throw unsafeHistoryPath();
   }
+  await assertMigrationReadable(root, fileSystem);
   if (!(await isSafeDirectory(root, root, fileSystem)))
     throw unsafeHistoryPath();
   const historyRoot = join(root, ".history");

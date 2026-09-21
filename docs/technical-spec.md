@@ -1190,6 +1190,12 @@ This is useful across service and IPC boundaries.
 
 # 36. Schema Versioning
 
+The implemented V1 and V2 formats, compatibility rules, complete local migration
+backup and recoverable multi-file commit are specified in
+[project-format.md](project-format.md). V2 explicitly references component
+versions; book/chapter content remains V1. Historical transformations must remain
+stable as later publishing models are introduced.
+
 Every persisted major object should include:
 
 ```json

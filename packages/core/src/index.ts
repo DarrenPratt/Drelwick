@@ -15,12 +15,21 @@ export * from "./chapter-rename.js";
 export * from "./history.js";
 export * from "./project-archive.js";
 export * from "./recovery.js";
+export * from "./project-migration.js";
+export { MIGRATION_DIRECTORY, MIGRATION_ERRORS } from "./migration-state.js";
+import {
+  assertKnownVersion,
+  assertMigrationReadable,
+  migrationError,
+} from "./migration-state.js";
 import {
   BookMetadataSchema,
   ChapterFileSchema,
   ChapterSummaryCacheSchema,
   CountedChapterSummarySchema,
   ProjectConfigSchema,
+  ProjectConfigV2Schema,
+  ProjectFormatSchema,
   type BookMetadata,
   type ChapterSummaryCache,
   type CountedChapterSummary,
@@ -82,6 +91,30 @@ export async function openProject(
   projectPath: string,
   options: OpenProjectOptions = {},
   fileSystem: ProjectLoadingFileSystem = defaultProjectLoadingFileSystem,
+): Promise<OpenedProject> {
+  return loadProjectFiles(projectPath, options, fileSystem, true);
+}
+
+/** Full, read-only validation for snapshots and migration. Never activates an editor. */
+export async function validateProjectFiles(
+  projectPath: string,
+): Promise<OpenedProject> {
+  return loadProjectFiles(
+    projectPath,
+    { rebuildSummaries: true },
+    {
+      ...defaultProjectLoadingFileSystem,
+      writeJson: async () => undefined,
+    },
+    false,
+  );
+}
+
+async function loadProjectFiles(
+  projectPath: string,
+  options: OpenProjectOptions,
+  fileSystem: ProjectLoadingFileSystem,
+  guardMigration: boolean,
 ): Promise<OpenedProject> {
   if (!isAbsolute(projectPath)) {
     throw new ApplicationError(
@@ -165,7 +198,10 @@ export async function openProject(
   }
 
   const rawProject = await readJson("project.json");
-  assertSupportedVersion(rawProject, "project.json");
+  assertKnownVersion(rawProject, 2);
+  const migration = guardMigration
+    ? await assertMigrationReadable(projectRoot, fileSystem)
+    : null;
   const parsedProject = ProjectConfigSchema.safeParse(rawProject);
   if (!parsedProject.success) {
     const invalidOrder = parsedProject.error.issues.some(
@@ -179,8 +215,39 @@ export async function openProject(
     );
   }
   const project = parsedProject.data;
+  if (
+    migration &&
+    (project.schemaVersion !== 2 || project.projectId !== migration.projectId)
+  )
+    throw migrationError("MIGRATION_STATE_INVALID");
+  if (project.schemaVersion === 2) {
+    const rawFormat = await readJson(project.formatFile);
+    assertKnownVersion(rawFormat, 1);
+    if (typeof rawFormat === "object" && rawFormat !== null) {
+      for (const key of [
+        "bookSchemaVersion",
+        "chapterSchemaVersion",
+      ] as const) {
+        assertKnownVersion(
+          {
+            schemaVersion:
+              key in rawFormat
+                ? rawFormat[key as keyof typeof rawFormat]
+                : undefined,
+          },
+          1,
+        );
+      }
+    }
+    const format = ProjectFormatSchema.safeParse(rawFormat);
+    if (!format.success || format.data.projectId !== project.projectId)
+      throw new ApplicationError(
+        "PROJECT_SCHEMA_INVALID",
+        "Invalid project format descriptor.",
+      );
+  }
   const rawBook = await readJson(project.bookFile);
-  assertSupportedVersion(rawBook, project.bookFile);
+  assertKnownVersion(rawBook, 1);
   const parsedBook = BookMetadataSchema.safeParse(rawBook);
   if (!parsedBook.success) {
     throw new ApplicationError(
@@ -228,7 +295,7 @@ export async function openProject(
       continue;
     }
     const rawChapter = await readJson(relativePath);
-    assertSupportedVersion(rawChapter, relativePath);
+    assertKnownVersion(rawChapter, 1);
     const parsed = ChapterFileSchema.safeParse(rawChapter);
     if (!parsed.success) {
       throw new ApplicationError(
@@ -279,21 +346,6 @@ export async function openProject(
     book: parsedBook.data,
     chapters: entries.map((entry) => entry.summary),
   };
-}
-
-function assertSupportedVersion(value: unknown, relativePath: string): void {
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "schemaVersion" in value &&
-    typeof value.schemaVersion === "number" &&
-    value.schemaVersion !== 1
-  ) {
-    throw new ApplicationError(
-      "PROJECT_SCHEMA_UNSUPPORTED",
-      `Unsupported schema version in ${relativePath}; supported version is 1`,
-    );
-  }
 }
 
 function sameFingerprint(
@@ -523,8 +575,9 @@ export async function createProject(
     }
 
     const timestamp = createIsoDate();
-    const project: ProjectConfig = ProjectConfigSchema.parse({
-      schemaVersion: 1,
+    const project: ProjectConfig = ProjectConfigV2Schema.parse({
+      schemaVersion: 2,
+      formatFile: "format.json",
       projectId: createUuid(),
       created: timestamp,
       modified: timestamp,
@@ -546,6 +599,14 @@ export async function createProject(
     createdPaths.push(projectFilePath);
     await fileSystem.writeJson(bookFilePath, book);
     createdPaths.push(bookFilePath);
+    const formatPath = join(projectRoot, "format.json");
+    await fileSystem.writeJson(formatPath, {
+      schemaVersion: 1,
+      projectId: project.projectId,
+      bookSchemaVersion: 1,
+      chapterSchemaVersion: 1,
+    });
+    createdPaths.push(formatPath);
 
     return { projectPath: projectRoot, project, book };
   } catch (error) {

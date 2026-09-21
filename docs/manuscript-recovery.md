@@ -6,6 +6,11 @@ before mounting the editor. Each candidate shows its chapter, project folder,
 source and timestamp. Candidates are ordered newest first within each project.
 Visual comparison remains future work.
 
+Before this chapter scan, main resolves any existing
+[project migration journal](project-format.md). Migration recovery failure blocks
+startup, and chapter recovery cannot operate on an unfinished migration. Projects
+without a pending migration are not upgraded merely by the startup scan.
+
 - **Recover** revalidates the selected version, preserves the original chapter
   content in history, atomically replaces its content and removes the selected
   recovery file. Other candidates still require an explicit decision; an older

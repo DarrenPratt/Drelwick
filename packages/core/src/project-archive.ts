@@ -47,7 +47,12 @@ const knownProjectDirectories = new Set([
   "reference",
   "styles",
 ]);
-const knownProjectRoots = new Set(["project.json", "book.json", "cover.jpg"]);
+const knownProjectRoots = new Set([
+  "project.json",
+  "book.json",
+  "format.json",
+  "cover.jpg",
+]);
 const excludedDirectoryNames = new Set([
   ".git",
   "node_modules",
