@@ -588,6 +588,9 @@ Document
 Paragraph
 ChapterTitle
 Heading
+BulletList
+OrderedList
+ListItem
 SceneBreak
 Blockquote
 Epigraph
@@ -605,7 +608,15 @@ Underline
 Strike
 Superscript
 Subscript
+Link
 ```
+
+The implemented manuscript contract retains headings at levels 1-6, mixed
+nested bullet/numbered lists, and link marks for absolute HTTP(S), email and
+non-empty publication-fragment destinations. Epigraphs contain one or more
+paragraphs and optional plain-text attribution. These are semantic structures;
+theme styling is not persisted with them. See
+[manuscript semantic elements](manuscript-semantics.md).
 
 ---
 

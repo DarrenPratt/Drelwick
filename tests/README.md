@@ -86,6 +86,19 @@ Issue #43's editor-schema acceptance criteria are covered by headless tests:
 The schema tests verify the persisted ProseMirror document contract. Publishing
 converters and print rendering remain outside this v0.1 issue.
 
+## Semantic publishing elements (#112)
+
+`apps/desktop/test/manuscript-document.test.ts` round-trips heading levels 1-6,
+nested mixed lists, validated links, Unicode and attributed epigraphs through the
+real TipTap extensions and `ManuscriptDocumentSchema`. It also rejects unsafe
+link schemes. `editor-toolbar.test.ts` exercises the keyboard-focusable block,
+list, link and epigraph controls, while `paste-sanitization.test.ts` verifies the
+same supported HTML vocabulary and preservation of prose from unsupported
+wrappers. `packages/core/test/chapter-saving.test.ts` saves, reopens and compares
+the semantic JSON through the authoritative filesystem boundary. Existing
+fixture and migration suites remain regression coverage for historical chapter
+documents.
+
 The new-project dialog tests opt into jsdom using a per-file Vitest environment
 directive. They render React with `act`; native modal methods are stubbed because
 jsdom does not implement their focus/layout behavior. Test TypeScript includes

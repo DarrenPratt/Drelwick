@@ -75,6 +75,71 @@ const document = {
   ],
 };
 
+const semanticPublishingDocument = {
+  type: "doc",
+  content: [
+    {
+      type: "heading",
+      attrs: { level: 3 },
+      content: [{ type: "text", text: "Structure" }],
+    },
+    {
+      type: "bulletList",
+      content: [
+        {
+          type: "listItem",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "Parent" }],
+            },
+            {
+              type: "orderedList",
+              attrs: { start: 4 },
+              content: [
+                {
+                  type: "listItem",
+                  content: [
+                    {
+                      type: "paragraph",
+                      content: [{ type: "text", text: "\u5b50\u9805\u76ee" }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      type: "paragraph",
+      content: [
+        {
+          type: "text",
+          text: "Reference",
+          marks: [
+            {
+              type: "link",
+              attrs: { href: "https://example.invalid/r%C3%A9f" },
+            },
+          ],
+        },
+      ],
+    },
+    {
+      type: "epigraph",
+      attrs: { attribution: "\u03a3\u03b1\u03c0\u03c6\u03ce" },
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "Synthetic epigraph \u2014 \u661f" }],
+        },
+      ],
+    },
+  ],
+};
+
 it("atomically round trips formatting and preserves chapter metadata and manifest", async () => {
   const { root, chapter, path, input } = await fixture();
   await writeJsonAtomically(path, { ...chapter, extra: { preserved: true } });
@@ -97,6 +162,20 @@ it("atomically round trips formatting and preserves chapter metadata and manifes
   expect(await readFile(join(root, "project.json"), "utf8")).toBe(manifest);
   expect((await openProject(root)).chapters[0]?.wordCount).toBe(6);
   await expect(lstat(`${path}.tmp`)).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("persists and reopens semantic publishing elements without normalising them", async () => {
+  const { root, input } = await fixture();
+  await saveChapter({ ...input, document: semanticPublishingDocument });
+  await openProject(root);
+  expect(
+    (
+      await loadChapter({
+        projectPath: root,
+        chapterId: input.chapterId,
+      })
+    ).content,
+  ).toEqual(semanticPublishingDocument);
 });
 
 it.each([
@@ -128,6 +207,21 @@ it.each([
     type: "doc",
     content: [
       { type: "sceneBreak", content: [{ type: "text", text: "decoration" }] },
+    ],
+  },
+  {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "text",
+            text: "Unsafe",
+            marks: [{ type: "link", attrs: { href: "javascript:alert(1)" } }],
+          },
+        ],
+      },
     ],
   },
 ])("rejects malformed documents without changing files", async (invalid) => {

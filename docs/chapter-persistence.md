@@ -22,10 +22,20 @@ the existing chapter-operation lock with creation, rename, deletion and ordering
 Overlapping desktop project mutations receive `PROJECT_BUSY`.
 
 `ManuscriptDocumentSchema` in `packages/project-model` validates node nesting,
-attributes and marks against the installed StarterKit plus SceneBreak vocabulary.
+attributes and marks against the deliberate manuscript vocabulary. Headings,
+nested bullet/numbered lists, validated links and paragraph-based epigraphs are
+available through keyboard-accessible editor controls; the existing paragraph,
+marks, block quote, code, rule and scene-break structures remain supported. The
+shared link policy permits absolute HTTP(S), email and non-empty publication
+fragment targets and rejects executable, local-file and ambiguous URLs.
 Unsupported nodes, marks and attributes are rejected on load and save rather than
 silently dropped by the editor. Compatibility tests serialize actual editor
 output through this validator. Update both together when extending the editor.
+
+HTML paste removes presentation attributes and executable elements, preserves
+the supported semantic structures, and unwraps unsupported containers so their
+visible prose is retained. See [manuscript semantic elements](manuscript-semantics.md)
+for the complete contract and migration policy.
 
 The existing version-1 chapter envelope is unchanged; no migration is required.
 Empty version-1 documents remain readable. Unknown chapter-envelope metadata is
