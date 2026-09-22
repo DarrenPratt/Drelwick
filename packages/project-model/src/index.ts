@@ -18,3 +18,4 @@ export {
 } from "./versions/v2.js";
 export * from "./migration.js";
 export * from "./image-assets.js";
+export * from "./manuscript-import.js";
