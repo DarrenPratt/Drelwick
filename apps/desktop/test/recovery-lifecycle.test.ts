@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   quit: vi.fn(),
   list: vi.fn(),
   scanProject: vi.fn(),
+  recoverMigration: vi.fn(),
   getCandidates: vi.fn(),
   send: vi.fn(),
   logInfo: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock("electron", () => ({
   },
 }));
 vi.mock("@bookeditor/core", () => ({
+  recoverProjectMigration: mocks.recoverMigration,
   RecoveryService: class {
     scanProject = mocks.scanProject;
     getCandidates = mocks.getCandidates;
@@ -94,6 +96,7 @@ beforeEach(() => {
   mocks.stopHistory.mockResolvedValue(undefined);
   mocks.list.mockResolvedValue([{ path: "/book" }]);
   mocks.scanProject.mockResolvedValue({ candidates: [] });
+  mocks.recoverMigration.mockResolvedValue(undefined);
   mocks.getCandidates.mockReturnValue([{ id: "candidate" }]);
 });
 async function start() {
@@ -106,6 +109,10 @@ const event = { sender: webContents, senderFrame: mocks.frame };
 it("scans after unclean startup and cancellation leaves the marker unclean", async () => {
   await start();
   expect(mocks.scanProject).toHaveBeenCalledExactlyOnceWith("/book");
+  expect(mocks.recoverMigration).toHaveBeenCalledExactlyOnceWith("/book");
+  expect(mocks.recoverMigration.mock.invocationCallOrder[0]).toBeLessThan(
+    mocks.scanProject.mock.invocationCallOrder[0]!,
+  );
   await mocks.handlers.get(IPC.RECOVERY_CANCEL)!(event, undefined);
   expect(mocks.exit).toHaveBeenCalledWith(0);
   expect(mocks.markClean).not.toHaveBeenCalled();
@@ -156,6 +163,19 @@ it("does not scan a previously clean session", async () => {
   expect(mocks.logInfo).toHaveBeenCalledWith("application.startup", {
     platform: process.platform,
   });
+});
+
+it("blocks chapter recovery and clean shutdown if migration recovery fails", async () => {
+  mocks.recoverMigration.mockRejectedValueOnce(
+    new Error("synthetic migration failure"),
+  );
+  mocks.getCandidates.mockReturnValue([]);
+  await start();
+  expect(mocks.scanProject).not.toHaveBeenCalled();
+  expect(
+    await mocks.handlers.get(IPC.RECOVERY_LIST)!(event, undefined),
+  ).toMatchObject({ ok: false });
+  expect(mocks.markClean).not.toHaveBeenCalled();
 });
 
 it("shows a safe fatal-error message and exits without marking the session clean", async () => {

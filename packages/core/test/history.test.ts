@@ -111,11 +111,15 @@ it("ignores invalid history files and reports write failures", async () => {
       },
       {
         mkdir: async () => undefined,
-        lstat: async () => ({
-          isDirectory: () => true,
-          isFile: () => false,
-          isSymbolicLink: () => false,
-        }),
+        lstat: async (path) => {
+          if (path.endsWith(".bookeditor-migration"))
+            throw Object.assign(new Error("missing"), { code: "ENOENT" });
+          return {
+            isDirectory: () => true,
+            isFile: () => false,
+            isSymbolicLink: () => false,
+          };
+        },
         realpath: async (path) => path,
         readdir: async () => [],
         readFile: async () => "",
@@ -135,11 +139,15 @@ it("does not follow symbolic links in project history paths", async () => {
   const unlinkSpy = vi.fn(async () => undefined);
   const fakeFileSystem = {
     mkdir: vi.fn(async () => undefined),
-    lstat: async (path: string) => ({
-      isDirectory: () => path === root,
-      isFile: () => false,
-      isSymbolicLink: () => path === historyPath,
-    }),
+    lstat: async (path: string) => {
+      if (path.endsWith(".bookeditor-migration"))
+        throw Object.assign(new Error("missing"), { code: "ENOENT" });
+      return {
+        isDirectory: () => path === root,
+        isFile: () => false,
+        isSymbolicLink: () => path === historyPath,
+      };
+    },
     realpath: async (path: string) => path,
     readdir: readdirSpy,
     readFile: async () => "",

@@ -37,10 +37,16 @@ Future chapter saves must invalidate/update summaries after authoritative saves.
 
 ## Compatibility and errors
 
-Authoritative schema version 1 files are unchanged, so no migration or manuscript
-backup is needed. The cache has its own version 1 envelope and can always be
-discarded. Older projects without it open through the rebuild path. No database,
-account, Pro dependency or editor instance is needed.
+The reader supports historical V1 and current V2 projects, including the V2
+`format.json` component descriptor. It rejects an unfinished migration journal.
+Desktop opening uses `openProjectForEditing` to perform the verified-backup and
+recoverable V1 -> V2 migration before activation. `validateProjectFiles` performs
+full read-only validation for backups/staging without cache writes or editor
+activation. See [project formats and migrations](project-format.md).
+
+The cache retains its independent version-1 envelope and can always be discarded.
+Projects without it use the rebuild path. No database, account, Pro dependency or
+editor instance is needed.
 
 Missing files, invalid JSON/schema, unsupported numeric schema versions, invalid
 ordering and filesystem failures have distinct application error codes. Errors

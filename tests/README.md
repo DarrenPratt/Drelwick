@@ -118,6 +118,17 @@ project loader, check the intentional invalid error, exercise recovery scanning,
 verify Unicode bytes survive copying and confirm recovery history remains tracked
 and unignored.
 
+## Project migration regression tests (#111)
+
+The canonical fixtures remain version 1 and also serve as historical migration
+inputs. `packages/core/test/project-migration.test.ts` copies these real projects,
+checks manuscript/backup bytes, and injects failures and child-process termination
+at each journal/commit boundary. It also tests interruption during recovery itself,
+malformed/newer versions, corrupt copies, path conflicts and subsequent edits.
+Child processes use the built core entry; run `pnpm build` before invoking Vitest
+directly. Desktop tests verify migration-before-open and recovery-before-scan.
+See [format and recovery guarantees](../docs/project-format.md).
+
 ## Autosave and recovery audit (#44)
 
 | Requirement                              | Executable evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |

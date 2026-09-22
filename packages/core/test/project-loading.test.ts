@@ -173,6 +173,7 @@ describe("existing project loading", () => {
     expect(await openProject(root, {}, fileSystem)).toEqual(opened);
     expect(fileSystem.readFile.mock.calls.map(([path]) => path)).toEqual([
       join(root, "project.json"),
+      join(root, "format.json"),
       join(root, "book.json"),
       join(root, CHAPTER_SUMMARY_CACHE_FILE),
     ]);
@@ -214,7 +215,7 @@ describe("existing project loading", () => {
         file === "chapter"
           ? `manuscript/${project.manuscript.order[0]}.json`
           : file;
-      await writeJsonAtomically(join(root, path), { schemaVersion: 2 });
+      await writeJsonAtomically(join(root, path), { schemaVersion: 99 });
       await expect(openProject(root)).rejects.toMatchObject({
         code: "PROJECT_SCHEMA_UNSUPPORTED",
       });
@@ -394,6 +395,10 @@ describe("existing project loading", () => {
       "junction",
     );
     await writeJsonAtomically(join(root, "project.json"), other.project);
+    await writeFile(
+      join(root, "format.json"),
+      await readFile(join(other.root, "format.json")),
+    );
     await expect(openProject(root)).rejects.toMatchObject({
       code: "PROJECT_PATH_INVALID",
     });

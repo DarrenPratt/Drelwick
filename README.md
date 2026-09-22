@@ -48,6 +48,12 @@ a separate new project folder. Pending edits are saved first; backups remain
 copies while the project files stay authoritative. See
 [portable project backups](docs/project-backups.md).
 
+New projects use format version 2. Opening a version-1 project first creates and
+verifies a complete local recovery copy, stages the format upgrade and commits it
+through a recoverable journal. Manuscript files remain byte-identical. Newer
+unsupported formats are rejected without rewriting them. See
+[project formats and migration recovery](docs/project-format.md).
+
 ## Development setup
 
 Use Node.js 24.x and pnpm 10.34.5. The root manifest pins pnpm and TypeScript

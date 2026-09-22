@@ -19,6 +19,7 @@ The [local publishing delivery plan](planning/local-publishing-plan.md) updates 
 
 Operational documents:
 
+- [Project format, version detection and recoverable migrations](project-format.md)
 - [Repository audit and reconciliations](planning/repository-audit.md)
 - [Development workflow and product classification](development.md)
 - [Existing project loading and summary cache](project-loading.md)

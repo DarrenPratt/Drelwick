@@ -12,11 +12,11 @@ Archive entries use UTF-8 names with portable `/` separators. The archive root
 contains `.bookeditor-archive.json`, a strict version-1 manifest with the source
 project UUID, archive creation time, the optional-history flag, and an inventory
 of every included relative path, uncompressed byte size and SHA-256 checksum.
-The manifest is separate from the authoritative project format; the project and
-book schemas are unchanged. ZIP CRC checks and the manifest checksums are
+The manifest is separate from the authoritative project format. Both V1 projects
+and V2 projects with their `format.json` descriptor are supported. ZIP CRC checks and the manifest checksums are
 verified before a restored project is activated.
 
-The archive includes `project.json`, `book.json`, the project `cover.jpg` when
+The archive includes `project.json`, `book.json`, `format.json` when present, the project `cover.jpg` when
 present, and regular files under `manuscript/`, `frontmatter/`, `backmatter/`,
 `assets/`, `reference/` and `styles/`. The **Include saved version history**
 prompt controls whether `.history/` is included. History is included by default.
@@ -26,6 +26,10 @@ credential files (`.env`, `credentials.json`, `secrets.json`, private-key and
 certificate files), or the archive manifest from a nested folder. Symbolic
 links and non-regular project entries in included folders make backup fail;
 BookEditor will not follow them.
+
+The `.bookeditor-migration/` workspace is not included in portable archives.
+An unfinished migration blocks archiving. Its complete pre-migration recovery copy
+is distinct from this filtered ZIP format; see [project migration recovery](project-format.md).
 
 The archive reader rejects absolute, traversal, drive-qualified and
 platform-invalid paths, duplicate/case-colliding entries, linked entries,
