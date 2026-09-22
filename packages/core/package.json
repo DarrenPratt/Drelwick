@@ -14,18 +14,22 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/build-docx.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@sarel/project-model": "workspace:*",
     "@sarel/shared": "workspace:*",
+    "fflate": "0.8.3",
+    "sax": "1.6.1",
     "sharp": "0.35.4",
     "yauzl": "^3.4.0",
     "yazl": "^3.3.1"
   },
   "devDependencies": {
+    "@types/sax": "1.2.7",
     "@types/yauzl": "^3.4.0",
-    "@types/yazl": "^3.3.1"
+    "@types/yazl": "^3.3.1",
+    "esbuild": "0.28.2"
   }
 }

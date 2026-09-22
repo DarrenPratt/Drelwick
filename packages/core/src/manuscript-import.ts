@@ -33,6 +33,8 @@ import {
   PROJECT_DIRECTORIES,
 } from "./index.js";
 import { syncDirectory } from "./project-snapshot.js";
+import { DOCX_ERRORS } from "./docx/limits.js";
+import { DocxImportError } from "./docx-error.js";
 
 /** First-party adapters only. No source path, filesystem, process or network capability.
  * Return bounded serialized JSON; never run source code, resolve external resources,
@@ -55,6 +57,11 @@ export interface ImportOptions {
   ) => Promise<void>;
 }
 export function importError(code = "IMPORT_FAILED") {
+  if (Object.hasOwn(DOCX_ERRORS, code))
+    return new ApplicationError(
+      code,
+      DOCX_ERRORS[code as keyof typeof DOCX_ERRORS],
+    );
   return new ApplicationError(
     code,
     code === "IMPORT_CLEANUP_REQUIRED"
@@ -162,11 +169,15 @@ export class StagedManuscriptImport {
           throw importError("IMPORT_CLEANUP_REQUIRED");
         }
       }
+      if (!options.signal.aborted && error instanceof DocxImportError)
+        throw error;
       throw importError(
         options.signal.aborted
           ? "IMPORT_CANCELLED"
-          : error instanceof ApplicationError && error.code === "IMPORT_INVALID"
-            ? "IMPORT_INVALID"
+          : error instanceof ApplicationError &&
+              (error.code === "IMPORT_INVALID" ||
+                Object.hasOwn(DOCX_ERRORS, error.code))
+            ? error.code
             : "IMPORT_FAILED",
       );
     }
