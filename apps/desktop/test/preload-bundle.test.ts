@@ -18,7 +18,7 @@ it("runs the built preload with only the sandbox's Electron require", async () =
     },
   });
   expect(exposeInMainWorld).toHaveBeenCalledWith(
-    "bookEditor",
+    "sarel",
     expect.objectContaining({
       project: expect.objectContaining({
         create: expect.any(Function),

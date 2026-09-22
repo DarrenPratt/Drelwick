@@ -54,7 +54,7 @@ recovery and blocks saving. Lock cleanup failure after commit produces a success
 warning. Summary caches rebuild from the changed chapter on project reopening;
 the manifest and book metadata are not rewritten.
 
-The operation lock coordinates cooperating BookEditor operations. It does not
+The operation lock coordinates cooperating SAREL operations. It does not
 prevent external tools from changing files, and a crashed process can leave the
 lock behind. Preserve project files and inspect stale locks/temporary files before
 retrying. Atomic replacement retains the existing filesystem durability limits.
@@ -87,7 +87,7 @@ are not stored in chapter JSON.
 Issue #32 saves the active manuscript after **750 ms without an edit**. Each new
 edit resets that deadline. The host-independent coordinator lives in
 `packages/core/src/autosave.ts`; the renderer imports the dedicated
-`@bookeditor/core/autosave` export, which does not import filesystem helpers.
+`@sarel/core/autosave` export, which does not import filesystem helpers.
 Autosave and **Save chapter** share the existing validated main persistence
 service and renderer revision acknowledgements.
 

@@ -1,8 +1,8 @@
-import type { BookEditorApi } from "@bookeditor/shared";
+import type { SarelApi } from "@sarel/shared";
 
 declare global {
   interface Window {
-    bookEditor: BookEditorApi;
+    sarel: SarelApi;
   }
 }
 

@@ -1,5 +1,5 @@
 import { ipcMain, type BrowserWindow } from "electron";
-import { IPC, IpcRequestSchemas, type SafeLogger } from "@bookeditor/shared";
+import { IPC, IpcRequestSchemas, type SafeLogger } from "@sarel/shared";
 
 /** Accept sanitized renderer diagnostics only from the trusted top-level frame. */
 export function registerRendererErrorHandler(

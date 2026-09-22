@@ -177,7 +177,7 @@ export interface RecoveryCandidateSummary {
   source: "temporary" | "history";
 }
 
-export interface BookEditorApi {
+export interface SarelApi {
   reportRendererError(input: RendererErrorReport): Promise<void>;
   recovery: {
     list(): Promise<ProjectOperationResult<RecoveryCandidateSummary[]>>;

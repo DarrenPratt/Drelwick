@@ -1,4 +1,4 @@
-# BookEditor — GitHub Build Plan
+# SAREL — GitHub Build Plan
 
 ## Commercial Architecture Addendum
 
@@ -17,7 +17,7 @@ Task 60 is future work, after the Community/Pro package boundary is established 
 
 ## Local delivery update — 19 September 2026
 
-Basic DOCX import is CORE in v0.2; basic manuscript DOCX export is CORE by v0.3. Cloud editing, hosted conversion and collaboration are outside the current roadmap. Optional Google Drive/Wasabi/Git repository backup is exploration of user-owned storage, not a BookEditor hosted service. Client-side integration does not automatically imply SERVICE classification; provider fees and any future BookEditor-operated infrastructure are separate decisions. See the [local publishing plan](local-publishing-plan.md). The rest of the feature-boundary review remains open in actual GitHub issue #52.
+Basic DOCX import is CORE in v0.2; basic manuscript DOCX export is CORE by v0.3. Cloud editing, hosted conversion and collaboration are outside the current roadmap. Optional Google Drive/Wasabi/Git repository backup is exploration of user-owned storage, not a SAREL hosted service. Client-side integration does not automatically imply SERVICE classification; provider fees and any future SAREL-operated infrastructure are separate decisions. See the [local publishing plan](local-publishing-plan.md). The rest of the feature-boundary review remains open in actual GitHub issue #52.
 
 # Commercial Architecture Milestone
 
@@ -38,12 +38,12 @@ It does not block development of v0.1.
 ## Title
 
 ```text
-Define BookEditor Community and Pro feature boundary
+Define SAREL Community and Pro feature boundary
 ```
 
 ## Objective
 
-Document which capabilities form the open-source Community product and which belong to BookEditor Pro.
+Document which capabilities form the open-source Community product and which belong to SAREL Pro.
 
 ## Initial Community Scope
 
@@ -104,7 +104,7 @@ commercial
 ## Title
 
 ```text
-Review and select BookEditor Community licence
+Review and select SAREL Community licence
 ```
 
 ## Objective
@@ -337,13 +337,13 @@ AI Provider
 Where practical:
 
 ```text
-BookEditor Pro
+SAREL Pro
       │
       ▼
 Public Extension API
       │
       ▼
-BookEditor Community
+SAREL Community
 ```
 
 rather than Pro directly modifying Community internals.
@@ -376,12 +376,12 @@ priority:normal
 ## Title
 
 ```text
-Create public BookEditor project format specification
+Create public SAREL project format specification
 ```
 
 ## Objective
 
-Ensure manuscripts remain portable and recoverable independently of BookEditor.
+Ensure manuscripts remain portable and recoverable independently of SAREL.
 
 ## Document
 
@@ -426,19 +426,19 @@ priority:high
 ## Title
 
 ```text
-Define BookEditor branding and official distribution policy
+Define SAREL branding and official distribution policy
 ```
 
 ## Objective
 
-Separate source-code rights from rights associated with official BookEditor branding and builds.
+Separate source-code rights from rights associated with official SAREL branding and builds.
 
 ## Consider
 
 ```text
-BookEditor name
-BookEditor Community
-BookEditor Pro
+SAREL name
+SAREL Community
+SAREL Pro
 logos
 fork naming
 official binaries
@@ -470,7 +470,7 @@ priority:normal
 ## Title
 
 ```text
-Prepare BookEditor Community for public release
+Prepare SAREL Community for public release
 ```
 
 ## Objective
@@ -515,12 +515,12 @@ priority:high
 
 ---
 
-# Issue 60 — Create BookEditor Pro Repository
+# Issue 60 — Create SAREL Pro Repository
 
 ## Title
 
 ```text
-Create private BookEditor Pro repository and integration skeleton
+Create private SAREL Pro repository and integration skeleton
 ```
 
 ## Objective
@@ -530,13 +530,13 @@ Establish the commercial codebase without coupling Community to it.
 ## Proposed Repository
 
 ```text
-BookEditor-Pro
+SAREL-Pro
 ```
 
 ## Initial Structure
 
 ```text
-BookEditor-Pro/
+SAREL-Pro/
 │
 ├── packages/
 │   ├── advanced-print/
@@ -623,7 +623,7 @@ Definitions:
 
 **CORE**
 
-Fundamental BookEditor functionality available in Community.
+Fundamental SAREL functionality available in Community.
 
 **PRO**
 
@@ -669,7 +669,7 @@ packages/shared           ─┘
            ▲
            │ allowed
            │
-BookEditor-Pro
+SAREL-Pro
 ```
 
 A Community build must always succeed when the Pro repository does not exist.

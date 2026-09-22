@@ -2,7 +2,7 @@ import { defineProject } from "vitest/config";
 
 export default defineProject({
   test: {
-    name: "@bookeditor/core",
+    name: "@sarel/core",
     environment: "node",
     include: ["test/**/*.test.ts"],
   },

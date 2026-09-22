@@ -1,5 +1,6 @@
 {
-  "name": "@bookeditor/desktop",
+  "name": "@sarel/desktop",
+  "productName": "SAREL",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,9 +12,9 @@
     "dev": "pnpm build && concurrently -k \"vite --host 127.0.0.1\" \"tsc -p tsconfig.json --watch\" \"vite build --config vite.preload.config.ts --watch\" \"wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173/ electron .\""
   },
   "dependencies": {
-    "@bookeditor/core": "workspace:*",
-    "@bookeditor/project-model": "workspace:*",
-    "@bookeditor/shared": "workspace:*",
+    "@sarel/core": "workspace:*",
+    "@sarel/project-model": "workspace:*",
+    "@sarel/shared": "workspace:*",
     "@tiptap/core": "3.31.3",
     "@tiptap/pm": "3.31.3",
     "@tiptap/react": "3.31.3",

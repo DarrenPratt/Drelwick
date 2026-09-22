@@ -12,8 +12,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createUuid } from "@bookeditor/shared";
-import { ChapterSummaryCacheSchema } from "@bookeditor/project-model";
+import { createUuid } from "@sarel/shared";
+import { ChapterSummaryCacheSchema } from "@sarel/project-model";
 import {
   CHAPTER_SUMMARY_CACHE_FILE,
   createProject,
@@ -32,7 +32,7 @@ afterEach(async () => {
 });
 
 async function fixture(chapterCount = 2) {
-  const root = await mkdtemp(join(tmpdir(), "bookeditor-open-"));
+  const root = await mkdtemp(join(tmpdir(), "sarel-open-"));
   directories.push(root);
   const created = await createProject({
     projectPath: root,

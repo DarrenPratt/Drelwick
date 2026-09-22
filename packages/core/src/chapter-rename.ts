@@ -1,7 +1,7 @@
 import { lstat, mkdir, readFile, realpath, rmdir } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
-import { ApplicationError, createIsoDate } from "@bookeditor/shared";
-import { ChapterFileSchema, type ChapterFile } from "@bookeditor/project-model";
+import { ApplicationError, createIsoDate } from "@sarel/shared";
+import { ChapterFileSchema, type ChapterFile } from "@sarel/project-model";
 import {
   CHAPTER_CREATION_LOCK,
   openProject,

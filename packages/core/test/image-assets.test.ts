@@ -20,7 +20,7 @@ import {
   IMAGE_LIMITS,
   ImageAssetIdSchema,
   ManuscriptDocumentSchema,
-} from "@bookeditor/project-model";
+} from "@sarel/project-model";
 import {
   copyFixture,
   type FixtureCopy,
@@ -52,7 +52,7 @@ afterEach(async () => {
 async function fixture() {
   const copy = await copyFixture("multi-chapter-book");
   copies.push(copy);
-  const sourceRoot = await mkdtemp(join(tmpdir(), "bookeditor-images-"));
+  const sourceRoot = await mkdtemp(join(tmpdir(), "sarel-images-"));
   temporary.push(sourceRoot);
   const sourcePath = join(sourceRoot, "synthetic.png");
   await writeFile(sourcePath, await syntheticImage());

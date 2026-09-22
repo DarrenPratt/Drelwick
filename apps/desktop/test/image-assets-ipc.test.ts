@@ -6,7 +6,7 @@ import {
   IPC,
   type ProjectOperationResult,
   type ProjectWorkspace,
-} from "@bookeditor/shared";
+} from "@sarel/shared";
 import {
   copyFixture,
   type FixtureCopy,

@@ -2,7 +2,7 @@ import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
-import { safeErrorContext, type SafeLogContext } from "@bookeditor/shared";
+import { safeErrorContext, type SafeLogContext } from "@sarel/shared";
 import {
   FileLogger,
   LOG_DIRECTORY_NAME,
@@ -22,7 +22,7 @@ afterEach(async () => {
 async function fixture(
   options: ConstructorParameters<typeof FileLogger>[1] = {},
 ) {
-  const userData = await mkdtemp(join(tmpdir(), "bookeditor-logging-"));
+  const userData = await mkdtemp(join(tmpdir(), "sarel-logging-"));
   directories.push(userData);
   return {
     logger: new FileLogger(userData, options),

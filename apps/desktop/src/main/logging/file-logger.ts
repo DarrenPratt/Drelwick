@@ -12,11 +12,11 @@ import type {
   SafeLogContext,
   SafeLogger,
   SafeLogValue,
-} from "@bookeditor/shared";
-import { SAFE_LOG_FIELDS, safeErrorContext } from "@bookeditor/shared";
+} from "@sarel/shared";
+import { SAFE_LOG_FIELDS, safeErrorContext } from "@sarel/shared";
 
 export const LOG_DIRECTORY_NAME = "logs";
-export const LOG_FILE_NAME = "bookeditor.log";
+export const LOG_FILE_NAME = "sarel.log";
 export const DEFAULT_MAX_LOG_BYTES = 1024 * 1024;
 export const DEFAULT_LOG_BACKUPS = 3;
 

@@ -21,7 +21,7 @@ afterEach(async () => {
 });
 
 async function createTemporaryDirectory(): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), "bookeditor-layout-"));
+  const directory = await mkdtemp(join(tmpdir(), "sarel-layout-"));
   temporaryDirectories.push(directory);
   return directory;
 }

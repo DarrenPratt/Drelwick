@@ -22,7 +22,7 @@ const document = {
 };
 
 async function setup() {
-  const root = await mkdtemp(join(tmpdir(), "bookeditor-history-"));
+  const root = await mkdtemp(join(tmpdir(), "sarel-history-"));
   directories.push(root);
   return root;
 }

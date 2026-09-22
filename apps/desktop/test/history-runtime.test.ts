@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vitest";
-import { createHistorySnapshot } from "@bookeditor/core";
-import type { SafeLogger } from "@bookeditor/shared";
+import { createHistorySnapshot } from "@sarel/core";
+import type { SafeLogger } from "@sarel/shared";
 import { HistoryRuntime } from "../src/main/history-runtime.js";
 
 function logger() {

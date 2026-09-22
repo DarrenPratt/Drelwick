@@ -2,7 +2,7 @@
 
 ## State before changes
 
-The private `DarrenPratt/BookEditor` repository has one commit, `3dcfd791b60779e1fb5b1e95a8f2bc9f92a51851`, on default branch `main`. That commit contains only `.gitignore` and a one-line README. The local checkout also contains a modified README and five untracked documentation files supplied before this audit. Those files are preserved and incorporated into the planning PR.
+The private `DarrenPratt/SAREL` repository has one commit, `3dcfd791b60779e1fb5b1e95a8f2bc9f92a51851`, on default branch `main`. That commit contains only `.gitignore` and a one-line README. The local checkout also contains a modified README and five untracked documentation files supplied before this audit. Those files are preserved and incorporated into the planning PR.
 
 ```text
 .gitignore
@@ -22,7 +22,7 @@ GitHub inspection found no issues (open or closed), milestones (open or closed),
 
 Actions is enabled with all actions allowed and SHA pinning not enforced. Default workflow token permissions are read-only, and Actions cannot approve PR reviews. These settings were inspected but not changed. When implementing CI, review action pinning and minimum permissions alongside the actual workflow and merge checks.
 
-GitHub Projects could not be inspected: GraphQL returned `INSUFFICIENT_SCOPES` for `read:project`. The available credential has repository access but no Projects scope. Existing boards therefore remain **unknown**, not assumed absent. Reconciliation must search existing user/repository projects before creating `Book Editor Development`; writing the board requires appropriate Projects write access. See the tracking register for the follow-up issue.
+GitHub Projects could not be inspected: GraphQL returned `INSUFFICIENT_SCOPES` for `read:project`. The available credential has repository access but no Projects scope. Existing boards therefore remain **unknown**, not assumed absent. Reconciliation must search existing user/repository projects before creating `SAREL Development`; writing the board requires appropriate Projects write access. See the tracking register for the follow-up issue.
 
 ## Discrepancies and reconciliation
 
@@ -67,4 +67,4 @@ See [GitHub tracking register](github-tracking.md) for actual issue numbers, mil
 
 ## Follow-up: Projects access resolved
 
-After the owner authorized GitHub CLI with Projects access and linked the Project, inspection found the existing private [@BookEditor board](https://github.com/users/DarrenPratt/projects/1). It was reused with its name/link intact. The historical scope error above describes the initial audit, not a current blocker. See the [board setup record](github-tracking.md#project-board-setup) for fields, all 62 issue memberships and validation. PR #63 is merged; the follow-up documentation PR for #62 contains no application implementation.
+After the owner authorized GitHub CLI with Projects access and linked the Project, inspection found the existing private [@SAREL board](https://github.com/users/DarrenPratt/projects/1). It was reused with its name/link intact. The historical scope error above describes the initial audit, not a current blocker. See the [board setup record](github-tracking.md#project-board-setup) for fields, all 62 issue memberships and validation. PR #63 is merged; the follow-up documentation PR for #62 contains no application implementation.

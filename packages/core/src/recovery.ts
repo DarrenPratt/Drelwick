@@ -2,8 +2,8 @@ import {
   ChapterFileSchema,
   HistorySnapshotSchema,
   ProjectConfigSchema,
-} from "@bookeditor/project-model";
-import { ApplicationError, createUuid, isUuid } from "@bookeditor/shared";
+} from "@sarel/project-model";
+import { ApplicationError, createUuid, isUuid } from "@sarel/shared";
 import {
   lstat,
   mkdir,

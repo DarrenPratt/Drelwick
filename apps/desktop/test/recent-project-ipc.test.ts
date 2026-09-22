@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createProject, openProject } from "@bookeditor/core";
-import { createUuid, IPC } from "@bookeditor/shared";
+import { createProject, openProject } from "@sarel/core";
+import { createUuid, IPC } from "@sarel/shared";
 import { RecentProjects } from "../src/main/recent-projects.js";
 
 const { handle } = vi.hoisted(() => ({ handle: vi.fn() }));
@@ -22,7 +22,7 @@ afterEach(async () => {
 });
 
 async function setup() {
-  const root = await mkdtemp(join(tmpdir(), "bookeditor-recent-ipc-"));
+  const root = await mkdtemp(join(tmpdir(), "sarel-recent-ipc-"));
   directories.push(root);
   const book = join(root, "book");
   await createProject({

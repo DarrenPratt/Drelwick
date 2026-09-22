@@ -45,7 +45,7 @@ async function unicodeFixture(): Promise<FixtureCopy> {
 }
 
 async function temporaryDirectory(): Promise<string> {
-  const path = await mkdtemp(join(tmpdir(), "bookeditor-project-archive-"));
+  const path = await mkdtemp(join(tmpdir(), "sarel-project-archive-"));
   temporaryRoots.push(path);
   return path;
 }

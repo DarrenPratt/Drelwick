@@ -1,5 +1,5 @@
 import { ipcMain, type BrowserWindow } from "electron";
-import { RecoveryService } from "@bookeditor/core";
+import { RecoveryService } from "@sarel/core";
 import {
   ApplicationError,
   IPC,
@@ -8,7 +8,7 @@ import {
   safeErrorContext,
   type RecoveryCandidateSummary,
   type SafeLogger,
-} from "@bookeditor/shared";
+} from "@sarel/shared";
 
 export function registerRecoveryHandlers(
   getWindow: () => BrowserWindow | undefined,

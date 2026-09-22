@@ -20,7 +20,7 @@ afterEach(async () => {
   );
 });
 async function setup() {
-  const root = await mkdtemp(join(tmpdir(), "bookeditor-recents-"));
+  const root = await mkdtemp(join(tmpdir(), "sarel-recents-"));
   directories.push(root);
   const userData = join(root, "settings");
   const book = join(root, "book");

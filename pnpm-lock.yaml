@@ -50,13 +50,13 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@bookeditor/core':
+      '@sarel/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@bookeditor/project-model':
+      '@sarel/project-model':
         specifier: workspace:*
         version: link:../../packages/project-model
-      '@bookeditor/shared':
+      '@sarel/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@tiptap/core':
@@ -108,10 +108,10 @@ importers:
 
   packages/core:
     dependencies:
-      '@bookeditor/project-model':
+      '@sarel/project-model':
         specifier: workspace:*
         version: link:../project-model
-      '@bookeditor/shared':
+      '@sarel/shared':
         specifier: workspace:*
         version: link:../shared
       sharp:
@@ -133,7 +133,7 @@ importers:
 
   packages/project-model:
     dependencies:
-      '@bookeditor/shared':
+      '@sarel/shared':
         specifier: workspace:*
         version: link:../shared
       zod:
@@ -148,7 +148,7 @@ importers:
 
   tests/workspace-smoke:
     dependencies:
-      '@bookeditor/shared':
+      '@sarel/shared':
         specifier: workspace:*
         version: link:../../packages/shared
 

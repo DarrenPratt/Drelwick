@@ -20,7 +20,7 @@ afterEach(async () => {
 });
 
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "bookeditor-rename-"));
+  const root = await mkdtemp(join(tmpdir(), "sarel-rename-"));
   directories.push(root);
   await createProject({
     projectPath: root,

@@ -1,11 +1,8 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import {
-  SessionMarkerSchema,
-  type SessionMarker,
-} from "@bookeditor/project-model";
-import { createUuid } from "@bookeditor/shared";
-import { writeJsonAtomically } from "@bookeditor/core";
+import { SessionMarkerSchema, type SessionMarker } from "@sarel/project-model";
+import { createUuid } from "@sarel/shared";
+import { writeJsonAtomically } from "@sarel/core";
 
 export interface SessionStart {
   previousSession: SessionMarker | null;

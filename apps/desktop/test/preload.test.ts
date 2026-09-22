@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { BookEditorApi } from "@bookeditor/shared";
+import type { SarelApi } from "@sarel/shared";
 
 const exposeInMainWorld = vi.fn();
 const invoke = vi.fn(() => Promise.resolve());
@@ -12,12 +12,12 @@ vi.mock("electron", () => ({
 }));
 
 describe("preload API", () => {
-  it("exposes only the typed BookEditor API", async () => {
+  it("exposes only the typed SAREL API", async () => {
     await import("../src/preload/preload.js");
 
     expect(exposeInMainWorld).toHaveBeenCalledOnce();
     expect(exposeInMainWorld).toHaveBeenCalledWith(
-      "bookEditor",
+      "sarel",
       expect.objectContaining({
         project: expect.objectContaining({
           create: expect.any(Function),
@@ -33,7 +33,7 @@ describe("preload API", () => {
       }),
     );
 
-    const [, api] = exposeInMainWorld.mock.calls[0] as [string, BookEditorApi];
+    const [, api] = exposeInMainWorld.mock.calls[0] as [string, SarelApi];
     const callback = vi.fn();
     const unsubscribe = api.onSaveRequested(callback);
     expect(on).toHaveBeenCalledWith("command:save", expect.any(Function));

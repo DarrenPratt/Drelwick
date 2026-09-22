@@ -1,8 +1,8 @@
 # Portable project backups
 
-Use **File → Back Up Project** to save a local `.bookeditor.zip` copy, and
+Use **File → Back Up Project** to save a local `.sarel.zip` copy, and
 **File → Restore Project Backup** to restore one. These commands work offline and
-do not use a BookEditor account or remote service. The active chapter is flushed
+do not use a SAREL account or remote service. The active chapter is flushed
 before either operation can replace the workspace. If saving fails, the command
 stops and the unsaved editor state stays open.
 
@@ -25,7 +25,7 @@ Git data, dependency/build/test caches, logs, `.tmp` files, lock files, common
 credential files (`.env`, `credentials.json`, `secrets.json`, private-key and
 certificate files), or the archive manifest from a nested folder. Symbolic
 links and non-regular project entries in included folders make backup fail;
-BookEditor will not follow them.
+SAREL will not follow them.
 
 The `.bookeditor-migration/` workspace is not included in portable archives.
 An unfinished migration blocks archiving. Its complete pre-migration recovery copy
@@ -54,7 +54,7 @@ folder, verifies every path, declared size and checksum, then opens the staged
 project with the normal project loader. Only after validation does it rename the
 project into a new child folder based on the book title. If that name is already
 in use, a numbered name is chosen; an existing folder is never overwritten.
-Restore destinations inside any existing BookEditor project are rejected. A
+Restore destinations inside any existing SAREL project are rejected. A
 failed or cancelled restore leaves the current workspace and its project files
 unchanged. A successful restore opens the new project and records it in Recent
 projects.

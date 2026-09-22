@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { RecoveryCandidateSummary } from "@bookeditor/shared";
+import type { RecoveryCandidateSummary } from "@sarel/shared";
 
 /** The editor is not mounted until every startup decision has completed. */
 export function RecoveryStartup({ children }: { children: ReactNode }) {
@@ -13,7 +13,7 @@ export function RecoveryStartup({ children }: { children: ReactNode }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     let active = true;
-    void window.bookEditor.recovery
+    void window.sarel.recovery
       .list()
       .then((result) => {
         if (!active) return;
@@ -30,7 +30,7 @@ export function RecoveryStartup({ children }: { children: ReactNode }) {
   }, []);
   const ready = candidates?.length === 0 && !warning;
   useEffect(() => {
-    if (!ready) return window.bookEditor.onShutdownRequested(async () => true);
+    if (!ready) return window.sarel.onShutdownRequested(async () => true);
   }, [ready]);
   useEffect(() => {
     if (!ready && dialog.current && !dialog.current.open)
@@ -44,10 +44,10 @@ export function RecoveryStartup({ children }: { children: ReactNode }) {
     setWarning("");
     try {
       if (action === "cancel") {
-        const result = await window.bookEditor.recovery.cancel();
+        const result = await window.sarel.recovery.cancel();
         if (!result.ok) setError(result.error.message);
       } else if (id) {
-        const result = await window.bookEditor.recovery[action](id);
+        const result = await window.sarel.recovery[action](id);
         if (result.ok) {
           setCandidates(result.value);
           setWarning(result.warning ?? "");

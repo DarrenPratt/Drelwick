@@ -51,7 +51,7 @@ describe("isolated authoring workspace demonstration", () => {
 
     expect(container.textContent).toContain("Ephemeral demo words");
     expect(container.textContent).toContain("Sample session · not saved");
-    expect(window.bookEditor).toBeUndefined();
+    expect(window.sarel).toBeUndefined();
 
     expect(container.textContent).toContain("No file will be created");
     expect(container.textContent).toContain("Ephemeral demo words");

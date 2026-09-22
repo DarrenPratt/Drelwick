@@ -1,5 +1,25 @@
 # Project format and local migration
 
+## SAREL rename compatibility
+
+SAREL was previously named BookEditor. This branding change does not change
+project or chapter schema versions and does not rewrite manuscript files.
+Archive manifests retain `.bookeditor-archive.json`, and migration recovery
+retains `.bookeditor-migration/`, so existing backups and interrupted migrations
+remain readable. New backup filenames use `.sarel.zip`; restore accepts either
+name because it validates ZIP contents rather than the filename.
+
+The desktop keeps its original `appData/@bookeditor/desktop` settings directory
+for recent projects and unclean-session recovery. An explicit `--user-data-dir`
+still takes precedence. No settings are moved or deleted. Logs now use
+`sarel.log`; earlier logs remain in place. Workspace packages use `@sarel/*`,
+and the internal restricted preload API is now `window.sarel` (`SarelApi`).
+The GitHub repository and existing project board are renamed in place; issue
+numbers, milestones and history are retained. The local checkout folder may
+remain named `BookEditor` without affecting the application.
+
+## Implemented format
+
 This is the implemented format including issues #111–#113. Project files are authoritative;
 EPUB, PDF and DOCX outputs are not. All JSON is UTF-8. No account, service or Pro
 package is needed to read, migrate, back up or recover a project.
@@ -80,7 +100,7 @@ ambiguously interpreting author data.
 - Positive integer 2 is the current project version.
 - Version 1 is supported historical input requiring migration for desktop editing.
 - A version greater than 2 is unsupported and requires a newer compatible
-  BookEditor. It is rejected before migration artifacts, caches or locks are written.
+  SAREL. It is rejected before migration artifacts, caches or locks are written.
 - Missing, string, fractional, zero, negative or otherwise malformed versions fail
   explicitly. Missing/corrupt JSON is not treated as version 1.
 

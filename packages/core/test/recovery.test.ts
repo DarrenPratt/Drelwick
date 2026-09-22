@@ -21,7 +21,7 @@ import {
   scanRecoveryCandidates,
   writeJsonAtomically,
 } from "../src/index.js";
-import { createUuid } from "@bookeditor/shared";
+import { createUuid } from "@sarel/shared";
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -33,7 +33,7 @@ afterEach(async () => {
 });
 
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "bookeditor-recovery-"));
+  const root = await mkdtemp(join(tmpdir(), "sarel-recovery-"));
   directories.push(root);
   const chapterId = createUuid();
   const project = await createProject({
