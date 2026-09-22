@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { countDocumentWords } from "@bookeditor/shared";
+import { countDocumentWords } from "@sarel/shared";
 import { Editor } from "./Editor.js";
 import { WorkspaceLayout } from "./WorkspaceLayout.js";
 import { sampleChapters, sampleDocument } from "./workspace-sample.js";

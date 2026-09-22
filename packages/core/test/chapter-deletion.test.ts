@@ -22,7 +22,7 @@ afterEach(async () => {
 });
 
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "bookeditor-delete-"));
+  const root = await mkdtemp(join(tmpdir(), "sarel-delete-"));
   directories.push(root);
   await createProject({
     projectPath: root,

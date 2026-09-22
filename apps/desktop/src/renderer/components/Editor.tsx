@@ -2,7 +2,7 @@ import {
   isSupportedManuscriptLink,
   MANUSCRIPT_HEADING_LEVELS,
   IMAGE_SIZES,
-} from "@bookeditor/project-model";
+} from "@sarel/project-model";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import type { JSONContent } from "@tiptap/core";
 import { DOMParser as ProseMirrorDOMParser } from "@tiptap/pm/model";
@@ -233,7 +233,7 @@ export function Editor({
         return;
       }
       if (editor.isDestroyed) return;
-      const result = await window.bookEditor.dialog.selectImage({
+      const result = await window.sarel.dialog.selectImage({
         projectId,
         chapterId,
       });

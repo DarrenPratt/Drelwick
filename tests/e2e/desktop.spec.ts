@@ -28,7 +28,7 @@ const desktopDirectory = join(repositoryRoot, "apps", "desktop");
 
 test("imports local images, edits semantics and reopens a portable project offline", async () => {
   const fixture = await copyFixture("minimal-book");
-  const scratch = await mkdtemp(join(tmpdir(), "bookeditor-image-e2e-"));
+  const scratch = await mkdtemp(join(tmpdir(), "sarel-image-e2e-"));
   let application: ElectronApplication | undefined;
   try {
     const source = join(scratch, "synthetic.png");
@@ -155,6 +155,11 @@ async function launchApplication(userDataDirectory: string) {
     },
   });
   const page = await application.firstWindow();
+  await expect(page).toHaveTitle("SAREL");
+  expect(await application.evaluate(({ app }) => app.getName())).toBe("SAREL");
+  expect(await application.evaluate(({ app }) => app.getPath("userData"))).toBe(
+    userDataDirectory,
+  );
   await expect(
     page.getByRole("heading", { name: "Your manuscript workspace" }),
   ).toBeVisible();
@@ -162,7 +167,7 @@ async function launchApplication(userDataDirectory: string) {
 }
 
 test("validates Windows authoring, autosave, formatting, ordering and restart", async () => {
-  const testDirectory = await mkdtemp(join(tmpdir(), "bookeditor-e2e-"));
+  const testDirectory = await mkdtemp(join(tmpdir(), "sarel-e2e-"));
   const projectDirectory = join(testDirectory, "project");
   const userDataDirectory = join(testDirectory, "user-data");
   const title = "E2E persistence project";
@@ -340,7 +345,7 @@ test("recovers a history version after a forced process shutdown", async () => {
     );
   }
   const userDataDirectory = await mkdtemp(
-    join(tmpdir(), "bookeditor-recovery-e2e-"),
+    join(tmpdir(), "sarel-recovery-e2e-"),
   );
   let application: ElectronApplication | undefined;
 

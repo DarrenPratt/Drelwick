@@ -3,7 +3,7 @@ import { Editor, type JSONContent } from "@tiptap/core";
 import {
   isSupportedManuscriptLink,
   ManuscriptDocumentSchema,
-} from "@bookeditor/project-model";
+} from "@sarel/project-model";
 import { describe, expect, it } from "vitest";
 import { createManuscriptExtensions } from "../src/renderer/components/manuscript-extensions.js";
 

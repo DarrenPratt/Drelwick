@@ -1,4 +1,4 @@
-import { isSupportedManuscriptLink } from "@bookeditor/project-model";
+import { isSupportedManuscriptLink } from "@sarel/project-model";
 import StarterKit from "@tiptap/starter-kit";
 import { Epigraph } from "./Epigraph.js";
 import { SceneBreak } from "./SceneBreak.js";

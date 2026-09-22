@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isSafeRelativePath } from "@bookeditor/shared";
+import { isSafeRelativePath } from "@sarel/shared";
 import {
   ProjectConfigSchema,
   ProjectArchiveManifestSchema,

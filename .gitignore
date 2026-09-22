@@ -227,7 +227,7 @@ PublishScripts/
 # NuGet Symbol Packages
 *.snupkg
 # The packages folder can be ignored because of Package Restore
-# Disabled: BookEditor uses tracked pnpm workspace packages.
+# Disabled: SAREL uses tracked pnpm workspace packages.
 # **/[Pp]ackages/*
 # except build/, which is used as an MSBuild target.
 !**/[Pp]ackages/build/
@@ -429,7 +429,7 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
-# BookEditor workspace build outputs
+# SAREL workspace build outputs
 .pnpm-store/
 dist/
 coverage/

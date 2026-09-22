@@ -1,4 +1,8 @@
-# BookEditor
+# SAREL
+
+Previously named BookEditor. The application and workspace packages now use
+SAREL and `@sarel/*`. Existing manuscript projects and ZIP backups remain
+compatible; see [rename compatibility](docs/project-format.md#sarel-rename-compatibility).
 
 A cross-platform, local-first, open-core desktop editor in private development for writing, organising and publishing books, built around a local, open project format.
 
@@ -84,8 +88,8 @@ Alternatively, replace `pnpm` in these commands with
 `npm exec --yes --package=pnpm@10.34.5 -- pnpm` to avoid a global installation.
 Use `pnpm install --frozen-lockfile` to reproduce the committed dependency graph.
 
-After `pnpm build`, run `pnpm --filter @bookeditor/desktop start`. For renderer
-development use `pnpm --filter @bookeditor/desktop dev` after the workspace build.
+After `pnpm build`, run `pnpm --filter @sarel/desktop start`. For renderer
+development use `pnpm --filter @sarel/desktop dev` after the workspace build.
 
 `build` compiles packages in dependency order and emits JavaScript and declarations
 to each package's `dist/`. `typecheck` first builds the workspace so package

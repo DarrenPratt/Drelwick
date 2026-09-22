@@ -46,7 +46,7 @@ mark stores typography or theme styling.
 ## Paste and unsupported input
 
 HTML paste keeps supported headings, paragraphs, inline marks, block quotes,
-lists (including nesting and ordered starts), safe links and BookEditor
+lists (including nesting and ordered starts), safe links and SAREL
 epigraphs. Presentation styles, event handlers and unrelated attributes are
 removed. Unsupported wrappers are unwrapped so their text and supported child
 content remain available rather than disappearing. Unsafe links are converted

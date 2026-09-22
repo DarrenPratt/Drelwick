@@ -1,4 +1,4 @@
-# Cross-Platform Book Editor
+# SAREL
 
 ## Technical Implementation Specification
 
@@ -26,7 +26,7 @@ The v0.1 build plan defines the minimal editor schema (text/paragraphs, bold/ita
 
 # 1. Purpose
 
-This document defines the implementation architecture for the Cross-Platform Book Editor described in the Software Design Document.
+This document defines the implementation architecture for SAREL described in the Software Design Document.
 
 The intent is to move from conceptual architecture to a practical codebase structure with:
 
@@ -59,7 +59,7 @@ The project should initially use a single repository.
 Recommended layout:
 
 ```text
-book-editor/
+sarel/
 │
 ├── apps/
 │   └── desktop/
@@ -319,7 +319,7 @@ The preload script should expose a narrow application API.
 Example:
 
 ```typescript
-export interface BookEditorApi {
+export interface SarelApi {
   project: {
     create(): Promise<CreateProjectResult>;
     open(): Promise<OpenProjectResult>;
@@ -343,13 +343,13 @@ export interface BookEditorApi {
 Expose it using:
 
 ```typescript
-contextBridge.exposeInMainWorld("bookEditor", api);
+contextBridge.exposeInMainWorld("sarel", api);
 ```
 
 The renderer should use:
 
 ```typescript
-window.bookEditor.project.open();
+window.sarel.project.open();
 ```
 
 rather than Electron APIs directly.
@@ -2971,7 +2971,7 @@ The editor must become dependable first.
 After the first slice, the repository should approximately resemble:
 
 ```text
-book-editor/
+sarel/
 │
 ├── apps/
 │   └── desktop/

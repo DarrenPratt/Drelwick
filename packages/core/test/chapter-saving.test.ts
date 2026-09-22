@@ -30,7 +30,7 @@ afterEach(async () => {
   );
 });
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "bookeditor-save-"));
+  const root = await mkdtemp(join(tmpdir(), "sarel-save-"));
   directories.push(root);
   await createProject({
     projectPath: root,
@@ -290,7 +290,7 @@ it("preserves recoverable temporary files", async () => {
 
 it("rejects a linked manuscript directory without touching its contents", async () => {
   const { root, path, input } = await fixture();
-  const outside = await mkdtemp(join(tmpdir(), "bookeditor-outside-"));
+  const outside = await mkdtemp(join(tmpdir(), "sarel-outside-"));
   directories.push(outside);
   const before = await readFile(path, "utf8");
   await writeFile(join(outside, `${input.chapterId}.json`), before);

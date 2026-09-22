@@ -3,10 +3,10 @@ import { act, createElement, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
-  BookEditorApi,
+  SarelApi,
   ProjectOperationResult,
   ProjectWorkspace,
-} from "@bookeditor/shared";
+} from "@sarel/shared";
 import { App } from "../src/renderer/App.js";
 
 const selected = {
@@ -21,21 +21,21 @@ const workspace = {
   language: "en-GB",
   chapters: [],
 };
-const create = vi.fn<BookEditorApi["project"]["create"]>();
-const closeProject = vi.fn<BookEditorApi["project"]["close"]>();
-const backupProject = vi.fn<BookEditorApi["project"]["backup"]>();
-const restoreProject = vi.fn<BookEditorApi["project"]["restore"]>();
-const selectLocation = vi.fn<BookEditorApi["project"]["selectLocation"]>();
-const open = vi.fn<BookEditorApi["project"]["open"]>();
-const listRecent = vi.fn<BookEditorApi["project"]["listRecent"]>();
-const openRecent = vi.fn<BookEditorApi["project"]["openRecent"]>();
-const removeRecent = vi.fn<BookEditorApi["project"]["removeRecent"]>();
-const renameChapter = vi.fn<BookEditorApi["project"]["renameChapter"]>();
-const deleteChapter = vi.fn<BookEditorApi["project"]["deleteChapter"]>();
-const reorderChapters = vi.fn<BookEditorApi["project"]["reorderChapters"]>();
-const createChapter = vi.fn<BookEditorApi["project"]["createChapter"]>();
-const saveChapter = vi.fn<BookEditorApi["project"]["saveChapter"]>();
-const loadChapter = vi.fn<BookEditorApi["project"]["loadChapter"]>();
+const create = vi.fn<SarelApi["project"]["create"]>();
+const closeProject = vi.fn<SarelApi["project"]["close"]>();
+const backupProject = vi.fn<SarelApi["project"]["backup"]>();
+const restoreProject = vi.fn<SarelApi["project"]["restore"]>();
+const selectLocation = vi.fn<SarelApi["project"]["selectLocation"]>();
+const open = vi.fn<SarelApi["project"]["open"]>();
+const listRecent = vi.fn<SarelApi["project"]["listRecent"]>();
+const openRecent = vi.fn<SarelApi["project"]["openRecent"]>();
+const removeRecent = vi.fn<SarelApi["project"]["removeRecent"]>();
+const renameChapter = vi.fn<SarelApi["project"]["renameChapter"]>();
+const deleteChapter = vi.fn<SarelApi["project"]["deleteChapter"]>();
+const reorderChapters = vi.fn<SarelApi["project"]["reorderChapters"]>();
+const createChapter = vi.fn<SarelApi["project"]["createChapter"]>();
+const saveChapter = vi.fn<SarelApi["project"]["saveChapter"]>();
+const loadChapter = vi.fn<SarelApi["project"]["loadChapter"]>();
 let root: Root;
 let container: HTMLDivElement;
 const saveListeners = new Set<() => void>();
@@ -97,7 +97,7 @@ beforeEach(async () => {
     "confirm",
     vi.fn(() => true),
   );
-  window.bookEditor = {
+  window.sarel = {
     reportRendererError: vi.fn(),
     recovery: {
       list: vi.fn(),
@@ -839,7 +839,7 @@ describe("chapter editor persistence", () => {
     await openChapter();
     await editText("First edit");
     let finish!: (
-      result: Awaited<ReturnType<BookEditorApi["project"]["saveChapter"]>>,
+      result: Awaited<ReturnType<SarelApi["project"]["saveChapter"]>>,
     ) => void;
     saveChapter.mockReturnValueOnce(
       new Promise((resolve) => {
@@ -1039,9 +1039,7 @@ describe("chapter editor persistence", () => {
   });
   it("keeps late chapter loads from replacing edits after a rapid switch back", async () => {
     await openTwoChapters();
-    type LoadResult = Awaited<
-      ReturnType<BookEditorApi["project"]["loadChapter"]>
-    >;
+    type LoadResult = Awaited<ReturnType<SarelApi["project"]["loadChapter"]>>;
     let finishSecond!: (result: LoadResult) => void;
     let finishFirst!: (result: LoadResult) => void;
     loadChapter.mockReturnValueOnce(
@@ -1137,7 +1135,7 @@ describe("chapter editor persistence", () => {
     it("keeps typing responsive and saves newer edits after their own debounce", async () => {
       await openChapter();
       let finish!: (
-        result: Awaited<ReturnType<BookEditorApi["project"]["saveChapter"]>>,
+        result: Awaited<ReturnType<SarelApi["project"]["saveChapter"]>>,
       ) => void;
       saveChapter.mockReturnValueOnce(
         new Promise((resolve) => {

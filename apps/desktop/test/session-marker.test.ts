@@ -14,7 +14,7 @@ afterEach(async () => {
 });
 
 it("creates an unclean marker and detects it on the next startup", async () => {
-  const root = await mkdtemp(join(tmpdir(), "bookeditor-session-"));
+  const root = await mkdtemp(join(tmpdir(), "sarel-session-"));
   directories.push(root);
   const first = new SessionMarkerService(root);
   const started = await first.start("2026-09-18T16:00:00.000Z");
@@ -36,7 +36,7 @@ it("creates an unclean marker and detects it on the next startup", async () => {
 });
 
 it("marks only the active session clean", async () => {
-  const root = await mkdtemp(join(tmpdir(), "bookeditor-session-"));
+  const root = await mkdtemp(join(tmpdir(), "sarel-session-"));
   directories.push(root);
   const service = new SessionMarkerService(root);
   await service.start("2026-09-18T16:00:00.000Z");
@@ -50,7 +50,7 @@ it("marks only the active session clean", async () => {
 });
 
 it("rejects a corrupt marker without replacing it", async () => {
-  const root = await mkdtemp(join(tmpdir(), "bookeditor-session-"));
+  const root = await mkdtemp(join(tmpdir(), "sarel-session-"));
   directories.push(root);
   const path = join(root, "session.json");
   await import("node:fs/promises").then(({ writeFile }) =>

@@ -1,10 +1,10 @@
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
-import { ApplicationError } from "@bookeditor/shared";
+import { ApplicationError } from "@sarel/shared";
 import {
   ChapterFileSchema,
   ManuscriptDocumentSchema,
-} from "@bookeditor/project-model";
+} from "@sarel/project-model";
 import { openProject } from "./index.js";
 
 export interface LoadChapterInput {

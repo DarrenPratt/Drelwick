@@ -7,7 +7,7 @@ import {
 import {
   APPLICATION_MENU_COMMAND_CHANNEL,
   SAVE_COMMAND_CHANNEL,
-} from "@bookeditor/shared";
+} from "@sarel/shared";
 
 function sendCommand(
   window: BaseWindow | undefined,
@@ -77,7 +77,7 @@ export function installApplicationMenu(platform = process.platform): void {
       ? [
           {
             label: "Help",
-            submenu: [{ label: "About BookEditor", role: "about" as const }],
+            submenu: [{ label: "About SAREL", role: "about" as const }],
           },
         ]
       : [{ role: "help" as const }]),

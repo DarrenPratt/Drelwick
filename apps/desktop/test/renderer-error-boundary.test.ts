@@ -19,7 +19,7 @@ let root: Root;
 
 beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  vi.stubGlobal("bookEditor", { reportRendererError });
+  vi.stubGlobal("sarel", { reportRendererError });
   vi.spyOn(console, "error").mockImplementation(() => undefined);
   reportRendererError.mockClear();
   fixture = await copyFixture("minimal-book");

@@ -10,7 +10,7 @@ import {
   migrateProject,
   MIGRATION_DIRECTORY,
   writeJsonAtomically,
-} from "@bookeditor/core";
+} from "@sarel/core";
 import {
   ApplicationError,
   createUuid,
@@ -18,7 +18,7 @@ import {
   type ProjectOperationResult,
   type ProjectWorkspace,
   type SafeLogger,
-} from "@bookeditor/shared";
+} from "@sarel/shared";
 import {
   copyFixture,
   type FixtureCopy,
@@ -89,7 +89,7 @@ function setup(useMigration = false) {
 }
 
 async function fixture() {
-  const path = await mkdtemp(join(tmpdir(), "bookeditor-open-ui-"));
+  const path = await mkdtemp(join(tmpdir(), "sarel-open-ui-"));
   directories.push(path);
   const created = await createProject({
     projectPath: path,

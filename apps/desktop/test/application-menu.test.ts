@@ -7,7 +7,7 @@ import type {
 import {
   APPLICATION_MENU_COMMAND_CHANNEL,
   SAVE_COMMAND_CHANNEL,
-} from "@bookeditor/shared";
+} from "@sarel/shared";
 import { installApplicationMenu } from "../src/main/application-menu.js";
 
 const { buildFromTemplate, setApplicationMenu, fromId } = vi.hoisted(() => ({

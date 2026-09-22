@@ -3,8 +3,8 @@ import {
   createHistorySnapshot,
   HISTORY_SNAPSHOT_INTERVAL_MS,
   type HistoryRetentionResult,
-} from "@bookeditor/core";
-import { safeErrorContext, type SafeLogger } from "@bookeditor/shared";
+} from "@sarel/core";
+import { safeErrorContext, type SafeLogger } from "@sarel/shared";
 
 export interface HistoryRuntimeOptions {
   snapshot?: typeof createHistorySnapshot;

@@ -21,7 +21,7 @@ import {
   renameChapter,
   type ReorderChaptersInput,
   type RenameChapterInput,
-} from "@bookeditor/core";
+} from "@sarel/core";
 import {
   ApplicationError,
   createUuid,
@@ -34,7 +34,7 @@ import {
   type ProjectOperationResult,
   type ProjectWorkspace,
   type SafeLogger,
-} from "@bookeditor/shared";
+} from "@sarel/shared";
 import type { RecentProjects } from "../recent-projects.js";
 import { HistoryRuntime } from "../history-runtime.js";
 import { basename, dirname, join } from "node:path";
@@ -108,7 +108,7 @@ const dependencies: Dependencies = {
   createChapter,
   selectExistingFolder: async (window) => {
     const result = await dialog.showOpenDialog(window, {
-      title: "Open a BookEditor project",
+      title: "Open a SAREL project",
       buttonLabel: "Open project",
       properties: ["openDirectory"],
     });
@@ -116,22 +116,22 @@ const dependencies: Dependencies = {
   },
   selectBackupDestination: async (window, projectPath) => {
     const result = await dialog.showSaveDialog(window, {
-      title: "Back Up BookEditor Project",
+      title: "Back Up SAREL Project",
       buttonLabel: "Create backup",
       defaultPath: join(
         dirname(projectPath),
-        `${basename(projectPath)}.bookeditor.zip`,
+        `${basename(projectPath)}.sarel.zip`,
       ),
-      filters: [{ name: "BookEditor project backup", extensions: ["zip"] }],
+      filters: [{ name: "SAREL project backup", extensions: ["zip"] }],
     });
     return result.canceled ? null : result.filePath;
   },
   selectBackupArchive: async (window) => {
     const result = await dialog.showOpenDialog(window, {
-      title: "Choose a BookEditor project backup",
+      title: "Choose a SAREL project backup",
       buttonLabel: "Choose backup",
       properties: ["openFile"],
-      filters: [{ name: "BookEditor project backup", extensions: ["zip"] }],
+      filters: [{ name: "SAREL project backup", extensions: ["zip"] }],
     });
     return result.canceled ? null : (result.filePaths[0] ?? null);
   },
@@ -172,14 +172,13 @@ function backupFailure(error: unknown): ProjectOperationResult<never> {
         "The project or backup exceeds the supported size limit.",
       PROJECT_ARCHIVE_TOO_MANY_FILES:
         "The project contains more files than the backup format supports.",
-      PROJECT_ARCHIVE_INVALID:
-        "This file is not a valid BookEditor project backup.",
+      PROJECT_ARCHIVE_INVALID: "This file is not a valid SAREL project backup.",
       PROJECT_ARCHIVE_PATH_INVALID:
         "The selected path or a path in the backup is unsafe or unavailable.",
       PROJECT_ARCHIVE_CHECKSUM_INVALID:
         "A backup file failed its integrity check. No project was restored.",
       PROJECT_ARCHIVE_DESTINATION_IN_PROJECT:
-        "Choose a restore location outside all existing BookEditor project folders.",
+        "Choose a restore location outside all existing SAREL project folders.",
       PROJECT_ARCHIVE_DISK_SPACE:
         "There is not enough disk space to complete the operation. Free space and try again.",
       PROJECT_ARCHIVE_READ_FAILED:
@@ -195,7 +194,7 @@ function backupFailure(error: unknown): ProjectOperationResult<never> {
       PROJECT_SCHEMA_INVALID:
         "The open project has an invalid format. Repair or restore it before backing it up.",
       PROJECT_SCHEMA_UNSUPPORTED:
-        "This project format cannot be backed up by this version of BookEditor.",
+        "This project format cannot be backed up by this version of SAREL.",
       PROJECT_ORDER_INVALID:
         "The manuscript chapter order is invalid. Repair the project before backing it up.",
     };
@@ -427,7 +426,7 @@ export function registerProjectHandlers(
           const messages: Record<string, string> = {
             ...MIGRATION_ERRORS,
             PROJECT_FILE_MISSING:
-              "This folder is missing project.json or another required project file. Choose a complete BookEditor project folder.",
+              "This folder is missing project.json or another required project file. Choose a complete SAREL project folder.",
             PROJECT_JSON_INVALID:
               "A project file contains invalid JSON. Restore a valid copy before opening this project.",
             PROJECT_SCHEMA_INVALID:

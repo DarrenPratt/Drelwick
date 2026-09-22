@@ -1,8 +1,8 @@
 import { mkdir, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
-import { RecentProjectsSettingsSchema } from "@bookeditor/project-model";
-import { writeJsonAtomically } from "@bookeditor/core";
-import { createUuid, type RecentProject } from "@bookeditor/shared";
+import { RecentProjectsSettingsSchema } from "@sarel/project-model";
+import { writeJsonAtomically } from "@sarel/core";
+import { createUuid, type RecentProject } from "@sarel/shared";
 
 /** Application settings only. Mutations are serialized and committed atomically. */
 export class RecentProjects {

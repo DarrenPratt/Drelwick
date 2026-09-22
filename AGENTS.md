@@ -1,6 +1,6 @@
-# BookEditor
+# SAREL
 
-BookEditor is a cross-platform, local-first book authoring and publishing application.
+SAREL is a cross-platform, local-first book authoring and publishing application.
 
 ## Required reading
 
@@ -62,7 +62,7 @@ in `packages/project-model`, and Electron adapters in `apps/desktop`.
 
 ## Product architecture
 
-BookEditor uses an open-core model. Feature classifications are CORE, PRO,
+SAREL uses an open-core model. Feature classifications are CORE, PRO,
 SERVICE and ECOSYSTEM; assign the matching product label to implementation work.
 
 Community/Core contains the functionality required to write and publish a book.
@@ -158,7 +158,7 @@ Do not weaken these controls merely to simplify implementation.
 
 ## Persistence and reliability
 
-BookEditor is an authoring application. Data loss is considered a critical defect.
+SAREL is an authoring application. Data loss is considered a critical defect.
 Persistence work should favour:
 
 - Atomic writes

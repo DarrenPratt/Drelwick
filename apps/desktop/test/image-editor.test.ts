@@ -3,7 +3,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { Editor as HeadlessEditor, type JSONContent } from "@tiptap/core";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { ManuscriptDocumentSchema } from "@bookeditor/project-model";
+import { ManuscriptDocumentSchema } from "@sarel/project-model";
 import {
   Editor,
   sanitizePastedHtml,
@@ -18,7 +18,7 @@ const selectImage = vi.fn();
 const read = vi.fn();
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  Object.defineProperty(window, "bookEditor", {
+  Object.defineProperty(window, "sarel", {
     configurable: true,
     value: { dialog: { selectImage }, images: { read } },
   });

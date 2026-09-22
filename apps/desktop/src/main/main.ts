@@ -4,8 +4,8 @@ import {
   SHUTDOWN_REQUEST_CHANNEL,
   safeErrorContext,
   validateIpcPayload,
-} from "@bookeditor/shared";
-import { RecoveryService, recoverProjectMigration } from "@bookeditor/core";
+} from "@sarel/shared";
+import { RecoveryService, recoverProjectMigration } from "@sarel/core";
 
 import { createMainWindow, getRendererUrl } from "./windows/main-window.js";
 import { registerProjectHandlers } from "./ipc/project-handlers.js";
@@ -13,12 +13,15 @@ import { registerRecoveryHandlers } from "./ipc/recovery-handlers.js";
 import { registerRendererErrorHandler } from "./ipc/renderer-error-handler.js";
 import { RecentProjects } from "./recent-projects.js";
 import { installApplicationMenu } from "./application-menu.js";
+import { configureApplicationIdentity } from "./application-identity.js";
 import { SessionMarkerService } from "./session-marker.js";
 import {
   FileLogger,
   installProcessErrorHandling,
   type FatalProcessErrorSource,
 } from "./logging/file-logger.js";
+
+configureApplicationIdentity(app);
 
 let mainWindow: BrowserWindow | undefined;
 let sessionMarker: SessionMarkerService | undefined;
@@ -58,8 +61,8 @@ function handleFatalProcessError(source: FatalProcessErrorSource): void {
   fatalErrorHandled = true;
   try {
     dialog.showErrorBox(
-      "BookEditor encountered an unexpected error",
-      "Saved project files have been preserved. BookEditor must close without marking this session clean. Restart the application to check for recoverable manuscript changes.",
+      "SAREL encountered an unexpected error",
+      "Saved project files have been preserved. SAREL must close without marking this session clean. Restart the application to check for recoverable manuscript changes.",
     );
   } finally {
     exitApplication(`fatal_${source}`, 1);

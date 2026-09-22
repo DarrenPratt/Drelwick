@@ -1,12 +1,12 @@
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { beforeEach, expect, it, vi } from "vitest";
-import { RecoveryService } from "@bookeditor/core";
+import { RecoveryService } from "@sarel/core";
 import {
   IPC,
   createUuid,
   type ProjectOperationResult,
   type SafeLogger,
-} from "@bookeditor/shared";
+} from "@sarel/shared";
 const { handle } = vi.hoisted(() => ({ handle: vi.fn() }));
 vi.mock("electron", () => ({ ipcMain: { handle }, dialog: {} }));
 import { registerRecoveryHandlers } from "../src/main/ipc/recovery-handlers.js";

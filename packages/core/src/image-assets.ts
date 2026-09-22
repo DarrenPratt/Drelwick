@@ -4,14 +4,14 @@ import { lstat, mkdir, open, readFile, rename, rmdir } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, parse, resolve } from "node:path";
 import sharp from "sharp";
 import { crc32 } from "node:zlib";
-import { ApplicationError } from "@bookeditor/shared";
+import { ApplicationError } from "@sarel/shared";
 import {
   IMAGE_LIMITS,
   ImageAssetIdSchema,
   ImageAssetSchema,
   manuscriptImageReferences,
   type ImageAsset,
-} from "@bookeditor/project-model";
+} from "@sarel/project-model";
 import {
   CHAPTER_CREATION_LOCK,
   loadChapter,

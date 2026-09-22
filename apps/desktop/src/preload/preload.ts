@@ -5,10 +5,10 @@ import {
   ApplicationMenuCommandSchema,
   SAVE_COMMAND_CHANNEL,
   SHUTDOWN_REQUEST_CHANNEL,
-} from "@bookeditor/shared";
-import type { BookEditorApi } from "@bookeditor/shared";
+} from "@sarel/shared";
+import type { SarelApi } from "@sarel/shared";
 
-const api: BookEditorApi = {
+const api: SarelApi = {
   reportRendererError: (input) =>
     ipcRenderer.invoke(IPC.APPLICATION_RENDERER_ERROR, input),
   onSaveRequested: (callback) => {
@@ -67,4 +67,4 @@ const api: BookEditorApi = {
   },
 };
 
-contextBridge.exposeInMainWorld("bookEditor", api);
+contextBridge.exposeInMainWorld("sarel", api);

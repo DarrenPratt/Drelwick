@@ -9,7 +9,7 @@ import {
   HistorySnapshotSchema,
   ManuscriptDocumentSchema,
   ProjectConfigSchema,
-} from "@bookeditor/project-model";
+} from "@sarel/project-model";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   copyFixture,

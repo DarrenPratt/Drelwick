@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { IPC } from "@bookeditor/shared";
+import { IPC } from "@sarel/shared";
 const mocks = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   listeners: new Map<string, (...args: unknown[]) => void>(),
@@ -37,7 +37,7 @@ vi.mock("electron", () => ({
       mocks.handlers.set(channel, handler),
   },
 }));
-vi.mock("@bookeditor/core", () => ({
+vi.mock("@sarel/core", () => ({
   recoverProjectMigration: mocks.recoverMigration,
   RecoveryService: class {
     scanProject = mocks.scanProject;
@@ -76,6 +76,9 @@ vi.mock("../src/main/ipc/project-handlers.js", () => ({
 }));
 vi.mock("../src/main/application-menu.js", () => ({
   installApplicationMenu: vi.fn(),
+}));
+vi.mock("../src/main/application-identity.js", () => ({
+  configureApplicationIdentity: vi.fn(),
 }));
 const webContents = { mainFrame: mocks.frame, send: mocks.send };
 vi.mock("../src/main/windows/main-window.js", () => ({
@@ -184,7 +187,7 @@ it("shows a safe fatal-error message and exits without marking the session clean
   mocks.fatalHandler?.("uncaught_exception");
 
   expect(mocks.showErrorBox).toHaveBeenCalledWith(
-    "BookEditor encountered an unexpected error",
+    "SAREL encountered an unexpected error",
     expect.stringContaining("Saved project files have been preserved"),
   );
   expect(mocks.exit).toHaveBeenCalledWith(1);

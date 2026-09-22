@@ -24,11 +24,11 @@ import {
 } from "node:path";
 import { Transform, type Readable, type TransformCallback } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { ApplicationError, createIsoDate, isUuid } from "@bookeditor/shared";
+import { ApplicationError, createIsoDate, isUuid } from "@sarel/shared";
 import {
   ProjectArchiveManifestSchema,
   type ProjectArchiveManifest,
-} from "@bookeditor/project-model";
+} from "@sarel/project-model";
 import * as yauzl from "yauzl";
 import * as yazl from "yazl";
 import { openProject } from "./index.js";
@@ -125,8 +125,8 @@ export async function createProjectArchive(input: {
   )
     throw archiveError("PROJECT_ARCHIVE_TOO_LARGE");
 
-  const stagingRoot = await mkdtemp(join(tmpdir(), "bookeditor-backup-"));
-  const archiveTemporary = `${archivePath}.bookeditor-${randomBytes(8).toString("hex")}.tmp`;
+  const stagingRoot = await mkdtemp(join(tmpdir(), "sarel-backup-"));
+  const archiveTemporary = `${archivePath}.sarel-${randomBytes(8).toString("hex")}.tmp`;
   let archiveCreated = false;
   try {
     const files: ProjectArchiveManifest["files"] = [];
@@ -230,7 +230,7 @@ export async function restoreProjectArchive(input: {
     throw archiveError("PROJECT_ARCHIVE_TOO_LARGE");
   const parent = await realProjectRoot(input.destinationParent);
   await rejectProjectDestination(parent);
-  const stage = await mkdtemp(join(parent, ".bookeditor-restore-"));
+  const stage = await mkdtemp(join(parent, ".sarel-restore-"));
   let openedZip: yauzl.ZipFile | undefined;
   try {
     const entries = await readZipEntries(input.archivePath);
@@ -709,8 +709,7 @@ function archiveError(code: string): ApplicationError {
       "The project or backup archive exceeds the supported size limits.",
     PROJECT_ARCHIVE_TOO_MANY_FILES:
       "The project contains more files than the backup format supports.",
-    PROJECT_ARCHIVE_INVALID:
-      "This file is not a valid BookEditor project backup.",
+    PROJECT_ARCHIVE_INVALID: "This file is not a valid SAREL project backup.",
     PROJECT_ARCHIVE_CHECKSUM_INVALID:
       "A file in the backup failed its integrity check. No project was restored.",
     PROJECT_ARCHIVE_DISK_SPACE:
@@ -724,7 +723,7 @@ function archiveError(code: string): ApplicationError {
     PROJECT_ARCHIVE_RESTORE_FAILED:
       "Unable to restore the backup. Check folder permissions and available disk space; the existing project was not replaced.",
     PROJECT_ARCHIVE_DESTINATION_IN_PROJECT:
-      "Choose a restore location outside all existing BookEditor project folders.",
+      "Choose a restore location outside all existing SAREL project folders.",
   };
   return new ApplicationError(
     code,

@@ -8,13 +8,13 @@ import {
   createChapter,
   createHistorySnapshot,
   saveChapter,
-} from "@bookeditor/core";
-import { createAutosaveCoordinator } from "@bookeditor/core/autosave";
+} from "@sarel/core";
+import { createAutosaveCoordinator } from "@sarel/core/autosave";
 import {
   IPC,
   type ProjectOperationResult,
   type SafeLogger,
-} from "@bookeditor/shared";
+} from "@sarel/shared";
 const { handle } = vi.hoisted(() => ({ handle: vi.fn() }));
 vi.mock("electron", () => ({ ipcMain: { handle }, dialog: {} }));
 import { registerProjectHandlers } from "../src/main/ipc/project-handlers.js";
@@ -29,7 +29,7 @@ afterEach(async () => {
   );
 });
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "bookeditor-save-ipc-"));
+  const root = await mkdtemp(join(tmpdir(), "sarel-save-ipc-"));
   directories.push(root);
   await createProject({
     projectPath: root,

@@ -1,7 +1,7 @@
 # Application logging
 
 The Electron main process writes structured JSON Lines records to
-`<userData>/logs/bookeditor.log`. Each record contains an ISO 8601 timestamp,
+`<userData>/logs/sarel.log`. Each record contains an ISO 8601 timestamp,
 level, event name and a flat metadata context. The logger keeps three rotated
 backups and rotates the active file before it would exceed 1 MiB.
 
