@@ -30,6 +30,13 @@ checks the supported semantic node/mark vocabulary. Migration preserves historic
 accepted content even when the current editor cannot edit a particular node. It
 does not normalise, silently remove or rewrite such content.
 
+Issue #112 adds headings, nested lists, validated links and epigraphs to the
+deliberate editor contract without changing the version-1 chapter envelope.
+All previously supported structural nodes and marks remain valid and existing
+files are not rewritten. See [manuscript semantic elements](manuscript-semantics.md).
+Any future incompatible document change must increment `chapterSchemaVersion`
+and use the recoverable migration framework rather than redefining this version.
+
 ## Version 2
 
 New projects use version 2. This version introduces an explicit component-version

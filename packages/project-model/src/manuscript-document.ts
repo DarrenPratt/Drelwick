@@ -1,7 +1,49 @@
 import { z } from "zod";
 
-// The nodes/marks emitted by the desktop StarterKit and SceneBreak extension.
-// Reject unknown data rather than allowing the editor to silently discard it.
+/** Heading levels intentionally supported by the authoring and publishing model. */
+export const MANUSCRIPT_HEADING_LEVELS = [1, 2, 3, 4, 5, 6] as const;
+const manuscriptHeadingLevel = z.union([
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+  z.literal(4),
+  z.literal(5),
+  z.literal(6),
+]);
+
+/**
+ * Links in manuscripts may target an absolute web page, an email address or a
+ * fragment within a generated publication. Local files, executable schemes and
+ * protocol-relative URLs are deliberately excluded.
+ */
+export function isSupportedManuscriptLink(href: string): boolean {
+  if (
+    href.length === 0 ||
+    href !== href.trim() ||
+    [...href].some((character) => {
+      const codePoint = character.codePointAt(0);
+      return (
+        codePoint !== undefined && (codePoint <= 0x20 || codePoint === 0x7f)
+      );
+    })
+  )
+    return false;
+  if (href.startsWith("#")) return href.length > 1;
+  try {
+    const url = new URL(href);
+    if (url.protocol === "mailto:") return url.pathname.length > 0;
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      url.hostname.length > 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+// This is the deliberate persisted vocabulary shared by the editor, paste
+// conversion and core load/save validation. Reject unknown data rather than
+// allowing ProseMirror to silently discard it.
 const mark = z.union([
   z
     .object({ type: z.enum(["bold", "italic", "strike", "underline", "code"]) })
@@ -11,7 +53,9 @@ const mark = z.union([
       type: z.literal("link"),
       attrs: z
         .object({
-          href: z.string(),
+          href: z.string().refine(isSupportedManuscriptLink, {
+            message: "Unsupported manuscript link",
+          }),
           target: z.string().nullable().optional(),
           rel: z.string().nullable().optional(),
           class: z.string().nullable().optional(),
@@ -54,8 +98,18 @@ const block: z.ZodType<ManuscriptNode> = z.lazy(() =>
     z
       .object({
         type: z.literal("heading"),
-        attrs: z.object({ level: z.number().int().min(1).max(6) }).strict(),
+        attrs: z.object({ level: manuscriptHeadingLevel }).strict(),
         content: z.array(inline).optional(),
+      })
+      .strict(),
+    z
+      .object({
+        type: z.literal("epigraph"),
+        attrs: z
+          .object({ attribution: z.string().nullable().optional() })
+          .strict()
+          .optional(),
+        content: z.array(paragraph).min(1),
       })
       .strict(),
     z

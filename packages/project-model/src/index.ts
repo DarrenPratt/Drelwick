@@ -1,5 +1,9 @@
 export * from "./versions/v1.js";
 export {
+  MANUSCRIPT_HEADING_LEVELS,
+  isSupportedManuscriptLink,
+} from "./manuscript-document.js";
+export {
   ProjectConfigSchema as ProjectConfigV1Schema,
   BookMetadataSchema as BookMetadataV1Schema,
   ChapterFileSchema as ChapterFileV1Schema,

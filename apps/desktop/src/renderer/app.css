@@ -225,6 +225,26 @@ input:focus-visible {
   background: #dce8ff;
   border-color: #4671bd;
 }
+.toolbar-select-label > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.toolbar-select-label select {
+  background: white;
+  border: 1px solid #9baac0;
+  border-radius: 0.4rem;
+  color: inherit;
+  padding: 0.4rem;
+}
+.editor-toolbar-error {
+  background: #fff0ed;
+  color: #a52323;
+  margin: 0;
+  padding: 0.6rem 1rem;
+}
 .editor-panel .tiptap {
   min-height: 18rem;
   outline: 0;
@@ -243,6 +263,18 @@ input:focus-visible {
   margin: 1.25rem 0;
   text-align: center;
   user-select: none;
+}
+.editor-panel [data-epigraph] {
+  border-left: 0.2rem solid #c0c9b7;
+  color: #566052;
+  margin: 1.5rem 0;
+  padding-left: 1.25rem;
+}
+.editor-panel [data-epigraph][data-attribution]::after {
+  content: "\2014  " attr(data-attribution);
+  display: block;
+  font-size: 0.9em;
+  text-align: right;
 }
 .navigator-heading {
   align-items: end;
