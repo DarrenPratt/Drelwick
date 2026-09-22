@@ -222,6 +222,11 @@ async function imageRoot(projectPath: string, create = false): Promise<string> {
     }
   }
   await regularPath(images, true);
+  if (create) {
+    // Persist newly created parent entries before a chapter can reference them.
+    await syncDirectory(assets);
+    await syncDirectory(projectPath);
+  }
   return images;
 }
 
