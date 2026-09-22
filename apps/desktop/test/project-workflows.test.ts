@@ -99,6 +99,7 @@ beforeEach(async () => {
   );
   window.sarel = {
     reportRendererError: vi.fn(),
+    imports: { inspect: vi.fn(), commit: vi.fn(), cancel: vi.fn() },
     recovery: {
       list: vi.fn(),
       recover: vi.fn(),

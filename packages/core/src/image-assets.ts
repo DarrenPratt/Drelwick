@@ -52,7 +52,10 @@ function imageError(code = "IMAGE_INVALID"): ApplicationError {
 }
 
 /** Check ancestors before resolving: realpath alone would hide linked paths. */
-async function regularPath(path: string, directory = false): Promise<void> {
+export async function regularPath(
+  path: string,
+  directory = false,
+): Promise<void> {
   if (
     !isAbsolute(path) ||
     /^[\\/]{2}/.test(path) ||
@@ -83,7 +86,10 @@ async function regularPath(path: string, directory = false): Promise<void> {
   }
 }
 
-async function boundedRead(path: string, limit: number): Promise<Buffer> {
+export async function boundedRead(
+  path: string,
+  limit: number,
+): Promise<Buffer> {
   await regularPath(path);
   const handle = await open(
     path,

@@ -9,6 +9,13 @@ import {
 import type { SarelApi } from "@sarel/shared";
 
 const api: SarelApi = {
+  imports: {
+    inspect: (input) => ipcRenderer.invoke(IPC.IMPORT_INSPECT, input),
+    commit: (operationId) =>
+      ipcRenderer.invoke(IPC.IMPORT_COMMIT, { operationId }),
+    cancel: (operationId) =>
+      ipcRenderer.invoke(IPC.IMPORT_CANCEL, { operationId }),
+  },
   reportRendererError: (input) =>
     ipcRenderer.invoke(IPC.APPLICATION_RENDERER_ERROR, input),
   onSaveRequested: (callback) => {

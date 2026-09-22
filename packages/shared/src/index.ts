@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  ImportInspectRequestSchema,
+  ImportTokenRequestSchema,
+  type ImportInspection,
+} from "./import-contracts.js";
+export * from "./import-contracts.js";
 
 export * from "./dates.js";
 export * from "./errors.js";
@@ -17,6 +23,9 @@ export const ChapterStatusSchema = z.enum([
 export type ChapterStatus = z.infer<typeof ChapterStatusSchema>;
 
 export const IPC = {
+  IMPORT_INSPECT: "import:inspect",
+  IMPORT_COMMIT: "import:commit",
+  IMPORT_CANCEL: "import:cancel",
   RECOVERY_LIST: "recovery:list",
   RECOVERY_RECOVER: "recovery:recover",
   RECOVERY_DISCARD: "recovery:discard",
@@ -111,6 +120,9 @@ export type ProjectOperationResult<T> =
   | { ok: false; error: { code: string; message: string } };
 
 export const IpcRequestSchemas = {
+  [IPC.IMPORT_INSPECT]: ImportInspectRequestSchema,
+  [IPC.IMPORT_COMMIT]: ImportTokenRequestSchema,
+  [IPC.IMPORT_CANCEL]: ImportTokenRequestSchema,
   [IPC.IMAGE_IMPORT]: z
     .object({ projectId: z.string().uuid(), chapterId: z.string().uuid() })
     .strict(),
@@ -178,6 +190,15 @@ export interface RecoveryCandidateSummary {
 }
 
 export interface SarelApi {
+  imports: {
+    inspect(
+      input: z.infer<typeof ImportInspectRequestSchema>,
+    ): Promise<ProjectOperationResult<ImportInspection | null>>;
+    commit(
+      operationId: string,
+    ): Promise<ProjectOperationResult<{ projectId: string } | null>>;
+    cancel(operationId: string): Promise<ProjectOperationResult<null>>;
+  };
   reportRendererError(input: RendererErrorReport): Promise<void>;
   recovery: {
     list(): Promise<ProjectOperationResult<RecoveryCandidateSummary[]>>;

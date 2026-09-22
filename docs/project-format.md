@@ -20,6 +20,10 @@ remain named `BookEditor` without affecting the application.
 
 ## Implemented format
 
+The [staged manuscript import pipeline](manuscript-import.md) translates validated
+imports into this existing format. Its temporary intermediate envelope is internal
+version 1; it does not change authoritative project or component versions.
+
 This is the implemented format including issues #111–#113. Project files are authoritative;
 EPUB, PDF and DOCX outputs are not. All JSON is UTF-8. No account, service or Pro
 package is needed to read, migrate, back up or recover a project.

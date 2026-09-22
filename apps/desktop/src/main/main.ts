@@ -9,6 +9,7 @@ import { RecoveryService, recoverProjectMigration } from "@sarel/core";
 
 import { createMainWindow, getRendererUrl } from "./windows/main-window.js";
 import { registerProjectHandlers } from "./ipc/project-handlers.js";
+import { registerImportHandlers } from "./ipc/import-handlers.js";
 import { registerRecoveryHandlers } from "./ipc/recovery-handlers.js";
 import { registerRendererErrorHandler } from "./ipc/renderer-error-handler.js";
 import { RecentProjects } from "./recent-projects.js";
@@ -30,6 +31,7 @@ let shutdownPending = false;
 let shutdownLogged = false;
 let fatalErrorHandled = false;
 let stopHistory: (() => Promise<void>) | undefined;
+let stopImports: (() => Promise<void>) | undefined;
 const recoveryService = new RecoveryService();
 const logger = new FileLogger(app.getPath("userData"));
 installProcessErrorHandling(logger, handleFatalProcessError);
@@ -108,6 +110,9 @@ void app.whenReady().then(async () => {
     },
   );
   stopHistory = projectHandlers.stopHistory;
+  stopImports = registerImportHandlers(() => mainWindow, getRendererUrl(), {
+    blocked: recoveryPending,
+  });
   registerRecoveryHandlers(
     () => mainWindow,
     getRendererUrl(),
@@ -163,6 +168,7 @@ app.on("will-quit", () => {
 });
 
 app.on("before-quit", (event) => {
+  void stopImports?.();
   if (quitting || !sessionMarker || !mainWindow) return;
   event.preventDefault();
   if (shutdownPending) return;
