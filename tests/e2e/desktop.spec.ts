@@ -1,4 +1,5 @@
 import {
+  cp,
   mkdir,
   mkdtemp,
   readFile,
@@ -17,12 +18,132 @@ import {
   type ElectronApplication,
 } from "@playwright/test";
 import { copyFixture } from "../helpers/fixture-projects.js";
+import { syntheticImage } from "../helpers/synthetic-images.js";
 
 const repositoryRoot = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../..",
 );
 const desktopDirectory = join(repositoryRoot, "apps", "desktop");
+
+test("imports local images, edits semantics and reopens a portable project offline", async () => {
+  const fixture = await copyFixture("minimal-book");
+  const scratch = await mkdtemp(join(tmpdir(), "bookeditor-image-e2e-"));
+  let application: ElectronApplication | undefined;
+  try {
+    const source = join(scratch, "synthetic.png");
+    await writeFile(source, await syntheticImage());
+    const launched = await launchApplication(join(scratch, "user-data"));
+    application = launched.application;
+    const page = launched.page;
+    const requests: string[] = [];
+    await page.route(/^https?:/, async (route) => {
+      requests.push(route.request().url());
+      await route.abort();
+    });
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, fixture.projectPath);
+    await page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    const editor = page.locator(".ProseMirror");
+    await expect(editor).toBeEditable();
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, source);
+    await page
+      .getByRole("button", { name: "Insert image", exact: true })
+      .focus();
+    await page.keyboard.press("Enter");
+    const image = editor.locator("figure img");
+    await expect(image).toHaveAttribute("src", /^data:image\/png;base64,/);
+    await image.click();
+    await page
+      .getByLabel("Alternative text", { exact: true })
+      .fill("海 — café 🌱");
+    await page.getByLabel("Image size", { exact: true }).selectOption("full");
+    await expect(image).toHaveAttribute("alt", "海 — café 🌱");
+    await expect(page.getByLabel("Chapter save status")).toHaveText(
+      "All changes saved",
+    );
+    const originalSrc = await image.getAttribute("src");
+    await writeFile(source, "MZ not an image");
+    await page
+      .getByRole("button", { name: "Replace image", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toContainText("valid PNG or JPEG");
+    await expect(image).toHaveAttribute("src", originalSrc!);
+    await rm(source);
+    await editor.evaluate((element) => {
+      const data = new DataTransfer();
+      data.setData(
+        "text/html",
+        '<p>Before<img src="https://remote.invalid/tracker.png" alt="remote">After</p>',
+      );
+      element.dispatchEvent(
+        new ClipboardEvent("paste", {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: data,
+        }),
+      );
+    });
+    await expect(editor).toContainText("use Insert image");
+    await expect(page.getByLabel("Chapter save status")).toHaveText(
+      "All changes saved",
+    );
+    // Undo the paste so the original image remains for portability verification.
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(image).toHaveAttribute("alt", "海 — café 🌱");
+    await expect(page.getByLabel("Chapter save status")).toHaveText(
+      "All changes saved",
+    );
+    expect(requests).toEqual([]);
+    await application.close();
+    application = undefined;
+    const moved = join(scratch, "moved-project");
+    await cp(fixture.projectPath, moved, { recursive: true });
+    const restarted = await launchApplication(join(scratch, "fresh-user-data"));
+    application = restarted.application;
+    await restarted.page.context().setOffline(true);
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, moved);
+    await restarted.page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    const restored = restarted.page.locator(".ProseMirror figure img");
+    await expect(restored).toHaveAttribute("alt", "海 — café 🌱");
+    await expect(restored).toHaveAttribute("src", originalSrc!);
+    await expect(
+      restarted.page.locator('.ProseMirror figure[data-image-size="full"]'),
+    ).toBeVisible();
+    expect(
+      await restored.evaluate(
+        (element) => (element as HTMLImageElement).naturalWidth,
+      ),
+    ).toBe(2);
+  } finally {
+    await application?.close();
+    await fixture.cleanup();
+    await rm(scratch, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 200,
+    });
+  }
+});
 
 async function launchApplication(userDataDirectory: string) {
   const application = await electron.launch({

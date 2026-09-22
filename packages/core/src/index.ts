@@ -16,6 +16,7 @@ export * from "./history.js";
 export * from "./project-archive.js";
 export * from "./recovery.js";
 export * from "./project-migration.js";
+export * from "./image-assets.js";
 export { MIGRATION_DIRECTORY, MIGRATION_ERRORS } from "./migration-state.js";
 import {
   assertKnownVersion,

@@ -139,6 +139,7 @@ beforeEach(async () => {
       saveChapter,
     },
     dialog: { selectImage: vi.fn(), selectExportLocation: vi.fn() },
+    images: { read: vi.fn() },
   };
   container = document.createElement("div");
   document.body.append(container);

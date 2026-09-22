@@ -947,6 +947,11 @@ export function App() {
               <>
                 {documentReady && documentState ? (
                   <Editor
+                    projectId={project.projectId}
+                    prepareImageImport={async () =>
+                      (await autosave.current?.flush()) ?? true
+                    }
+                    {...(activeChapterId ? { chapterId: activeChapterId } : {})}
                     key={chapterKey}
                     editable={!changingDocument}
                     title={

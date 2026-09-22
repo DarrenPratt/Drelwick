@@ -1,5 +1,10 @@
 # Chapter document persistence
 
+Image references participate in this same validated atomic save and revision
+workflow. Asset import commits first; failed chapter updates preserve the previous
+file and retain both old/new assets. Missing references remain valid semantic
+content and are not removed on load/save. See [local images](local-image-assets.md).
+
 Issue #30 (CORE) connects the editor to chapter JSON through the restricted
 `project.loadChapter` and `project.saveChapter` preload methods. Select a chapter,
 edit it, then choose **Save chapter**. The editor remains editable during the write

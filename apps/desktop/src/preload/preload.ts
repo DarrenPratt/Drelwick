@@ -58,9 +58,12 @@ const api: BookEditorApi = {
     loadChapter: (input) => ipcRenderer.invoke(IPC.PROJECT_LOAD_CHAPTER, input),
   },
   dialog: {
-    selectImage: () => ipcRenderer.invoke("dialog:select-image"),
+    selectImage: (input) => ipcRenderer.invoke(IPC.IMAGE_IMPORT, input),
     selectExportLocation: () =>
       ipcRenderer.invoke("dialog:select-export-location"),
+  },
+  images: {
+    read: (input) => ipcRenderer.invoke(IPC.IMAGE_READ, input),
   },
 };
 

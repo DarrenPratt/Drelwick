@@ -1,6 +1,6 @@
 # Project format and local migration
 
-This is the implemented format as of issue #111. Project files are authoritative;
+This is the implemented format including issues #111–#113. Project files are authoritative;
 EPUB, PDF and DOCX outputs are not. All JSON is UTF-8. No account, service or Pro
 package is needed to read, migrate, back up or recover a project.
 
@@ -21,6 +21,11 @@ filenames never imply order. Unreferenced files are preserved for recovery.
 
 `frontmatter/`, `backmatter/`, `assets/`, `reference/`, `styles/` and `.history/`
 hold supporting data. `.chapter-summaries.json` is a disposable, version-1 cache.
+Issue #113 stores versioned image records and byte-preserved originals under
+`assets/images/<uuid>/`; manuscripts reference only the UUID. See
+[local image assets](local-image-assets.md) for the format, security and recovery
+contract. This is an additive vocabulary with independent version-1 asset records,
+not a change to the existing project or chapter envelopes.
 History snapshots, recent-project settings, the session marker and portable ZIP
 manifest each have their own version-1 envelope. Settings/session data live outside
 the project; machine-specific paths do not become project metadata.

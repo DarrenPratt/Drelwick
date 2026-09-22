@@ -64,10 +64,16 @@ describe("preload API", () => {
       locationToken: "123e4567-e89b-42d3-a456-426614174000",
     };
     await api.project.create(input);
-    await api.dialog.selectImage();
+    await api.dialog.selectImage({
+      projectId: input.locationToken,
+      chapterId: input.locationToken,
+    });
 
     expect(invoke).toHaveBeenNthCalledWith(1, "project:create", input);
-    expect(invoke).toHaveBeenNthCalledWith(2, "dialog:select-image");
+    expect(invoke).toHaveBeenNthCalledWith(2, "image:import", {
+      projectId: input.locationToken,
+      chapterId: input.locationToken,
+    });
     await api.project.selectLocation();
     expect(invoke).toHaveBeenNthCalledWith(3, "project:select-location");
     await api.project.open();

@@ -2,9 +2,10 @@ import { isSupportedManuscriptLink } from "@bookeditor/project-model";
 import StarterKit from "@tiptap/starter-kit";
 import { Epigraph } from "./Epigraph.js";
 import { SceneBreak } from "./SceneBreak.js";
+import { ManuscriptImage } from "./ManuscriptImage.js";
 
 /** A fresh extension set for every editor instance and headless compatibility test. */
-export function createManuscriptExtensions() {
+export function createManuscriptExtensions(projectId?: string) {
   return [
     StarterKit.configure({
       link: {
@@ -15,5 +16,6 @@ export function createManuscriptExtensions() {
     }),
     SceneBreak,
     Epigraph,
+    ManuscriptImage.configure(projectId ? { projectId } : {}),
   ];
 }
