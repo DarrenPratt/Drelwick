@@ -704,6 +704,10 @@ Optional attributes:
 
 # 19. Image Node
 
+Implemented by #113: strict block image attributes are `assetId`, `alt` and
+semantic `size` (`small`, `medium`, `large`, `full`). The older example below is
+design context; captions are not implemented. See [local image assets](local-image-assets.md).
+
 Images should reference project assets rather than external filesystem paths.
 
 Bad:
@@ -734,6 +738,12 @@ Node example:
 ---
 
 # 20. Assets
+
+Implemented #113 image records are per-asset versioned manifests at
+`assets/images/<uuid>/asset.json`, alongside `original.png` or `original.jpg`.
+They contain type, dimensions, original filename, byte size and SHA-256; locations
+are derived rather than caller-supplied paths. The following general asset model
+remains design guidance for future cover/font work, not the current image schema.
 
 Assets should be registered in a manifest.
 

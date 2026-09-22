@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ImageAttributesSchema } from "./image-assets.js";
 
 /** Heading levels intentionally supported by the authoring and publishing model. */
 export const MANUSCRIPT_HEADING_LEVELS = [1, 2, 3, 4, 5, 6] as const;
@@ -95,6 +96,9 @@ export interface ManuscriptNode {
 const block: z.ZodType<ManuscriptNode> = z.lazy(() =>
   z.union([
     paragraph,
+    z
+      .object({ type: z.literal("image"), attrs: ImageAttributesSchema })
+      .strict(),
     z
       .object({
         type: z.literal("heading"),

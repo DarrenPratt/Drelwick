@@ -6,6 +6,8 @@ import {
 } from "electron";
 import {
   createProjectArchive,
+  importImageAsset,
+  readImageAsset,
   createProject,
   createChapter,
   deleteChapter,
@@ -52,6 +54,9 @@ interface HistoryTasks {
 }
 
 interface Dependencies {
+  selectImage(window: BrowserWindow): Promise<string | null>;
+  importImage: typeof importImageAsset;
+  readImage: typeof readImageAsset;
   startupBlocked(): boolean;
   selectFolder(window: BrowserWindow): Promise<string | null>;
   create: typeof createProject;
@@ -77,6 +82,19 @@ interface Dependencies {
 }
 
 const dependencies: Dependencies = {
+  selectImage: async (window) => {
+    const result = await dialog.showOpenDialog(window, {
+      title: "Import a local image",
+      buttonLabel: "Import image",
+      properties: ["openFile"],
+      filters: [
+        { name: "PNG and JPEG images", extensions: ["png", "jpg", "jpeg"] },
+      ],
+    });
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  },
+  importImage: importImageAsset,
+  readImage: readImageAsset,
   startupBlocked: () => false,
   selectFolder: async (window) => {
     const result = await dialog.showOpenDialog(window, {
@@ -223,6 +241,81 @@ export function registerProjectHandlers(
       event.senderFrame?.url === rendererUrl
     );
   };
+
+  for (const channel of [IPC.IMAGE_IMPORT, IPC.IMAGE_READ] as const) {
+    ipcMain.handle(channel, async (event, payload: unknown) => {
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      const parsed = IpcRequestSchemas[channel].safeParse(payload);
+      if (!parsed.success)
+        return failure("PROJECT_INPUT_INVALID", "Invalid image request.");
+      if (!activeProjectPath || parsed.data.projectId !== activeProjectId)
+        return failure(
+          "PROJECT_NOT_OPEN",
+          "Reopen the project before accessing images.",
+        );
+      if (busy)
+        return failure(
+          "PROJECT_BUSY",
+          "The project is busy. Retry after the current operation finishes.",
+        );
+      const projectPath = activeProjectPath;
+      busy = true;
+      try {
+        if ("chapterId" in parsed.data) {
+          await services.loadChapter({
+            projectPath,
+            chapterId: parsed.data.chapterId,
+          });
+          const sourcePath = await services.selectImage(getWindow()!);
+          if (!trusted(event))
+            return failure(
+              "PROJECT_ACCESS_DENIED",
+              "Project access is not permitted.",
+            );
+          if (!sourcePath) return { ok: true, value: null };
+          const asset = await services.importImage({ projectPath, sourcePath });
+          if (!trusted(event))
+            return failure(
+              "PROJECT_ACCESS_DENIED",
+              "Project access is not permitted.",
+            );
+          return { ok: true, value: { assetId: asset.id } };
+        }
+        const { asset, bytes } = await services.readImage(
+          projectPath,
+          parsed.data.assetId,
+        );
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project access is not permitted.",
+          );
+        return {
+          ok: true,
+          value: {
+            dataUrl: `data:${asset.mediaType};base64,${bytes.toString("base64")}`,
+          },
+        };
+      } catch (error) {
+        // Only fixed domain errors cross IPC; paths, bytes, alt text and causes never do.
+        if (
+          error instanceof ApplicationError &&
+          error.code.startsWith("IMAGE_")
+        )
+          return failure(error.code, error.message);
+        return failure(
+          "IMAGE_OPERATION_FAILED",
+          "Unable to access the image. Existing manuscript and images were preserved. Retry after checking the project.",
+        );
+      } finally {
+        busy = false;
+      }
+    });
+  }
 
   for (const channel of [IPC.PROJECT_OPEN, IPC.RECENT_OPEN] as const)
     ipcMain.handle(

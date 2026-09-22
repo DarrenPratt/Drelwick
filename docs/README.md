@@ -30,6 +30,7 @@ Operational documents:
 - [Chapter creation and failure recovery](chapter-creation.md)
 - [Chapter document persistence](chapter-persistence.md)
 - [Manuscript semantic elements](manuscript-semantics.md)
+- [Local image assets and recovery](local-image-assets.md)
 - [Manuscript recovery](manuscript-recovery.md)
 - [Application logging](application-logging.md)
 - [Global error handling](error-handling.md)

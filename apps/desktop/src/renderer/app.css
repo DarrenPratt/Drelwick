@@ -1605,3 +1605,27 @@ button svg {
     padding: 35px;
   }
 }
+.manuscript-image {
+  margin: 1rem auto;
+  max-width: 100%;
+}
+.manuscript-image img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.manuscript-image[data-image-size="small"] {
+  width: 25%;
+}
+.manuscript-image[data-image-size="medium"] {
+  width: 50%;
+}
+.manuscript-image[data-image-size="large"] {
+  width: 75%;
+}
+.manuscript-image[data-image-size="full"] {
+  width: 100%;
+}
+.manuscript-image.ProseMirror-selectednode {
+  outline: 2px solid currentColor;
+}

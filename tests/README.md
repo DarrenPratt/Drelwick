@@ -111,6 +111,14 @@ test infrastructure; application behaviour tests arrive with their issues.
 
 ## Standard project fixtures
 
+Issue #113 uses `synthetic-images.json` for tiny, deterministic PNG/JPEG bytes
+through `tests/helpers/synthetic-images.ts`. Core image tests copy standard book
+fixtures and exercise validation, failed writes, shared references and portability.
+Editor/IPC tests cover controls, Unicode, missing assets and authorization. The
+third Electron scenario imports an image through the privileged picker, verifies
+remote paste causes no request, and reopens a copied project offline without the
+source image. See [local image evidence](../docs/local-image-assets.md#evidence).
+
 Canonical, publication-safe project fixtures live under `tests/fixtures/`. Their
 UUIDs, timestamps and synthetic manuscript content are deterministic.
 

@@ -4,6 +4,12 @@ Issue #112 makes the publishing vocabulary an explicit contract shared by the
 project model, editor and paste conversion. Manuscript JSON records meaning;
 editor and publication themes decide appearance.
 
+Issue #113 adds a block `image` node with strict `assetId`, `alt` and `size`
+attributes. It resolves only project-managed PNG/JPEG originals. Size is one of
+`small`, `medium`, `large`, `full`; alt text is Unicode manuscript content. See
+[local images](local-image-assets.md) for controls, missing-asset recovery,
+portable storage and the additive schema compatibility decision.
+
 ## Supported document vocabulary
 
 The existing paragraph, block quote, scene break, horizontal rule, hard break

@@ -32,6 +32,8 @@ export const IPC = {
   PROJECT_RESTORE: "project:restore",
   PROJECT_LOAD_CHAPTER: "project:load-chapter",
   PROJECT_SAVE_CHAPTER: "project:save-chapter",
+  IMAGE_IMPORT: "image:import",
+  IMAGE_READ: "image:read",
   CHAPTER_CREATE: "chapter:create",
   CHAPTER_RENAME: "chapter:rename",
   CHAPTER_DELETE: "chapter:delete",
@@ -109,6 +111,19 @@ export type ProjectOperationResult<T> =
   | { ok: false; error: { code: string; message: string } };
 
 export const IpcRequestSchemas = {
+  [IPC.IMAGE_IMPORT]: z
+    .object({ projectId: z.string().uuid(), chapterId: z.string().uuid() })
+    .strict(),
+  [IPC.IMAGE_READ]: z
+    .object({
+      projectId: z.string().uuid(),
+      assetId: z
+        .string()
+        .regex(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+        ),
+    })
+    .strict(),
   [IPC.RECOVERY_LIST]: z.undefined(),
   [IPC.RECOVERY_CANCEL]: z.undefined(),
   [IPC.RECOVERY_RECOVER]: z.object({ id: z.string().uuid() }).strict(),
@@ -216,8 +231,17 @@ export interface BookEditorApi {
     ): Promise<ProjectOperationResult<ChapterContent>>;
   };
   dialog: {
-    selectImage(): Promise<void>;
+    selectImage(input: {
+      projectId: string;
+      chapterId: string;
+    }): Promise<ProjectOperationResult<{ assetId: string } | null>>;
     selectExportLocation(): Promise<void>;
+  };
+  images: {
+    read(input: {
+      projectId: string;
+      assetId: string;
+    }): Promise<ProjectOperationResult<{ dataUrl: string }>>;
   };
 }
 

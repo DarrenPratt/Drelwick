@@ -20,6 +20,7 @@
   "dependencies": {
     "@bookeditor/project-model": "workspace:*",
     "@bookeditor/shared": "workspace:*",
+    "sharp": "0.35.4",
     "yauzl": "^3.4.0",
     "yazl": "^3.3.1"
   },
