@@ -13,7 +13,12 @@ import {
   ImportInspectionSchema,
   validateImportedManuscript,
 } from "@sarel/project-model";
-import { IPC, IpcRequestSchemas, type ImportInspection } from "@sarel/shared";
+import {
+  ApplicationError,
+  IPC,
+  IpcRequestSchemas,
+  type ImportInspection,
+} from "@sarel/shared";
 
 interface Dependencies {
   /** Fixed first-party registry; never populated from renderer/source data. */
@@ -166,12 +171,21 @@ export function registerImportHandlers(
           });
           current.busy = false;
           return { ok: true, value };
-        } catch {
-          await current.stage?.discard().catch(() => undefined);
+        } catch (error) {
+          let cleanupFailed =
+            error instanceof ApplicationError &&
+            error.code === "IMPORT_CLEANUP_REQUIRED";
+          await current.stage?.discard().catch(() => {
+            cleanupFailed = true;
+          });
           operation = undefined;
           detach();
           return failure(
-            current.abort.signal.aborted ? "IMPORT_CANCELLED" : "IMPORT_FAILED",
+            cleanupFailed
+              ? "IMPORT_CLEANUP_REQUIRED"
+              : current.abort.signal.aborted
+                ? "IMPORT_CANCELLED"
+                : "IMPORT_FAILED",
           );
         }
       }
@@ -194,7 +208,7 @@ export function registerImportHandlers(
           current.busy = false;
           return { ok: true, value: null };
         }
-        const value = await current.stage.commit(destination, {
+        const { projectId, warning } = await current.stage.commit(destination, {
           signal: current.abort.signal,
           checkpoint: async () => {
             if (!trusted(event)) current.abort.abort();
@@ -203,23 +217,37 @@ export function registerImportHandlers(
         operation = undefined;
         detach();
         // Never activate the project or replace the editor's dirty state.
-        return { ok: true, value };
-      } catch {
-        await current.stage.discard().catch(() => undefined);
+        return {
+          ok: true,
+          value: { projectId },
+          ...(warning ? { warning } : {}),
+        };
+      } catch (error) {
+        let cleanupFailed =
+          error instanceof ApplicationError &&
+          error.code === "IMPORT_CLEANUP_REQUIRED";
+        await current.stage.discard().catch(() => {
+          cleanupFailed = true;
+        });
         operation = undefined;
         detach();
         return failure(
-          current.abort.signal.aborted ? "IMPORT_CANCELLED" : "IMPORT_FAILED",
+          cleanupFailed
+            ? "IMPORT_CLEANUP_REQUIRED"
+            : current.abort.signal.aborted
+              ? "IMPORT_CANCELLED"
+              : "IMPORT_FAILED",
         );
       }
     });
   }
   return async () => {
-    operation?.abort.abort();
-    if (operation && !operation.busy) {
-      await operation.stage?.discard().catch(() => undefined);
+    const current = operation;
+    current?.abort.abort();
+    if (current && !current.busy) {
       operation = undefined;
       detach();
+      await current.stage?.discard().catch(() => undefined);
     }
   };
 }

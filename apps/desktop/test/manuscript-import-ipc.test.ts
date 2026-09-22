@@ -17,7 +17,11 @@ import {
   type ProjectOperationResult,
   type ImportInspection,
 } from "@sarel/shared";
-import { IsolatedManuscriptImporter } from "@sarel/core";
+import {
+  IsolatedManuscriptImporter,
+  StagedManuscriptImport,
+  importError,
+} from "@sarel/core";
 const { handle } = vi.hoisted(() => ({ handle: vi.fn() }));
 vi.mock("electron", () => ({ ipcMain: { handle }, dialog: {} }));
 import { registerImportHandlers } from "../src/main/ipc/import-handlers.js";
@@ -192,4 +196,45 @@ it("navigation abandons the staged capability", async () => {
     await f.invoke(IPC.IMPORT_COMMIT, { operationId: f.operationId }),
   ).toMatchObject({ ok: false });
   expect(await readdir(f.destination)).toEqual([]);
+});
+
+it("cancels while destination selection is pending without proceeding to commit", async () => {
+  const f = await setup();
+  await f.inspect();
+  let select!: (path: string) => void;
+  f.destinationPicker.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        select = resolve;
+      }),
+  );
+  const pending = f.invoke(IPC.IMPORT_COMMIT, { operationId: f.operationId });
+  await f.invoke(IPC.IMPORT_CANCEL, { operationId: f.operationId });
+  select(f.destination);
+  expect(await pending).toMatchObject({
+    ok: false,
+    error: { code: "IMPORT_CANCELLED" },
+  });
+  expect(await readdir(f.destination)).toEqual([]);
+  expect(await readFile(f.source, "utf8")).toBe("source unchanged");
+});
+
+it("preserves a safe cleanup-required error through IPC", async () => {
+  const f = await setup();
+  const inspect = vi
+    .spyOn(StagedManuscriptImport, "inspect")
+    .mockRejectedValueOnce(importError("IMPORT_CLEANUP_REQUIRED"));
+  try {
+    const result = await f.inspect();
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "IMPORT_CLEANUP_REQUIRED",
+        message: expect.stringContaining("Preserve the interrupted folder"),
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain(f.root);
+  } finally {
+    inspect.mockRestore();
+  }
 });

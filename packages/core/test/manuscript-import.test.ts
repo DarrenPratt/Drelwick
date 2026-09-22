@@ -457,3 +457,102 @@ it("rejects oversized isolated parser output before passing it to the coordinato
     ).parse(new Uint8Array([1]), new AbortController().signal),
   ).rejects.toMatchObject({ code: "IMPORT_PARSER_FAILED" });
 });
+
+it("retains inspection cancellation even if a caller supplies a fresh commit signal", async () => {
+  const f = await fixture();
+  const stage = await inspect(f.source, manuscript(), f.abort.signal);
+  f.abort.abort();
+  await expect(
+    stage.commit(f.destination, { signal: new AbortController().signal }),
+  ).rejects.toMatchObject({ code: "IMPORT_CANCELLED" });
+  expect(await readdir(f.destination)).toEqual([]);
+});
+
+it("rejects unrelated destination content added while staging without removing it", async () => {
+  const f = await fixture();
+  const stage = await inspect(f.source);
+  await expect(
+    stage.commit(f.destination, {
+      signal: f.abort.signal,
+      checkpoint: async (phase) => {
+        if (phase === "writing")
+          await writeFile(join(f.destination, "keep.txt"), "external");
+      },
+    }),
+  ).rejects.toMatchObject({ code: "IMPORT_DESTINATION_INVALID" });
+  expect(await readdir(f.destination)).toEqual(["keep.txt"]);
+  expect(await readFile(join(f.destination, "keep.txt"), "utf8")).toBe(
+    "external",
+  );
+});
+
+it("reports retained private staging when cleanup fails", async () => {
+  const f = await fixture();
+  await expect(
+    StagedManuscriptImport.inspect(
+      f.source,
+      { parse: async () => JSON.stringify(manuscript()) },
+      {
+        signal: f.abort.signal,
+        temporaryRoot: f.root,
+        checkpoint: async (phase) => {
+          if (phase === "staged") throw new Error("failure");
+        },
+        remove: async () => {
+          throw new Error("cleanup failure");
+        },
+      },
+    ),
+  ).rejects.toMatchObject({ code: "IMPORT_CLEANUP_REQUIRED" });
+  const retained = (await readdir(f.root)).find((name) =>
+    name.startsWith("sarel-manuscript-import-"),
+  )!;
+  const envelope = JSON.parse(
+    await readFile(join(f.root, retained, "manuscript.json"), "utf8"),
+  ) as { schemaVersion: number; manuscript: unknown };
+  expect(envelope.schemaVersion).toBe(1);
+  expect(
+    validateImportedManuscript(JSON.stringify(envelope.manuscript)),
+  ).toEqual(manuscript());
+  expect(await readFile(f.source, "utf8")).toBe("unchanged source");
+});
+
+it("retains a clearly incomplete destination on failed rollback and rejects reuse", async () => {
+  const f = await fixture();
+  const stage = await inspect(f.source);
+  await expect(
+    stage.commit(f.destination, {
+      signal: f.abort.signal,
+      checkpoint: async (phase) => {
+        if (phase === "before-commit") throw new Error("failure");
+      },
+      remove: async () => {
+        throw new Error("cleanup failure");
+      },
+    }),
+  ).rejects.toMatchObject({ code: "IMPORT_CLEANUP_REQUIRED" });
+  await expect(
+    readFile(join(f.destination, "project.json")),
+  ).rejects.toMatchObject({ code: "ENOENT" });
+  await expect(validateProjectFiles(f.destination)).rejects.toBeDefined();
+  await expect(
+    (await inspect(f.source)).commit(f.destination, { signal: f.abort.signal }),
+  ).rejects.toMatchObject({ code: "IMPORT_DESTINATION_INVALID" });
+  expect(await readFile(join(f.active, "project.json"))).toEqual(f.activeBytes);
+});
+
+it("returns success with a warning when cleanup fails after complete publication", async () => {
+  const f = await fixture();
+  const stage = await inspect(f.source);
+  const result = await stage.commit(f.destination, {
+    signal: f.abort.signal,
+    remove: async () => {
+      throw new Error("cleanup failure");
+    },
+  });
+  expect(result.warning).toContain("project was created");
+  expect((await validateProjectFiles(f.destination)).project.projectId).toBe(
+    result.projectId,
+  );
+  expect(await readFile(f.source, "utf8")).toBe("unchanged source");
+});

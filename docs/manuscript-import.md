@@ -120,10 +120,16 @@ book/format files are linked exclusively. Finally `project.json` is published by
 an exclusive hard link. An existing file is never replaced. Filesystems without
 hard-link support fail safely before project publication.
 
+The destination inventory is rechecked before publishing supporting data and
+again before the manifest: content introduced during staging causes rejection
+and is preserved. The inspection cancellation signal remains attached to the
+stage; supplying a fresh commit signal cannot revive a cancelled import.
+
 That final link is the commit point. Before it, failure or cancellation removes
 owned artifacts and cannot leave an openable destination project. After it, the
 complete project is authoritative: late cancellation or cleanup failure does not
-report the completed import as failed. Directory fsync has the existing Windows
+report the completed import as failed. Post-commit cleanup/flushing failures
+return success with an explicit warning. Directory fsync has the existing Windows
 limitations described in [project format](project-format.md).
 
 ## Cancellation and recovery
@@ -138,7 +144,9 @@ destination artifacts created by this import. Source documents, active projects
 and prior saves are never written. A failed attempt consumes its stage capability;
 retry begins with a fresh inspection.
 
-Process termination or cleanup permission failures may retain temporary data.
+Cleanup failures before publication return `IMPORT_CLEANUP_REQUIRED` through IPC,
+including when cancellation was the original reason for stopping. Process
+termination or cleanup permission failures may retain temporary data.
 Preserve it for inspection; do not infer a successful import from staging alone:
 
 - A private `manuscript.json` is a versioned intermediate recovery copy, never an

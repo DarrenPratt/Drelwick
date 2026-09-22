@@ -10,7 +10,7 @@ import {
   link,
   realpath,
 } from "node:fs/promises";
-import { dirname, join, parse } from "node:path";
+import { basename, dirname, join, parse } from "node:path";
 import { tmpdir } from "node:os";
 import { ApplicationError } from "@sarel/shared";
 import {
@@ -48,6 +48,7 @@ export interface ImportOptions {
   /** Filesystem failure injection; privileged callers only. */
   writeBytes?: typeof writeBytes;
   writeJson?: typeof writeJsonAtomically;
+  remove?: (path: string) => Promise<void>;
   /** Deterministic fault injection, never exposed through IPC. */
   checkpoint?: (
     phase: "parsed" | "staging" | "staged" | "writing" | "before-commit",
@@ -56,11 +57,15 @@ export interface ImportOptions {
 export function importError(code = "IMPORT_FAILED") {
   return new ApplicationError(
     code,
-    code === "IMPORT_CANCELLED"
-      ? "Import cancelled. Source and active project were preserved."
-      : "Import could not complete. Source and active project were preserved. Check the selected folders and import limits before retrying.",
+    code === "IMPORT_CLEANUP_REQUIRED"
+      ? "Import stopped, but temporary import data could not be removed. Preserve the interrupted folder and retry in a new empty destination. Source and active project were preserved."
+      : code === "IMPORT_CANCELLED"
+        ? "Import cancelled. Source and active project were preserved."
+        : "Import could not complete. Source and active project were preserved. Check the selected folders and import limits before retrying.",
   );
 }
+const removeImportPath = (path: string) =>
+  rm(path, { recursive: true, force: true });
 function check(signal: AbortSignal) {
   if (signal.aborted) throw importError("IMPORT_CANCELLED");
 }
@@ -107,6 +112,8 @@ export class StagedManuscriptImport {
     private readonly root: string,
     private readonly digest: string,
     readonly preview: ValidatedManuscript,
+    private readonly signal: AbortSignal,
+    private readonly remove: (path: string) => Promise<void>,
   ) {}
 
   static async inspect(
@@ -144,10 +151,17 @@ export class StagedManuscriptImport {
         root,
         createHash("sha256").update(bytes).digest("hex"),
         value,
+        options.signal,
+        options.remove ?? removeImportPath,
       );
     } catch (error) {
-      if (root)
-        await rm(root, { recursive: true, force: true }).catch(() => undefined);
+      if (root) {
+        try {
+          await (options.remove ?? removeImportPath)(root);
+        } catch {
+          throw importError("IMPORT_CLEANUP_REQUIRED");
+        }
+      }
       throw importError(
         options.signal.aborted
           ? "IMPORT_CANCELLED"
@@ -162,8 +176,10 @@ export class StagedManuscriptImport {
     this.used = true;
     try {
       await regularPath(this.root, true);
-      await rm(this.root, { recursive: true, force: true });
-    } catch {
+      await this.remove(this.root);
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT")
+        return;
       throw importError("IMPORT_CLEANUP_REQUIRED");
     }
   }
@@ -172,9 +188,14 @@ export class StagedManuscriptImport {
   async commit(
     destination: string,
     options: ImportOptions,
-  ): Promise<{ projectId: string }> {
+  ): Promise<{ projectId: string; warning?: string }> {
     if (this.used) throw importError("IMPORT_EXPIRED");
     this.used = true;
+    options = {
+      ...options,
+      signal: AbortSignal.any([this.signal, options.signal]),
+    };
+    const remove = options.remove ?? this.remove;
     let stage: string | undefined;
     let projectId = "";
     const published: string[] = [];
@@ -295,6 +316,13 @@ export class StagedManuscriptImport {
       for (const name of PROJECT_DIRECTORIES)
         await syncDirectory(join(stage, name));
       await syncDirectory(stage);
+      const stageName = basename(stage);
+      const destinationEntries = await readdir(destination);
+      if (
+        destinationEntries.length !== 1 ||
+        destinationEntries[0] !== stageName
+      )
+        throw importError("IMPORT_DESTINATION_INVALID");
       // Publish supporting data first. No authoritative manifest exists on failure/crash.
       for (const name of [...PROJECT_DIRECTORIES, "book.json", "format.json"]) {
         check(options.signal);
@@ -317,6 +345,19 @@ export class StagedManuscriptImport {
       }
       await syncDirectory(destination);
       await checkpoint(options, "before-commit");
+      const expected = new Set<string>([
+        stageName,
+        ...PROJECT_DIRECTORIES,
+        "book.json",
+        "format.json",
+      ]);
+      const finalEntries = await readdir(destination);
+      if (
+        finalEntries.length !== expected.size ||
+        finalEntries.some((entry) => !expected.has(entry))
+      )
+        throw importError("IMPORT_DESTINATION_INVALID");
+      check(options.signal);
       // Final exclusive publication is the commit linearization point. Cancellation
       // after this point cannot undo a complete project and returns success.
       await link(
@@ -324,26 +365,48 @@ export class StagedManuscriptImport {
         join(destination, "project.json"),
       );
     } catch (error) {
+      let cleanupFailed = false;
       for (const path of published.reverse())
-        await rm(path, { recursive: true, force: true }).catch(() => undefined);
+        await remove(path).catch(() => {
+          cleanupFailed = true;
+        });
       if (stage)
-        await rm(stage, { recursive: true, force: true }).catch(
-          () => undefined,
-        );
-      await this.discard().catch(() => undefined);
+        await remove(stage).catch(() => {
+          cleanupFailed = true;
+        });
+      await this.discard().catch(() => {
+        cleanupFailed = true;
+      });
       throw importError(
-        options.signal.aborted
-          ? "IMPORT_CANCELLED"
-          : error instanceof ApplicationError
-            ? error.code
-            : "IMPORT_FAILED",
+        cleanupFailed
+          ? "IMPORT_CLEANUP_REQUIRED"
+          : options.signal.aborted
+            ? "IMPORT_CANCELLED"
+            : error instanceof ApplicationError
+              ? error.code
+              : "IMPORT_FAILED",
       );
     }
     // Cleanup must never turn a completed publication into a reported failure.
-    await syncDirectory(destination).catch(() => undefined);
+    let cleanupFailed = false;
+    await syncDirectory(destination).catch(() => {
+      cleanupFailed = true;
+    });
     if (stage)
-      await rm(stage, { recursive: true, force: true }).catch(() => undefined);
-    await this.discard().catch(() => undefined);
-    return { projectId };
+      await remove(stage).catch(() => {
+        cleanupFailed = true;
+      });
+    await this.discard().catch(() => {
+      cleanupFailed = true;
+    });
+    return {
+      projectId,
+      ...(cleanupFailed
+        ? {
+            warning:
+              "The project was created, but import cleanup or directory flushing could not finish. Preserve the project and inspect retained staging before removing it.",
+          }
+        : {}),
+    };
   }
 }
