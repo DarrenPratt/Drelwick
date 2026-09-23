@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   ImportInspectRequestSchema,
+  ImportCommitRequestSchema,
+  type ImportReview,
   ImportTokenRequestSchema,
   type ImportInspection,
 } from "./import-contracts.js";
@@ -25,6 +27,7 @@ export type ChapterStatus = z.infer<typeof ChapterStatusSchema>;
 export const IPC = {
   IMPORT_INSPECT: "import:inspect",
   IMPORT_COMMIT: "import:commit",
+  IMPORT_OPEN: "import:open",
   IMPORT_CANCEL: "import:cancel",
   RECOVERY_LIST: "recovery:list",
   RECOVERY_RECOVER: "recovery:recover",
@@ -63,6 +66,7 @@ export const ApplicationMenuCommandSchema = z.enum([
   "close-project",
   "backup-project",
   "restore-project",
+  "import-manuscript",
 ]);
 export type ApplicationMenuCommand = z.infer<
   typeof ApplicationMenuCommandSchema
@@ -121,7 +125,8 @@ export type ProjectOperationResult<T> =
 
 export const IpcRequestSchemas = {
   [IPC.IMPORT_INSPECT]: ImportInspectRequestSchema,
-  [IPC.IMPORT_COMMIT]: ImportTokenRequestSchema,
+  [IPC.IMPORT_OPEN]: ImportTokenRequestSchema,
+  [IPC.IMPORT_COMMIT]: ImportCommitRequestSchema,
   [IPC.IMPORT_CANCEL]: ImportTokenRequestSchema,
   [IPC.IMAGE_IMPORT]: z
     .object({ projectId: z.string().uuid(), chapterId: z.string().uuid() })
@@ -194,8 +199,12 @@ export interface SarelApi {
     inspect(
       input: z.infer<typeof ImportInspectRequestSchema>,
     ): Promise<ProjectOperationResult<ImportInspection | null>>;
+    open(
+      operationId: string,
+    ): Promise<ProjectOperationResult<ProjectWorkspace | null>>;
     commit(
       operationId: string,
+      review: ImportReview,
     ): Promise<ProjectOperationResult<{ projectId: string } | null>>;
     cancel(operationId: string): Promise<ProjectOperationResult<null>>;
   };

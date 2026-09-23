@@ -7,6 +7,7 @@ import {
 import {
   StagedManuscriptImport,
   importError,
+  reviewImportedManuscript,
   DocxManuscriptImporter,
   DocxImportError,
   type IsolatedManuscriptImporter,
@@ -28,10 +29,17 @@ interface Dependencies {
   selectSource(window: BrowserWindow): Promise<string | null>;
   selectDestination(window: BrowserWindow): Promise<string | null>;
   blocked(): boolean;
+  authorizeOpen(
+    event: IpcMainInvokeEvent,
+    operationId: string,
+    path: string,
+    projectId: string,
+  ): void;
 }
 const defaults: Dependencies = {
   importers: new Map([["docx", new DocxManuscriptImporter()]]),
   blocked: () => false,
+  authorizeOpen: () => {},
   selectSource: async (window) => {
     const selection = await dialog.showOpenDialog(window, {
       title: "Inspect manuscript import",
@@ -196,7 +204,12 @@ export function registerImportHandlers(
               ? "IMPORT_CLEANUP_REQUIRED"
               : current.abort.signal.aborted
                 ? "IMPORT_CANCELLED"
-                : "IMPORT_FAILED",
+                : error instanceof ApplicationError &&
+                    ["IMPORT_INVALID", "IMPORT_DESTINATION_INVALID"].includes(
+                      error.code,
+                    )
+                  ? error.code
+                  : "IMPORT_FAILED",
           );
         }
       }
@@ -210,6 +223,22 @@ export function registerImportHandlers(
       )
         return failure("IMPORT_EXPIRED");
       if (current.busy) return failure("IMPORT_BUSY");
+      const commitRequest =
+        IpcRequestSchemas[IPC.IMPORT_COMMIT].safeParse(payload);
+      if (!commitRequest.success) return failure("IMPORT_INPUT_INVALID");
+      const review = commitRequest.data.review;
+      try {
+        reviewImportedManuscript(current.stage.preview, review);
+      } catch {
+        return {
+          ok: false,
+          error: {
+            code: "IMPORT_REVIEW_REQUIRED",
+            message:
+              "Review every conversion warning and choose valid chapter boundaries before importing.",
+          },
+        };
+      }
       current.busy = true;
       try {
         const destination = await services.selectDestination(getWindow()!);
@@ -220,6 +249,7 @@ export function registerImportHandlers(
           return { ok: true, value: null };
         }
         const { projectId, warning } = await current.stage.commit(destination, {
+          review,
           signal: current.abort.signal,
           checkpoint: async () => {
             if (!trusted(event)) current.abort.abort();
@@ -227,7 +257,9 @@ export function registerImportHandlers(
         });
         operation = undefined;
         detach();
-        // Never activate the project or replace the editor's dirty state.
+        // Authorize only the normal validation/open path, without activating it.
+        if (trusted(event) && !current.abort.signal.aborted)
+          services.authorizeOpen(event, current.id, destination, projectId);
         return {
           ok: true,
           value: { projectId },
@@ -247,7 +279,12 @@ export function registerImportHandlers(
             ? "IMPORT_CLEANUP_REQUIRED"
             : current.abort.signal.aborted
               ? "IMPORT_CANCELLED"
-              : "IMPORT_FAILED",
+              : error instanceof ApplicationError &&
+                  ["IMPORT_INVALID", "IMPORT_DESTINATION_INVALID"].includes(
+                    error.code,
+                  )
+                ? error.code
+                : "IMPORT_FAILED",
         );
       }
     });

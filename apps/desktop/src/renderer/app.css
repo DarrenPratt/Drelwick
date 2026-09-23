@@ -1629,3 +1629,34 @@ button svg {
 .manuscript-image.ProseMirror-selectednode {
   outline: 2px solid currentColor;
 }
+
+.import-dialog {
+  width: min(850px, 90vw);
+  max-height: 85vh;
+  overflow: auto;
+}
+.import-dialog fieldset {
+  min-width: 0;
+}
+.import-dialog li {
+  margin-block: 1rem;
+  overflow-wrap: anywhere;
+}
+.import-dialog input[type="checkbox"] {
+  width: auto;
+  margin-right: 0.5rem;
+}
+.import-dialog select {
+  max-width: 100%;
+}
+.import-dialog dt {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.import-dialog dd {
+  margin: 0 0 0.6rem;
+  white-space: pre-wrap;
+}
+.import-dialog details li {
+  white-space: pre-wrap;
+}

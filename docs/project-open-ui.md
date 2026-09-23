@@ -42,12 +42,13 @@ transport errors preserve the previous project. UI buttons prevent overlapping
 opens, and main also serializes open, creation and folder selection requests.
 An active New Project modal disables opening so its unsubmitted form is retained.
 
-There is currently no editable manuscript state or autosave service to flush.
-When autosave is integrated, switching must first resolve dirty/in-flight edits
-through the save/recovery workflow before replacing the current session; cancelled
-or failed saves must retain it. That integration must add tests for edits during
-an in-flight save and failed/cancelled saves. This issue does not simulate an
-autosave guarantee that the application cannot yet provide.
+Pending editor changes now use the shared autosave coordinator and revision-aware
+dirty state. Project navigation triggers saving and asks the author to retry after
+all changes are saved; failed saves keep edits and the current project. The
+[import workflow](import-review-ui.md) uses this guard, checks saving again before
+commit/open, and holds navigation while review is active. Its committed destination
+uses the same open handler through a trusted-frame, one-use import grant and an
+additional project identity check. Invalid imported projects never become active.
 
 ## Validation
 

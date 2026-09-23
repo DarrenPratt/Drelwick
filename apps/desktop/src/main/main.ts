@@ -112,6 +112,7 @@ void app.whenReady().then(async () => {
   stopHistory = projectHandlers.stopHistory;
   stopImports = registerImportHandlers(() => mainWindow, getRendererUrl(), {
     blocked: recoveryPending,
+    authorizeOpen: projectHandlers.authorizeImport,
   });
   registerRecoveryHandlers(
     () => mainWindow,

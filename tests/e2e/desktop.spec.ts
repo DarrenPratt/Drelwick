@@ -18,6 +18,7 @@ import {
   type ElectronApplication,
 } from "@playwright/test";
 import { copyFixture } from "../helpers/fixture-projects.js";
+import { docx, p, unicode } from "../../packages/core/test/fixtures/docx.js";
 import { syntheticImage } from "../helpers/synthetic-images.js";
 
 const repositoryRoot = resolve(
@@ -469,6 +470,158 @@ test("recovers a history version after a forced process shutdown", async () => {
       recursive: true,
       force: true,
       maxRetries: 5,
+      retryDelay: 200,
+    });
+  }
+});
+
+test("reviews DOCX warnings and chapter mapping, then imports, edits, saves and reopens exact Unicode text", async () => {
+  const scratch = await mkdtemp(join(tmpdir(), "sarel-docx-e2e-"));
+  let application: ElectronApplication | undefined;
+  const source = join(scratch, "novel.docx");
+  const destination = join(scratch, "imported");
+  const bytes = Buffer.from(
+    docx(
+      p("Preface") +
+        p("Chapter One", '<w:pStyle w:val="Heading1"/>') +
+        p(unicode) +
+        `<w:tbl><w:tr><w:tc>${p("Recovered table text")}</w:tc></w:tr></w:tbl>` +
+        p("Chapter Two", '<w:pStyle w:val="Heading1"/>') +
+        p("End."),
+    ),
+  );
+  try {
+    await writeFile(source, bytes);
+    await mkdir(destination);
+    const launched = await launchApplication(join(scratch, "user-data"));
+    application = launched.application;
+    const page = launched.page;
+    await page.context().setOffline(true);
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, source);
+    await page
+      .getByRole("button", { name: "Import manuscript", exact: true })
+      .click();
+    const preview = page.getByRole("dialog", { name: "Import manuscript" });
+    await expect(
+      preview.getByRole("heading", { name: "Imported metadata" }),
+    ).toBeVisible();
+    await expect(preview.getByLabel("Chapter 2 title")).toHaveValue(
+      "Chapter One",
+    );
+    await expect(preview.getByLabel("Chapter 3 title")).toHaveValue(
+      "Chapter Two",
+    );
+    const commit = preview.getByRole("button", {
+      name: "Choose destination and import",
+    });
+    await expect(commit).toBeDisabled();
+    await page.screenshot({ path: "test-results/import-preview.png" });
+    expect(await readdir(destination)).toEqual([]);
+    expect(await readFile(source)).toEqual(bytes);
+    await preview
+      .getByRole("button", { name: "Remove boundary before Chapter One" })
+      .click();
+    await preview.getByLabel("Start a chapter at block").fill("3");
+    await preview.getByRole("button", { name: "Add chapter boundary" }).click();
+    await preview.getByLabel("Chapter 2 title").fill("Mapped chapter");
+    const decisions = preview.getByRole("checkbox");
+    expect(await decisions.count()).toBeGreaterThan(0);
+    for (const decision of await decisions.all()) await decision.check();
+    await expect(commit).toBeEnabled();
+    // Native destination cancellation retains the same author-approved review.
+    await application.evaluate(({ dialog }) => {
+      dialog.showOpenDialog = async () => ({ canceled: true, filePaths: [] });
+    });
+    await commit.click();
+    await expect(commit).toBeEnabled();
+    await expect(preview).toBeVisible();
+    expect(await readdir(destination)).toEqual([]);
+    expect(await readFile(source)).toEqual(bytes);
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, destination);
+    await commit.click();
+    await expect(preview).not.toBeVisible();
+    const editor = page.locator(".ProseMirror");
+    await expect(editor).toBeEditable();
+    await expect(editor).toHaveText("PrefaceChapter One");
+    const chapters = page.locator(".chapter-select");
+    await expect(chapters).toHaveCount(3);
+    await chapters.nth(1).click();
+    await expect(editor).toHaveText(unicode + "Recovered table text");
+    await chapters.nth(2).click();
+    await expect(editor).toHaveText("Chapter TwoEnd.");
+    await editor.click();
+    await page.keyboard.press("ControlOrMeta+End");
+    await page.keyboard.type(" Edited after import.");
+    await page
+      .getByRole("button", { name: "Save chapter", exact: true })
+      .click();
+    await expect(page.getByLabel("Chapter save status")).toHaveText(
+      "All changes saved",
+    );
+    expect(await readFile(source)).toEqual(bytes);
+    await application.close();
+    application = undefined;
+    const restarted = await launchApplication(join(scratch, "user-data"));
+    application = restarted.application;
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, destination);
+    await restarted.page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    const reopenedEditor = restarted.page.locator(".ProseMirror");
+    const expected = [
+      "PrefaceChapter One",
+      unicode + "Recovered table text",
+      "Chapter TwoEnd. Edited after import.",
+    ];
+    for (let index = 0; index < expected.length; index++) {
+      await restarted.page.locator(".chapter-select").nth(index).click();
+      await expect(reopenedEditor).toHaveText(expected[index]!);
+    }
+    expect(await readFile(source)).toEqual(bytes);
+    // The native menu enters the same review and cancellation path with an active project.
+    await application.evaluate(({ dialog, Menu, BrowserWindow }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+      const item = Menu.getApplicationMenu()
+        ?.items.find((item) => item.label === "File")
+        ?.submenu?.items.find((item) =>
+          item.label.startsWith("Import manuscript"),
+        );
+      if (!item) throw new Error("Missing import menu");
+      item.click(undefined, BrowserWindow.getAllWindows()[0], {});
+    }, source);
+    await expect(
+      restarted.page.getByRole("heading", { name: "Proposed chapters" }),
+    ).toBeVisible();
+    await restarted.page
+      .getByRole("button", { name: "Cancel import", exact: true })
+      .click();
+    await expect(restarted.page.getByRole("dialog")).not.toBeVisible();
+    await expect(reopenedEditor).toHaveText(expected[2]!);
+    expect(await readFile(source)).toEqual(bytes);
+  } finally {
+    await application?.close();
+    await rm(scratch, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
       retryDelay: 200,
     });
   }

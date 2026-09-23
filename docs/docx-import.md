@@ -2,8 +2,8 @@
 
 Issue #115 implements the `docx` adapter for the [staged import API](manuscript-import.md).
 This is local CORE functionality. No Word installation, account, service, network
-or Pro package is used. The review/mapping interface and import menu remain #116;
-this issue supplies the callable desktop API, parser and proposed manuscript.
+or Pro package is used. The [review/mapping interface and import menu](import-review-ui.md) from #116
+let authors approve this parser's proposed manuscript before creating a project.
 
 ## Dependency decision
 
@@ -50,7 +50,9 @@ native source picker -> #114 bounded read -> isolated bundled DOCX parser
 ```
 
 Call `imports.inspect({ operationId, importer: "docx" })`, then separately
-`imports.commit(operationId)` or `imports.cancel(operationId)`. No new filesystem,
+`imports.commit(operationId, review)` or `imports.cancel(operationId)`.
+Desktop commit requires individual approval of every warning and valid chapter
+boundaries. After commit, `imports.open(operationId)` invokes normal validation/open. No new filesystem,
 ZIP, XML, parser-program or process API is exposed. The existing trusted-frame,
 operation-owner, startup-recovery and busy-operation checks remain in force.
 All parser output is untrusted, including diagnostics. `DocxImportError` permits

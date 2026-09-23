@@ -11,8 +11,9 @@ import type { SarelApi } from "@sarel/shared";
 const api: SarelApi = {
   imports: {
     inspect: (input) => ipcRenderer.invoke(IPC.IMPORT_INSPECT, input),
-    commit: (operationId) =>
-      ipcRenderer.invoke(IPC.IMPORT_COMMIT, { operationId }),
+    open: (operationId) => ipcRenderer.invoke(IPC.IMPORT_OPEN, { operationId }),
+    commit: (operationId, review) =>
+      ipcRenderer.invoke(IPC.IMPORT_COMMIT, { operationId, review }),
     cancel: (operationId) =>
       ipcRenderer.invoke(IPC.IMPORT_CANCEL, { operationId }),
   },

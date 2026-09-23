@@ -134,6 +134,31 @@ describe("preload API", () => {
     expect(invoke).toHaveBeenLastCalledWith("project:backup", {
       includeHistory: false,
     });
+    const review = {
+      boundaries: [{ block: 0, title: "Opening" }],
+      acceptedWarnings: [0],
+    };
+    await api.imports.inspect({
+      operationId: input.locationToken,
+      importer: "docx",
+    });
+    expect(invoke).toHaveBeenLastCalledWith("import:inspect", {
+      operationId: input.locationToken,
+      importer: "docx",
+    });
+    await api.imports.commit(input.locationToken, review);
+    expect(invoke).toHaveBeenLastCalledWith("import:commit", {
+      operationId: input.locationToken,
+      review,
+    });
+    await api.imports.open(input.locationToken);
+    expect(invoke).toHaveBeenLastCalledWith("import:open", {
+      operationId: input.locationToken,
+    });
+    await api.imports.cancel(input.locationToken);
+    expect(invoke).toHaveBeenLastCalledWith("import:cancel", {
+      operationId: input.locationToken,
+    });
     await api.project.restore();
     expect(invoke).toHaveBeenLastCalledWith("project:restore");
   });

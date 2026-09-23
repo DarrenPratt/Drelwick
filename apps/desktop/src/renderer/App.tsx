@@ -10,6 +10,7 @@ import {
   type ProjectWorkspace,
   type RecentProject,
 } from "@sarel/shared";
+import { ImportManuscriptDialog } from "./ImportManuscriptDialog.js";
 import { NewProjectDialog } from "./NewProjectDialog.js";
 import { Editor } from "./components/Editor.js";
 import { WorkspaceLayout } from "./components/WorkspaceLayout.js";
@@ -26,6 +27,7 @@ import {
 
 export function App() {
   const [demo, setDemo] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [project, setProject] = useState<ProjectWorkspace | null>(null);
   const [opening, setOpening] = useState(false);
@@ -73,6 +75,7 @@ export function App() {
   const autosave = useRef<AutosaveCoordinator | null>(null);
   const saveSource = useRef<"autosave" | "manual">("autosave");
   const changingDocument =
+    importing ||
     opening ||
     creatingChapter ||
     deletingChapter ||
@@ -492,6 +495,32 @@ export function App() {
     refreshRecents,
   ]);
 
+  const startImport = useCallback(() => {
+    if (
+      pending.current ||
+      creating ||
+      loadingRecents ||
+      (activeChapterId && !documentReady) ||
+      !canLeaveChapter()
+    )
+      return;
+    pending.current = true;
+    setError("");
+    setDemo(false);
+    setImporting(true);
+  }, [
+    creating,
+    loadingRecents,
+    activeChapterId,
+    documentReady,
+    canLeaveChapter,
+  ]);
+  const endImport = useCallback((message?: string) => {
+    pending.current = false;
+    setImporting(false);
+    if (message) setProjectMessage(message);
+  }, []);
+
   useEffect(() => {
     return window.sarel.onApplicationMenuCommand((command) => {
       if (command === "new-project") {
@@ -505,6 +534,8 @@ export function App() {
           return;
         setError("");
         setCreating(true);
+      } else if (command === "import-manuscript") {
+        startImport();
       } else if (command === "open-project") {
         void openExistingProject();
       } else if (command === "close-project") {
@@ -517,6 +548,7 @@ export function App() {
     });
   }, [
     canLeaveChapter,
+    startImport,
     backupCurrentProject,
     closeCurrentProject,
     creating,
@@ -687,6 +719,18 @@ export function App() {
             : opening
               ? "Opening project…"
               : "Open project"}
+      </button>
+      <button
+        disabled={
+          importing ||
+          opening ||
+          creating ||
+          loadingRecents ||
+          projectTask !== null
+        }
+        onClick={startImport}
+      >
+        Import manuscript
       </button>
     </div>
   );
@@ -1089,6 +1133,27 @@ export function App() {
             {recentProjects}
           </div>
         </main>
+      )}
+      {importing && (
+        <ImportManuscriptDialog
+          onCancel={endImport}
+          beforeOpen={async () => {
+            const saved = (await autosave.current?.flush()) ?? true;
+            return (
+              saved &&
+              !savePending.current &&
+              !isDocumentDirty(documentRef.current)
+            );
+          }}
+          onOpened={(opened, warning) => {
+            setProject(opened);
+            setDocumentSession((session) => session + 1);
+            setActiveChapterId(opened.chapters[0]?.id ?? null);
+            endImport();
+            if (warning) setRecentError(warning);
+            void refreshRecents();
+          }}
+        />
       )}
       {creating && (
         <NewProjectDialog
