@@ -1,9 +1,8 @@
 # Staged local manuscript import
 
 Issue #114 is CORE infrastructure. The desktop registry now includes the
-[`docx` adapter](docx-import.md) from #115. Text/Markdown/HTML (#117) and the
-preview/mapping UI (#116) remain separate work. Unknown adapter IDs return
-`IMPORT_UNSUPPORTED`. There is no new import menu yet.
+[`docx` adapter](docx-import.md) from #115. The [preview/mapping workflow](import-review-ui.md) from #116 uses this API.
+Text/Markdown/HTML remains #117. Unknown adapter IDs return `IMPORT_UNSUPPORTED`.
 No account, hosted conversion, Pro package or network connection is required.
 
 ## Trust and lifecycle
@@ -33,7 +32,9 @@ No imported filename becomes a path. Asset UUIDs are validated; chapter/project
 identifiers and timestamps are newly generated during commit.
 
 The renderer can call `imports.inspect({ operationId, importer })`,
-`imports.cancel(operationId)` and `imports.commit(operationId)`. The operation ID
+`imports.cancel(operationId)`, `imports.commit(operationId, review)` and
+`imports.open(operationId)`. Review contains bounded chapter-start indices/titles
+and individual warning approvals; it cannot replace manuscript content. The operation ID
 is a UUID selected before inspection so cancellation is possible while parsing.
 The ID is bound to the authorized main frame, not a transferable filesystem grant.
 One operation is allowed at a time. Main checks the trusted window/frame/URL and
@@ -46,7 +47,9 @@ Inspection never creates an authoritative project or changes the active workspac
 Commit asks for a destination separately. Dismissing that picker retains the
 preview. A completed commit returns the new project ID and does not activate the
 project, replace dirty editor state or update the active project's history.
-Later UI work must explicitly open the new project through the existing workflow.
+The review UI explicitly opens the committed project through a one-use, frame-owned
+destination/identity grant in the existing project-open handler. That handler validates
+the actual committed project before activation. See [review and decisions](import-review-ui.md).
 
 ## Parser execution
 

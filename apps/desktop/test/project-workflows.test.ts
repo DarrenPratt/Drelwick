@@ -47,7 +47,8 @@ const menuListeners = new Set<
       | "open-project"
       | "close-project"
       | "backup-project"
-      | "restore-project",
+      | "restore-project"
+      | "import-manuscript",
   ) => void
 >();
 
@@ -99,7 +100,12 @@ beforeEach(async () => {
   );
   window.sarel = {
     reportRendererError: vi.fn(),
-    imports: { inspect: vi.fn(), commit: vi.fn(), cancel: vi.fn() },
+    imports: {
+      inspect: vi.fn(),
+      commit: vi.fn(),
+      cancel: vi.fn(),
+      open: vi.fn(),
+    },
     recovery: {
       list: vi.fn(),
       recover: vi.fn(),
@@ -409,7 +415,8 @@ describe("existing project workflow", () => {
         | "open-project"
         | "close-project"
         | "backup-project"
-        | "restore-project",
+        | "restore-project"
+        | "import-manuscript",
     ) => {
       await act(async () => {
         for (const listener of menuListeners) listener(command);
@@ -957,6 +964,24 @@ describe("chapter editor persistence", () => {
     ).toContain("Second");
     expect(saveStatus()).toBe("All changes saved");
   });
+  it("blocks welcome and native imports when saving dirty content fails", async () => {
+    mockImport();
+    await openChapter();
+    await editText("Unsaved import guard");
+    saveChapter.mockResolvedValue({
+      ok: false,
+      error: { code: "CHAPTER_SAVE_FAILED", message: "Retry saving" },
+    });
+    await click("Import manuscript");
+    await act(async () => {
+      for (const listener of menuListeners) listener("import-manuscript");
+    });
+    expect(saveChapter).toHaveBeenCalled();
+    expect(window.sarel.imports.inspect).not.toHaveBeenCalled();
+    expect(window.sarel.imports.open).not.toHaveBeenCalled();
+    expect(editor().getText()).toBe("Unsaved import guard");
+    expect(saveStatus()).toBe("Unsaved changes");
+  });
   it("protects dirty content from creation, active deletion and opening another project", async () => {
     await openChapter();
     await editText();
@@ -1245,4 +1270,301 @@ describe("chapter editor persistence", () => {
       expect(saveChapter).toHaveBeenCalledTimes(1);
     });
   });
+});
+
+const importPreview = {
+  operationId: selected.token,
+  metadata: { title: "Imported novel", author: "Author", language: "en" },
+  chapters: [
+    {
+      title: "One",
+      type: "chapter",
+      content: {
+        type: "doc",
+        content: [
+          { type: "paragraph", content: [{ type: "text", text: "First" }] },
+        ],
+      },
+    },
+    {
+      title: "Two",
+      type: "chapter",
+      content: {
+        type: "doc",
+        content: [
+          { type: "paragraph", content: [{ type: "text", text: "Second" }] },
+        ],
+      },
+    },
+  ],
+  assets: [],
+  warnings: [
+    {
+      code: "DOCX_TABLE",
+      message: "Table recovered as text.",
+      location: { label: "Main document", chapter: 0, block: 0 },
+    },
+  ],
+};
+function mockImport() {
+  vi.mocked(window.sarel.imports.inspect).mockResolvedValue({
+    ok: true,
+    value: importPreview,
+  });
+  vi.mocked(window.sarel.imports.cancel).mockResolvedValue({
+    ok: true,
+    value: null,
+  });
+  vi.mocked(window.sarel.imports.commit).mockResolvedValue({
+    ok: true,
+    value: { projectId: selected.token },
+  });
+  vi.mocked(window.sarel.imports.open).mockResolvedValue({
+    ok: true,
+    value: { ...workspace, title: "Imported novel" },
+  });
+}
+async function approveWarning() {
+  await act(async () =>
+    container
+      .querySelector<HTMLInputElement>('input[type="checkbox"]')!
+      .click(),
+  );
+}
+it("requires a decision, maps chapters and opens only after commit through the welcome workflow", async () => {
+  mockImport();
+  await click("Import manuscript");
+  expect(container.textContent).toContain("Imported novel");
+  expect(container.textContent).toContain("Main document");
+  expect(container.textContent).toContain("Table recovered as text");
+  expect(button("Choose destination and import").disabled).toBe(true);
+  await click("Choose destination and import");
+  expect(window.sarel.imports.commit).not.toHaveBeenCalled();
+  await approveWarning();
+  await click("Remove boundary before Two");
+  await click("Choose destination and import");
+  expect(window.sarel.imports.commit).toHaveBeenCalledWith(expect.any(String), {
+    boundaries: [{ block: 0, title: "One" }],
+    acceptedWarnings: [0],
+  });
+  expect(window.sarel.imports.open).toHaveBeenCalledOnce();
+  expect(container.querySelector("dialog")).toBeNull();
+  expect(container.textContent).toContain("Imported novel");
+});
+it("uses the same native workflow and preserves the active project after preview cancellation", async () => {
+  mockImport();
+  await click("Open project");
+  await act(async () => {
+    for (const listener of menuListeners) listener("import-manuscript");
+  });
+  expect(window.sarel.imports.inspect).toHaveBeenCalledOnce();
+  await click("Cancel import");
+  expect(window.sarel.imports.cancel).toHaveBeenCalledOnce();
+  expect(window.sarel.imports.commit).not.toHaveBeenCalled();
+  expect(container.querySelector("dialog")).toBeNull();
+  expect(container.textContent).toContain("Example");
+});
+it("retains review on destination cancellation and never opens a failed commit", async () => {
+  mockImport();
+  await click("Open project");
+  await click("Import manuscript");
+  await approveWarning();
+  vi.mocked(window.sarel.imports.commit).mockResolvedValueOnce({
+    ok: true,
+    value: null,
+  });
+  await click("Choose destination and import");
+  expect(container.querySelector("dialog")).not.toBeNull();
+  expect(window.sarel.imports.open).not.toHaveBeenCalled();
+  vi.mocked(window.sarel.imports.commit).mockResolvedValueOnce({
+    ok: false,
+    error: {
+      code: "IMPORT_FAILED",
+      message: "Write failed; source preserved.",
+    },
+  });
+  await click("Choose destination and import");
+  expect(window.sarel.imports.open).not.toHaveBeenCalled();
+  expect(container.textContent).toContain("Write failed");
+  expect(container.textContent).toContain("Example");
+  await click("Close import");
+});
+it("keeps the old project if committed project validation fails", async () => {
+  mockImport();
+  await click("Open project");
+  vi.mocked(window.sarel.imports.open).mockResolvedValueOnce({
+    ok: false,
+    error: {
+      code: "PROJECT_SCHEMA_INVALID",
+      message: "Invalid project format.",
+    },
+  });
+  await click("Import manuscript");
+  await approveWarning();
+  await click("Choose destination and import");
+  expect(container.textContent).toContain("Invalid project format");
+  expect(container.textContent).toContain("Example");
+  expect(button("Retry opening imported project").disabled).toBe(false);
+  await click("Close import");
+});
+it("waits for privileged inspection cancellation to settle", async () => {
+  mockImport();
+  let finish!: (
+    value: Awaited<ReturnType<SarelApi["imports"]["inspect"]>>,
+  ) => void;
+  vi.mocked(window.sarel.imports.inspect).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  await click("Import manuscript");
+  await click("Cancel import");
+  expect(window.sarel.imports.cancel).toHaveBeenCalledOnce();
+  expect(container.querySelector("dialog")).not.toBeNull();
+  await act(async () =>
+    finish({
+      ok: false,
+      error: { code: "IMPORT_CANCELLED", message: "Cancelled" },
+    }),
+  );
+  expect(container.querySelector("dialog")).toBeNull();
+  expect(window.sarel.imports.open).not.toHaveBeenCalled();
+});
+
+it("does not hide a completed preview until privileged cancellation acknowledges cleanup", async () => {
+  mockImport();
+  let finishInspection!: (
+    value: Awaited<ReturnType<SarelApi["imports"]["inspect"]>>,
+  ) => void;
+  let finishCancellation!: (
+    value: Awaited<ReturnType<SarelApi["imports"]["cancel"]>>,
+  ) => void;
+  vi.mocked(window.sarel.imports.inspect).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finishInspection = resolve;
+      }),
+  );
+  vi.mocked(window.sarel.imports.cancel).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finishCancellation = resolve;
+      }),
+  );
+  await click("Import manuscript");
+  await click("Cancel import");
+  await act(async () => finishInspection({ ok: true, value: importPreview }));
+  expect(container.querySelector("dialog")).not.toBeNull();
+  await act(async () =>
+    finishCancellation({
+      ok: false,
+      error: {
+        code: "IMPORT_CLEANUP_REQUIRED",
+        message: "Preserve the interrupted folder.",
+      },
+    }),
+  );
+  expect(container.textContent).toContain("Preserve the interrupted folder");
+  expect(container.querySelector("dialog")).not.toBeNull();
+  await click("Close import");
+  expect(window.sarel.imports.open).not.toHaveBeenCalled();
+});
+it("retains a project completed before late cancellation without opening it", async () => {
+  mockImport();
+  let finish!: (
+    value: Awaited<ReturnType<SarelApi["imports"]["commit"]>>,
+  ) => void;
+  vi.mocked(window.sarel.imports.commit).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  await click("Open project");
+  await click("Import manuscript");
+  await approveWarning();
+  await click("Choose destination and import");
+  await click("Cancel import");
+  await act(async () =>
+    finish({ ok: true, value: { projectId: selected.token } }),
+  );
+  expect(window.sarel.imports.open).not.toHaveBeenCalled();
+  expect(container.querySelector("dialog")).toBeNull();
+  expect(container.textContent).toContain(
+    "Import finished before cancellation",
+  );
+  expect(container.textContent).toContain("Example");
+});
+it("explains blocked tracked changes and prevents commit", async () => {
+  mockImport();
+  vi.mocked(window.sarel.imports.inspect).mockResolvedValueOnce({
+    ok: false,
+    error: {
+      code: "DOCX_REVISIONS",
+      message:
+        "Tracked changes are not supported. Resolve revisions in a copy first.",
+    },
+  });
+  await click("Import manuscript");
+  expect(container.textContent).toContain("Resolve revisions in a copy");
+  expect(button("Choose destination and import").disabled).toBe(true);
+  expect(window.sarel.imports.commit).not.toHaveBeenCalled();
+  await click("Close import");
+});
+
+it("shows semantic line and scene breaks in the reading-order preview", async () => {
+  mockImport();
+  vi.mocked(window.sarel.imports.inspect).mockResolvedValueOnce({
+    ok: true,
+    value: {
+      ...importPreview,
+      chapters: [
+        {
+          title: "One",
+          type: "chapter",
+          content: {
+            type: "doc",
+            content: [
+              {
+                type: "paragraph",
+                content: [
+                  { type: "text", text: "Line one" },
+                  { type: "hardBreak" },
+                  { type: "text", text: "Line two" },
+                ],
+              },
+              { type: "sceneBreak" },
+            ],
+          },
+        },
+      ],
+    },
+  });
+  await click("Import manuscript");
+  expect(container.querySelector("details ol li")?.textContent).toBe(
+    "Line one\nLine two",
+  );
+  expect(container.querySelectorAll("details ol li")[1]?.textContent).toBe(
+    "[Scene break]",
+  );
+  await click("Cancel import");
+});
+
+it("allows cancellation to be retried after a transport failure during cancelled inspection", async () => {
+  mockImport();
+  let fail!: (error: Error) => void;
+  vi.mocked(window.sarel.imports.inspect).mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        fail = reject;
+      }),
+  );
+  await click("Import manuscript");
+  await click("Cancel import");
+  await act(async () => fail(new Error("transport failure")));
+  expect(container.textContent).toContain("Unable to inspect");
+  await click("Cancel import");
+  expect(window.sarel.imports.cancel).toHaveBeenCalledTimes(2);
+  expect(container.querySelector("dialog")).toBeNull();
 });

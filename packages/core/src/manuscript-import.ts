@@ -12,7 +12,11 @@ import {
 } from "node:fs/promises";
 import { basename, dirname, join, parse } from "node:path";
 import { tmpdir } from "node:os";
-import { ApplicationError } from "@sarel/shared";
+import {
+  ApplicationError,
+  ImportReviewSchema,
+  type ImportReview,
+} from "@sarel/shared";
 import {
   IMPORT_LIMITS,
   validateImportedManuscript,
@@ -44,6 +48,7 @@ export interface ManuscriptImporter {
 }
 export interface ImportOptions {
   signal: AbortSignal;
+  review?: ImportReview;
   /** Privileged temporary-root override for isolated filesystem tests. */
   temporaryRoot?: string;
   /** Filesystem failure injection; privileged callers only. */
@@ -56,15 +61,32 @@ export interface ImportOptions {
   ) => Promise<void>;
 }
 export function importError(code = "IMPORT_FAILED") {
+  const messages: Record<string, string> = {
+    IMPORT_CLEANUP_REQUIRED:
+      "Import stopped, but temporary import data could not be removed. Preserve the interrupted folder and retry in a new empty destination. Source and active project were preserved.",
+    IMPORT_CANCELLED:
+      "Import cancelled. Source and active project were preserved.",
+    IMPORT_DESTINATION_INVALID:
+      "Choose a new empty folder outside any existing project. The selected folder was not overwritten; inspect the DOCX again to retry.",
+    IMPORT_INVALID:
+      "The conversion result is invalid or exceeds import limits. No project was opened. Try a supported DOCX copy.",
+    IMPORT_EXPIRED:
+      "This import review is no longer available. Inspect the DOCX again before importing.",
+    IMPORT_BUSY:
+      "Wait for the current import operation to finish or cancel it.",
+    IMPORT_ACCESS_DENIED: "Import access is not permitted from this window.",
+    IMPORT_INPUT_INVALID:
+      "The import request is invalid. Review the chapter boundaries and conversion decisions.",
+    IMPORT_UNSUPPORTED:
+      "This manuscript format is not supported. Choose a DOCX file.",
+  };
   return new ApplicationError(
     code,
-    code === "IMPORT_CLEANUP_REQUIRED"
-      ? "Import stopped, but temporary import data could not be removed. Preserve the interrupted folder and retry in a new empty destination. Source and active project were preserved."
-      : code === "IMPORT_CANCELLED"
-        ? "Import cancelled. Source and active project were preserved."
-        : "Import could not complete. Source and active project were preserved. Check the selected folders and import limits before retrying.",
+    messages[code] ??
+      "Import could not complete. Source and active project were preserved. Check the selected folders and import limits before retrying.",
   );
 }
+
 const removeImportPath = (path: string) =>
   rm(path, { recursive: true, force: true });
 function check(signal: AbortSignal) {
@@ -236,9 +258,12 @@ export class StagedManuscriptImport {
         !("manuscript" in staged)
       )
         throw importError("IMPORT_INVALID");
-      const value = validateImportedManuscript(
+      const original = validateImportedManuscript(
         JSON.stringify(staged.manuscript),
       );
+      const value = options.review
+        ? reviewImportedManuscript(original, options.review)
+        : original;
       await validateAssets(value, options.signal);
       // A stage inside the destination keeps all subsequent renames on one filesystem.
       stage = join(destination, `.sarel-import-${randomUUID()}`);
@@ -412,4 +437,71 @@ export class StagedManuscriptImport {
         : {}),
     };
   }
+}
+
+/** Partition the immutable ordered blocks. No renderer-supplied prose is accepted. */
+export function reviewImportedManuscript(
+  manuscript: ValidatedManuscript,
+  input: ImportReview,
+): ValidatedManuscript {
+  const result = ImportReviewSchema.safeParse(input);
+  const invalid = () =>
+    new ApplicationError(
+      "IMPORT_REVIEW_REQUIRED",
+      "Review every conversion warning and choose valid chapter boundaries before importing.",
+    );
+  if (!result.success) throw invalid();
+  const { boundaries, acceptedWarnings } = result.data;
+  const accepted = new Set(acceptedWarnings);
+  if (
+    accepted.size !== acceptedWarnings.length ||
+    accepted.size !== manuscript.warnings.length ||
+    manuscript.warnings.some((_, index) => !accepted.has(index))
+  )
+    throw invalid();
+  const blocks = manuscript.chapters.flatMap(
+    (chapter) => chapter.content.content ?? [],
+  );
+  if (
+    boundaries[0]?.block !== 0 ||
+    boundaries.some(
+      (boundary, index) =>
+        boundary.block >= Math.max(1, blocks.length) ||
+        (index > 0 && boundary.block <= boundaries[index - 1]!.block),
+    )
+  )
+    throw invalid();
+  let offset = 0;
+  const starts = manuscript.chapters.map((chapter) => {
+    const start = offset;
+    offset += chapter.content.content?.length ?? 0;
+    return start;
+  });
+  const mappedChapter = (block: number) =>
+    boundaries.filter((boundary) => boundary.block <= block).length - 1;
+  return validateImportedManuscript(
+    JSON.stringify({
+      ...manuscript,
+      chapters: boundaries.map((boundary, index) => ({
+        title: boundary.title,
+        type: manuscript.chapters[
+          starts.filter((start) => start <= boundary.block).length - 1
+        ]!.type,
+        content: {
+          type: "doc",
+          content: blocks.slice(boundary.block, boundaries[index + 1]?.block),
+        },
+      })),
+      // Warning labels/block numbers continue to describe the source, not edited chapter numbering.
+      warnings: manuscript.warnings.map((warning) => ({
+        ...warning,
+        location: {
+          ...warning.location,
+          ...(warning.location.chapter === undefined
+            ? {}
+            : { chapter: mappedChapter(starts[warning.location.chapter]!) }),
+        },
+      })),
+    }),
+  );
 }

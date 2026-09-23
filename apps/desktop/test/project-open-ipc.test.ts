@@ -68,7 +68,7 @@ function setup(useMigration = false) {
     warn: vi.fn(),
     error: vi.fn(),
   } satisfies SafeLogger;
-  registerProjectHandlers(() => window, rendererUrl, {
+  const handlers = registerProjectHandlers(() => window, rendererUrl, {
     ...(useMigration ? {} : { open }),
     logger,
   });
@@ -85,7 +85,7 @@ function setup(useMigration = false) {
     ) => Promise<ProjectOperationResult<ProjectWorkspace | null>>;
     return handler(source, payload);
   };
-  return { frame, event, window, open, invoke, logger };
+  return { frame, event, window, open, invoke, logger, handlers };
 }
 
 async function fixture() {
@@ -377,4 +377,84 @@ describe("existing project IPC", () => {
     });
     expect(open).not.toHaveBeenCalled();
   });
+});
+
+it("opens only an owned committed import grant through normal validation, and consumes it", async () => {
+  const f = setup();
+  const project = await fixture();
+  const operationId = createUuid();
+  expect(
+    await f.invoke({ operationId }, f.event, IPC.IMPORT_OPEN),
+  ).toMatchObject({ ok: false });
+  f.handlers.authorizeImport(
+    f.event,
+    operationId,
+    project.path,
+    project.project.projectId,
+  );
+  expect(
+    await f.invoke(
+      { operationId, path: project.path },
+      f.event,
+      IPC.IMPORT_OPEN,
+    ),
+  ).toMatchObject({ ok: false });
+  expect(
+    await f.invoke(
+      { operationId },
+      { ...f.event, senderFrame: { url: rendererUrl } } as IpcMainInvokeEvent,
+      IPC.IMPORT_OPEN,
+    ),
+  ).toMatchObject({ ok: false });
+  expect(f.open).not.toHaveBeenCalled();
+  expect(
+    await f.invoke({ operationId }, f.event, IPC.IMPORT_OPEN),
+  ).toMatchObject({
+    ok: true,
+    value: { projectId: project.project.projectId },
+  });
+  expect(f.open).toHaveBeenCalledExactlyOnceWith(project.path);
+  expect(showOpenDialog).not.toHaveBeenCalled();
+  expect(
+    await f.invoke({ operationId }, f.event, IPC.IMPORT_OPEN),
+  ).toMatchObject({ ok: false });
+  await f.handlers.stopHistory();
+});
+it("preserves the active project after post-commit validation or identity failure", async () => {
+  const f = setup();
+  const previous = await fixture();
+  await f.invoke();
+  const imported = await fixture();
+  const operationId = createUuid();
+  f.handlers.authorizeImport(f.event, operationId, imported.path, createUuid());
+  expect(
+    await f.invoke({ operationId }, f.event, IPC.IMPORT_OPEN),
+  ).toMatchObject({ ok: false, error: { code: "IMPORT_INVALID" } });
+  f.handlers.authorizeImport(
+    f.event,
+    operationId,
+    imported.path,
+    imported.project.projectId,
+  );
+  await writeFile(join(imported.path, "book.json"), "invalid JSON");
+  expect(
+    await f.invoke({ operationId }, f.event, IPC.IMPORT_OPEN),
+  ).toMatchObject({ ok: false, error: { code: "PROJECT_JSON_INVALID" } });
+  expect(
+    await f.invoke(
+      { title: "Still in previous project" },
+      f.event,
+      IPC.CHAPTER_CREATE,
+    ),
+  ).toMatchObject({
+    ok: true,
+    value: { projectId: previous.project.projectId },
+  });
+  expect((await openProject(previous.path)).chapters[0]?.title).toBe(
+    "Still in previous project",
+  );
+  expect(await readFile(join(imported.path, "book.json"), "utf8")).toBe(
+    "invalid JSON",
+  );
+  await f.handlers.stopHistory();
 });

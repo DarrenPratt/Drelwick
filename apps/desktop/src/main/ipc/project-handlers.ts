@@ -217,6 +217,12 @@ export function registerProjectHandlers(
   rendererUrl: string,
   overrides: Partial<Dependencies> = {},
 ): {
+  authorizeImport(
+    event: IpcMainInvokeEvent,
+    operationId: string,
+    path: string,
+    projectId: string,
+  ): void;
   settleHistory(): Promise<void>;
   stopHistory(): Promise<void>;
 } {
@@ -316,7 +322,19 @@ export function registerProjectHandlers(
     });
   }
 
-  for (const channel of [IPC.PROJECT_OPEN, IPC.RECENT_OPEN] as const)
+  let imported:
+    | {
+        operationId: string;
+        owner: IpcMainInvokeEvent["senderFrame"];
+        path: string;
+        projectId: string;
+      }
+    | undefined;
+  for (const channel of [
+    IPC.PROJECT_OPEN,
+    IPC.RECENT_OPEN,
+    IPC.IMPORT_OPEN,
+  ] as const)
     ipcMain.handle(
       channel,
       async (
@@ -349,8 +367,21 @@ export function registerProjectHandlers(
         busy = true;
         const startedAt = Date.now();
         try {
+          const grant =
+            channel === IPC.IMPORT_OPEN &&
+            parsed.data &&
+            "operationId" in parsed.data &&
+            imported?.operationId === parsed.data.operationId &&
+            imported.owner === event.senderFrame
+              ? imported
+              : undefined;
+          if (channel === IPC.IMPORT_OPEN && !grant)
+            return failure(
+              "IMPORT_EXPIRED",
+              "This import can no longer be opened automatically. Use Open project to validate its folder.",
+            );
           const recent =
-            channel === IPC.RECENT_OPEN && parsed.data
+            channel === IPC.RECENT_OPEN && parsed.data && "id" in parsed.data
               ? await services.recents?.find(parsed.data.id)
               : undefined;
           if (channel === IPC.RECENT_OPEN && !recent)
@@ -358,9 +389,11 @@ export function registerProjectHandlers(
               "RECENT_NOT_FOUND",
               "This recent entry is no longer available. Use Open project to choose its folder.",
             );
-          const path = recent
-            ? recent.path
-            : await services.selectExistingFolder(window);
+          const path = grant
+            ? grant.path
+            : recent
+              ? recent.path
+              : await services.selectExistingFolder(window);
           if (!trusted(event))
             return failure(
               "PROJECT_ACCESS_DENIED",
@@ -374,12 +407,18 @@ export function registerProjectHandlers(
               "Project window changed. Open the project again.",
             );
           const opened = await services.open(path);
+          if (grant && opened.project.projectId !== grant.projectId)
+            return failure(
+              "IMPORT_INVALID",
+              "The imported project identity changed. Preserve its folder for recovery; the current project remains open.",
+            );
           if (!trusted(event))
             return failure(
               "PROJECT_ACCESS_DENIED",
               "Project window changed. Open the project again.",
             );
           if (activeProjectPath) await history.closeProject(activeProjectPath);
+          if (grant) imported = undefined;
           location = undefined;
           activeProjectPath = opened.projectPath;
           activeProjectId = opened.project.projectId;
@@ -1330,6 +1369,15 @@ export function registerProjectHandlers(
   );
 
   return {
+    authorizeImport(
+      event: IpcMainInvokeEvent,
+      operationId: string,
+      path: string,
+      projectId: string,
+    ) {
+      if (trusted(event))
+        imported = { operationId, owner: event.senderFrame, path, projectId };
+    },
     settleHistory: () => history.settleAll(),
     stopHistory: () => history.shutdown(),
   };

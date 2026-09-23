@@ -46,6 +46,7 @@ it.each(["win32", "darwin", "linux"] as const)(
         ? [
             "New Project",
             "Open Project",
+            "Import manuscript…",
             undefined,
             "Save",
             undefined,
@@ -57,6 +58,7 @@ it.each(["win32", "darwin", "linux"] as const)(
         : [
             "New Project",
             "Open Project",
+            "Import manuscript…",
             undefined,
             "Save",
             undefined,
@@ -79,6 +81,7 @@ it.each(["win32", "darwin", "linux"] as const)(
     const [
       newProject,
       openProject,
+      importManuscript,
       ,
       save,
       ,
@@ -99,6 +102,12 @@ it.each(["win32", "darwin", "linux"] as const)(
     expect(send).toHaveBeenLastCalledWith(
       APPLICATION_MENU_COMMAND_CHANNEL,
       "open-project",
+    );
+    expect(importManuscript?.accelerator).toBe("CommandOrControl+Shift+I");
+    importManuscript?.click!({} as MenuItem, window, {});
+    expect(send).toHaveBeenLastCalledWith(
+      APPLICATION_MENU_COMMAND_CHANNEL,
+      "import-manuscript",
     );
     save?.click!({} as MenuItem, window, {});
     expect(send).toHaveBeenLastCalledWith(SAVE_COMMAND_CHANNEL);

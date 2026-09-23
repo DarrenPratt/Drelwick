@@ -16,7 +16,8 @@ function sendCommand(
     | "open-project"
     | "close-project"
     | "backup-project"
-    | "restore-project",
+    | "restore-project"
+    | "import-manuscript",
 ): void {
   if (!window || window.isDestroyed()) return;
   BrowserWindow.fromId(window.id)?.webContents.send(
@@ -41,6 +42,11 @@ export function installApplicationMenu(platform = process.platform): void {
           label: "Open Project",
           accelerator: "CommandOrControl+O",
           click: (_item, window) => sendCommand(window, "open-project"),
+        },
+        {
+          label: "Import manuscript…",
+          accelerator: "CommandOrControl+Shift+I",
+          click: (_item, window) => sendCommand(window, "import-manuscript"),
         },
         { type: "separator" },
         {
