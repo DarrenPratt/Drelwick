@@ -83,7 +83,7 @@ export function ImportManuscriptDialog({
     started.current = true;
     pending.current = true;
     void window.sarel.imports
-      .inspect({ operationId: operationId.current, importer: "docx" })
+      .inspect({ operationId: operationId.current, importer: "auto" })
       .then(async (result) => {
         if (!result.ok) {
           if (cancelled.current && result.error.code === "IMPORT_CANCELLED") {
@@ -250,7 +250,7 @@ export function ImportManuscriptDialog({
       <h2 id="import-title">Import manuscript</h2>
       <p>
         Review the semantic conversion before creating a project. Your source
-        DOCX stays unchanged.
+        Source manuscript stays unchanged.
       </p>
       {status && (
         <p role="status">

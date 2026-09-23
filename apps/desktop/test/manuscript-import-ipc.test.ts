@@ -25,16 +25,135 @@ import {
   createProject,
   openProject,
 } from "@sarel/core";
-const { handle } = vi.hoisted(() => ({ handle: vi.fn() }));
-vi.mock("electron", () => ({ ipcMain: { handle }, dialog: {} }));
+const { handle, showMessageBox, showOpenDialog } = vi.hoisted(() => ({
+  handle: vi.fn(),
+  showMessageBox: vi.fn(),
+  showOpenDialog: vi.fn(),
+}));
+vi.mock("electron", () => ({
+  ipcMain: { handle },
+  dialog: { showMessageBox, showOpenDialog },
+}));
 import { registerProjectHandlers } from "../src/main/ipc/project-handlers.js";
 import { registerImportHandlers } from "../src/main/ipc/import-handlers.js";
 import { mixedNovel, docx } from "../../../packages/core/test/fixtures/docx.js";
+import { syntheticImage } from "../../../tests/helpers/synthetic-images.js";
 
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
+  showMessageBox.mockReset();
+  showOpenDialog.mockReset();
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
+
+it.each(["txt", "md", "markdown", "html", "htm", "DOCX"])(
+  "auto dispatch %s uses the same review, commit and validated open",
+  async (extension) => {
+    const f = await setup(undefined, true);
+    const source = join(f.root, `novel.${extension}`);
+    const bytes =
+      extension === "DOCX"
+        ? Buffer.from(mixedNovel())
+        : Buffer.from(
+            extension === "html" || extension === "htm"
+              ? "<h1>One</h1><p>Unicode 海 🌱</p>"
+              : extension === "txt"
+                ? "One\n\nUnicode 海 🌱"
+                : "# One\n\nUnicode 海 🌱",
+          );
+    await writeFile(source, bytes);
+    f.picker.mockResolvedValue(source);
+    const projects = registerProjectHandlers(() => f.window, f.frame.url);
+    cleanups.push(projects.stopHistory);
+    f.authorizeOpen.mockImplementation(projects.authorizeImport);
+    const result = await f.invoke(IPC.IMPORT_INSPECT, {
+      operationId: f.operationId,
+      importer: "auto",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("inspect failed");
+    const preview = result.value as ImportInspection;
+    expect(JSON.stringify(preview)).not.toContain(f.root);
+    const review: ImportReview = {
+      boundaries: [{ block: 0, title: "Reviewed chapter" }],
+      acceptedWarnings: preview.warnings.map((_, i) => i),
+    };
+    expect(
+      await f.invoke(IPC.IMPORT_COMMIT, {
+        operationId: f.operationId,
+        review: { ...review, acceptedWarnings: [] },
+      }),
+    ).toMatchObject({ ok: false, error: { code: "IMPORT_REVIEW_REQUIRED" } });
+    expect(
+      await f.invoke(IPC.IMPORT_COMMIT, { operationId: f.operationId, review }),
+    ).toMatchObject({ ok: true });
+    expect(
+      await f.invoke(IPC.IMPORT_OPEN, { operationId: f.operationId }),
+    ).toMatchObject({ ok: true });
+    expect((await openProject(f.destination)).chapters).toHaveLength(1);
+    expect(await readFile(source)).toEqual(bytes);
+  },
+);
+
+it("auto dispatch rejects unknown extensions and binary disguised as text", async () => {
+  for (const extension of ["exe", "txt"]) {
+    const f = await setup(undefined, true);
+    const path = join(f.root, `source.${extension}`);
+    const bytes = Buffer.from([0x50, 0x4b, 0, 0xff]);
+    await writeFile(path, bytes);
+    f.picker.mockResolvedValue(path);
+    expect(
+      await f.invoke(IPC.IMPORT_INSPECT, {
+        operationId: f.operationId,
+        importer: "auto",
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: extension === "exe" ? "IMPORT_UNSUPPORTED" : "IMPORT_INVALID",
+      },
+    });
+    expect(f.authorizeOpen).not.toHaveBeenCalled();
+    expect(await readFile(path)).toEqual(bytes);
+  }
+});
+
+it.each([0, 1, 2])(
+  "HTML image selection is individually authorized (choice %s)",
+  async (choice) => {
+    const f = await setup(undefined, true);
+    const path = join(f.root, "source.html");
+    const image = join(f.root, "chosen.png");
+    const bytes = Buffer.from(
+      '<p>before</p><img src="image.png" alt="Illustration"><p>after</p>',
+    );
+    await writeFile(path, bytes);
+    await writeFile(image, await syntheticImage());
+    f.picker.mockResolvedValue(path);
+    showMessageBox.mockResolvedValue({ response: choice });
+    showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [image] });
+    const result = await f.invoke(IPC.IMPORT_INSPECT, {
+      operationId: f.operationId,
+      importer: "auto",
+    });
+    expect(showMessageBox).toHaveBeenCalledTimes(1);
+    if (choice === 2)
+      expect(result).toMatchObject({
+        ok: false,
+        error: { code: "IMPORT_CANCELLED" },
+      });
+    else {
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("inspect failed");
+      expect((result.value as ImportInspection).assets).toHaveLength(
+        choice === 0 ? 1 : 0,
+      );
+    }
+    expect(showOpenDialog).toHaveBeenCalledTimes(choice === 0 ? 1 : 0);
+    expect(await readFile(path)).toEqual(bytes);
+    expect(f.authorizeOpen).not.toHaveBeenCalled();
+  },
+);
 async function setup(program?: string, builtinDocx = false) {
   handle.mockReset();
   const root = await mkdtemp(join(tmpdir(), "sarel-import-ipc-"));

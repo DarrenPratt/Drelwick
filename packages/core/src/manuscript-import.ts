@@ -67,18 +67,18 @@ export function importError(code = "IMPORT_FAILED") {
     IMPORT_CANCELLED:
       "Import cancelled. Source and active project were preserved.",
     IMPORT_DESTINATION_INVALID:
-      "Choose a new empty folder outside any existing project. The selected folder was not overwritten; inspect the DOCX again to retry.",
+      "Choose a new empty folder outside any existing project. The selected folder was not overwritten; inspect the manuscript again to retry.",
     IMPORT_INVALID:
-      "The conversion result is invalid or exceeds import limits. No project was opened. Try a supported DOCX copy.",
+      "The conversion result is invalid or exceeds import limits. Text, Markdown and HTML must use valid UTF-8. No project was opened.",
     IMPORT_EXPIRED:
-      "This import review is no longer available. Inspect the DOCX again before importing.",
+      "This import review is no longer available. Inspect the manuscript again before importing.",
     IMPORT_BUSY:
       "Wait for the current import operation to finish or cancel it.",
     IMPORT_ACCESS_DENIED: "Import access is not permitted from this window.",
     IMPORT_INPUT_INVALID:
       "The import request is invalid. Review the chapter boundaries and conversion decisions.",
     IMPORT_UNSUPPORTED:
-      "This manuscript format is not supported. Choose a DOCX file.",
+      "This manuscript format is not supported. Choose DOCX, TXT, Markdown or HTML.",
   };
   return new ApplicationError(
     code,
@@ -190,8 +190,9 @@ export class StagedManuscriptImport {
       throw importError(
         options.signal.aborted
           ? "IMPORT_CANCELLED"
-          : error instanceof ApplicationError && error.code === "IMPORT_INVALID"
-            ? "IMPORT_INVALID"
+          : error instanceof ApplicationError &&
+              ["IMPORT_INVALID", "IMPORT_CANCELLED"].includes(error.code)
+            ? error.code
             : "IMPORT_FAILED",
       );
     }

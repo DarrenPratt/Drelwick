@@ -2,7 +2,9 @@
 
 Issue #114 is CORE infrastructure. The desktop registry now includes the
 [`docx` adapter](docx-import.md) from #115. The [preview/mapping workflow](import-review-ui.md) from #116 uses this API.
-Text/Markdown/HTML remains #117. Unknown adapter IDs return `IMPORT_UNSUPPORTED`.
+The [TXT/Markdown/HTML adapters](text-import.md) from #117 share this contract.
+Desktop `auto` dispatch selects a packaged adapter from the native source extension;
+each parser validates the actual contents. Unknown formats return `IMPORT_UNSUPPORTED`.
 No account, hosted conversion, Pro package or network connection is required.
 
 ## Trust and lifecycle
