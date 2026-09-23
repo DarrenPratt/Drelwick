@@ -7,6 +7,8 @@ import {
 import {
   StagedManuscriptImport,
   importError,
+  DocxManuscriptImporter,
+  DocxImportError,
   type IsolatedManuscriptImporter,
 } from "@sarel/core";
 import {
@@ -28,13 +30,13 @@ interface Dependencies {
   blocked(): boolean;
 }
 const defaults: Dependencies = {
-  // DOCX and text adapters are #115/#117, not implicit parsers in this boundary.
-  importers: new Map(),
+  importers: new Map([["docx", new DocxManuscriptImporter()]]),
   blocked: () => false,
   selectSource: async (window) => {
     const selection = await dialog.showOpenDialog(window, {
       title: "Inspect manuscript import",
       properties: ["openFile"],
+      filters: [{ name: "Word manuscript", extensions: ["docx"] }],
     });
     return selection.canceled ? null : (selection.filePaths[0] ?? null);
   },
@@ -180,6 +182,15 @@ export function registerImportHandlers(
           });
           operation = undefined;
           detach();
+          if (
+            !cleanupFailed &&
+            !current.abort.signal.aborted &&
+            error instanceof DocxImportError
+          )
+            return {
+              ok: false,
+              error: { code: error.code, message: error.message },
+            };
           return failure(
             cleanupFailed
               ? "IMPORT_CLEANUP_REQUIRED"

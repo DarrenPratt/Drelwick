@@ -8,11 +8,12 @@ A cross-platform, local-first, open-core desktop editor in private development f
 
 The repository implements local project/chapter management, manuscript editing,
 autosave, retained history snapshots and crash recovery. v0.1 testing, hardening
-and release validation remain open. DOCX import, presentation, EPUB and print PDF
-are planned work, not implemented publishing features. See the
+and release validation remain open. The privileged Community DOCX parser and
+staged import API are implemented; the import review UI, presentation, EPUB and
+print PDF remain planned work. See the [DOCX support matrix](docs/docx-import.md) and
 [local publishing delivery plan](docs/planning/local-publishing-plan.md).
 
-Basic DOCX import and manuscript DOCX export are planned Community capabilities.
+Basic DOCX import is a Community capability; manuscript DOCX export remains planned.
 The delivery roadmap is a local desktop workflow with no account or hosted
 conversion requirement. Optional backup to user-owned storage such as Google
 Drive, Wasabi or Git repositories is research only; cloud editing and collaboration are outside

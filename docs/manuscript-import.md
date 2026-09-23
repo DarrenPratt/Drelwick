@@ -1,9 +1,9 @@
 # Staged local manuscript import
 
-Issue #114 is CORE infrastructure. Source-specific adapters (#115 DOCX, #117
-text/Markdown/HTML) and the preview/mapping UI (#116) remain separate work. The
-desktop registry is deliberately empty until those adapters are implemented;
-unknown adapter IDs return `IMPORT_UNSUPPORTED`. There is no new import menu yet.
+Issue #114 is CORE infrastructure. The desktop registry now includes the
+[`docx` adapter](docx-import.md) from #115. Text/Markdown/HTML (#117) and the
+preview/mapping UI (#116) remain separate work. Unknown adapter IDs return
+`IMPORT_UNSUPPORTED`. There is no new import menu yet.
 No account, hosted conversion, Pro package or network connection is required.
 
 ## Trust and lifecycle

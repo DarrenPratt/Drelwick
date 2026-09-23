@@ -32,6 +32,7 @@ Operational documents:
 - [Manuscript semantic elements](manuscript-semantics.md)
 - [Local image assets and recovery](local-image-assets.md)
 - [Staged local manuscript import](manuscript-import.md)
+- [Community DOCX import and support matrix](docx-import.md)
 - [Manuscript recovery](manuscript-recovery.md)
 - [Application logging](application-logging.md)
 - [Global error handling](error-handling.md)

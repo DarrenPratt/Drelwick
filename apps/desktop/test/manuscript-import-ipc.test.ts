@@ -25,12 +25,13 @@ import {
 const { handle } = vi.hoisted(() => ({ handle: vi.fn() }));
 vi.mock("electron", () => ({ ipcMain: { handle }, dialog: {} }));
 import { registerImportHandlers } from "../src/main/ipc/import-handlers.js";
+import { mixedNovel, docx } from "../../../packages/core/test/fixtures/docx.js";
 
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
-async function setup(program?: string) {
+async function setup(program?: string, builtinDocx = false) {
   handle.mockReset();
   const root = await mkdtemp(join(tmpdir(), "sarel-import-ipc-"));
   cleanups.push(() => rm(root, { recursive: true, force: true }));
@@ -67,14 +68,18 @@ async function setup(program?: string) {
   const dispose = registerImportHandlers(() => window, frame.url, {
     selectSource: picker,
     selectDestination: destinationPicker,
-    importers: new Map([
-      [
-        "synthetic",
-        new IsolatedManuscriptImporter(
-          program ?? `() => ${JSON.stringify(JSON.stringify(value))}`,
-        ),
-      ],
-    ]),
+    ...(builtinDocx
+      ? {}
+      : {
+          importers: new Map([
+            [
+              "synthetic",
+              new IsolatedManuscriptImporter(
+                program ?? `() => ${JSON.stringify(JSON.stringify(value))}`,
+              ),
+            ],
+          ]),
+        }),
   });
   cleanups.push(dispose);
   const invoke = (
@@ -92,7 +97,10 @@ async function setup(program?: string) {
   };
   const operationId = randomUUID();
   const inspect = () =>
-    invoke(IPC.IMPORT_INSPECT, { operationId, importer: "synthetic" });
+    invoke(IPC.IMPORT_INSPECT, {
+      operationId,
+      importer: builtinDocx ? "docx" : "synthetic",
+    });
   return {
     root,
     source,
@@ -237,4 +245,46 @@ it("preserves a safe cleanup-required error through IPC", async () => {
   } finally {
     inspect.mockRestore();
   }
+});
+
+it("registers built-in DOCX behind the existing path-free inspection/commit API", async () => {
+  const f = await setup(undefined, true);
+  const bytes = mixedNovel();
+  await writeFile(f.source, bytes);
+  const result = await f.inspect();
+  expect(result).toMatchObject({
+    ok: true,
+    value: {
+      chapters: [
+        { title: "Opening" },
+        { title: "Chapter One" },
+        { title: "Chapter Two" },
+      ],
+    },
+  });
+  expect(JSON.stringify(result)).not.toContain(f.root);
+  expect(f.destinationPicker).not.toHaveBeenCalled();
+  expect(
+    await f.invoke(IPC.IMPORT_COMMIT, { operationId: f.operationId }),
+  ).toMatchObject({ ok: true });
+  expect(await readFile(f.source)).toEqual(Buffer.from(bytes));
+});
+it("returns fixed located DOCX errors without source text, XML or paths", async () => {
+  const f = await setup(undefined, true);
+  const bytes = docx(
+    "<w:p><w:ins><w:r><w:t>SECRET MANUSCRIPT</w:t></w:r></w:ins></w:p>",
+  );
+  await writeFile(f.source, bytes);
+  const result = await f.inspect();
+  expect(result).toMatchObject({
+    ok: false,
+    error: {
+      code: "DOCX_REVISIONS",
+      message: expect.stringContaining("Main document, location 1"),
+    },
+  });
+  expect(JSON.stringify(result)).not.toContain("SECRET");
+  expect(JSON.stringify(result)).not.toContain(f.root);
+  expect(await readFile(f.source)).toEqual(Buffer.from(bytes));
+  expect(await readdir(f.destination)).toEqual([]);
 });

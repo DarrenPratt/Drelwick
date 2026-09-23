@@ -33,6 +33,7 @@ import {
   PROJECT_DIRECTORIES,
 } from "./index.js";
 import { syncDirectory } from "./project-snapshot.js";
+import { DocxImportError } from "./docx-error.js";
 
 /** First-party adapters only. No source path, filesystem, process or network capability.
  * Return bounded serialized JSON; never run source code, resolve external resources,
@@ -162,6 +163,8 @@ export class StagedManuscriptImport {
           throw importError("IMPORT_CLEANUP_REQUIRED");
         }
       }
+      if (!options.signal.aborted && error instanceof DocxImportError)
+        throw error;
       throw importError(
         options.signal.aborted
           ? "IMPORT_CANCELLED"
