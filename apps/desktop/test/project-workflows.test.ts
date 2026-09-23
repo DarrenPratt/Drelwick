@@ -1419,7 +1419,13 @@ it("waits for privileged inspection cancellation to settle", async () => {
       }),
   );
   await click("Import manuscript");
+  expect(container.querySelector('[role="status"]')?.textContent).toContain(
+    "Inspecting document",
+  );
   await click("Cancel import");
+  expect(container.querySelector('[role="status"]')?.textContent).toContain(
+    "Cancelling import and cleaning up",
+  );
   expect(window.sarel.imports.cancel).toHaveBeenCalledOnce();
   expect(container.querySelector("dialog")).not.toBeNull();
   await act(async () =>
@@ -1485,6 +1491,9 @@ it("retains a project completed before late cancellation without opening it", as
   await click("Import manuscript");
   await approveWarning();
   await click("Choose destination and import");
+  expect(container.querySelector("dialog")?.textContent).toContain(
+    "then stage and write the project",
+  );
   await click("Cancel import");
   await act(async () =>
     finish({ ok: true, value: { projectId: selected.token } }),
