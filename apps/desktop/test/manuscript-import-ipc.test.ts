@@ -25,10 +25,7 @@ import {
 const { handle } = vi.hoisted(() => ({ handle: vi.fn() }));
 vi.mock("electron", () => ({ ipcMain: { handle }, dialog: {} }));
 import { registerImportHandlers } from "../src/main/ipc/import-handlers.js";
-import {
-  mixedNovel,
-  docx,
-} from "../../../packages/core/test/fixtures/docx.js";
+import { mixedNovel, docx } from "../../../packages/core/test/fixtures/docx.js";
 
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {

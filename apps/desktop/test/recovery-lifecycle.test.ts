@@ -37,7 +37,8 @@ vi.mock("electron", () => ({
       mocks.handlers.set(channel, handler),
   },
 }));
-vi.mock("@sarel/core", () => ({
+vi.mock("@sarel/core", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@sarel/core")>()),
   recoverProjectMigration: mocks.recoverMigration,
   RecoveryService: class {
     scanProject = mocks.scanProject;

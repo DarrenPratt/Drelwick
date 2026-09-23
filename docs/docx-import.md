@@ -104,6 +104,12 @@ as ordinary DOCX and simplify unsupported content before retrying. A failure nev
 authorizes modifying the original. Long chapter proposal titles are shortened at
 a Unicode boundary; the complete heading remains in the chapter.
 
+Unsupported run semantics such as underline, strike, superscript/subscript,
+hidden text and capitalization effects preserve the underlying text with a
+located `DOCX_RUN_FORMAT` warning. Hidden text becomes visible for review; the
+importer never silently discards it. Unknown foreign text in ignored properties
+and orphaned deleted text block import.
+
 ## Resource and security policy
 
 `DOCX_LIMITS` adds to the unchanged `IMPORT_LIMITS` and `IMAGE_LIMITS`:
@@ -133,6 +139,9 @@ escaping root, URI schemes, encoded/ambiguous paths and missing targets fail.
 
 XML parsing rejects DTD/ENTITY declarations and unknown entities, does not install
 an entity resolver, and checks namespaced duplicate attributes and scalar validity.
+Supplementary raw-token checks reject duplicate/misplaced XML declarations, literal
+less-than signs in attribute values and forbidden `]]>` in ordinary character data,
+while preserving legal entity escapes and CDATA.
 The VM exposes no fetch, XHR, WebSocket, filesystem, process or shell capabilities.
 Macros, instructions, relationship targets and source text are never evaluated.
 The inherited VM/worker deadlines and cancellation terminate parsing. V8 limits

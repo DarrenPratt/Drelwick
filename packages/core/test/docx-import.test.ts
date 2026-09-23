@@ -9,6 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
+import sharp from "sharp";
 import {
   DocxManuscriptImporter,
   StagedManuscriptImport,
@@ -202,44 +203,89 @@ it("hyperlinks are data only; unsafe links retain visible text with a warning", 
 });
 const drawing = (external = false) =>
   `<w:r><w:drawing><wp:inline><wp:docPr id="1" descr="海 illustration"/><a:graphic><a:blip r:${external ? "link" : "embed"}="image"/></a:graphic></wp:inline></w:drawing></w:r>`;
-it("golden embedded image preserves bytes, alt text and inline reading position through staging/commit", async () => {
-  const image = await syntheticImage();
-  const bytes = docx(
-    `<w:p><w:r><w:t>before</w:t></w:r>${drawing()}<w:r><w:t>after</w:t></w:r></w:p>`,
-    {
-      "word/_rels/document.xml.rels": relationships(
-        rel("image", "image", "media/not-an-extension.bin"),
-      ),
-      "word/media/not-an-extension.bin": image,
-    },
-  );
+it.each(["png", "jpeg"] as const)(
+  "golden embedded %s preserves bytes, alt text and inline reading position through staging/commit",
+  async (format) => {
+    const image = await syntheticImage(format);
+    const bytes = docx(
+      `<w:p><w:r><w:t>before</w:t></w:r>${drawing()}<w:r><w:t>after</w:t></w:r></w:p>`,
+      {
+        "word/_rels/document.xml.rels": relationships(
+          rel("image", "image", "media/not-an-extension.bin"),
+        ),
+        "word/media/not-an-extension.bin": image,
+      },
+    );
+    const root = await mkdtemp(join(tmpdir(), "sarel-docx-"));
+    roots.push(root);
+    const source = join(root, "novel.docx"),
+      dest = join(root, "destination");
+    await writeFile(source, bytes);
+    await mkdir(dest);
+    const stage = await StagedManuscriptImport.inspect(source, importer, {
+      signal: signal(),
+      temporaryRoot: root,
+    });
+    expect(
+      stage.preview.chapters[0]!.content.content?.map((n) => n.type),
+    ).toEqual(["paragraph", "image", "paragraph"]);
+    expect(stage.preview.assets[0]!.base64).toBe(image.toString("base64"));
+    expect(stage.preview.chapters[0]!.content.content?.[1]).toMatchObject({
+      attrs: { alt: "海 illustration", size: "medium" },
+    });
+    expect(await readFile(source)).toEqual(Buffer.from(bytes));
+    await stage.commit(dest, { signal: signal() });
+    const project = await validateProjectFiles(dest);
+    const chapter = await loadChapter({
+      projectPath: dest,
+      chapterId: project.project.manuscript.order[0]!,
+    });
+    expect(texts(chapter.content)).toEqual(["before", "after"]);
+    expect(await readFile(source)).toEqual(Buffer.from(bytes));
+  },
+);
+
+it("rejects oversized decoded DOCX images before staging", async () => {
+  const image = await sharp({
+    create: { width: 12001, height: 1, channels: 3, background: "white" },
+  })
+    .png()
+    .toBuffer();
+  const bytes = docx(`<w:p>${drawing()}</w:p>`, {
+    "word/_rels/document.xml.rels": relationships(
+      rel("image", "image", "media/image.png"),
+    ),
+    "word/media/image.png": image,
+  });
   const root = await mkdtemp(join(tmpdir(), "sarel-docx-"));
   roots.push(root);
-  const source = join(root, "novel.docx"),
-    dest = join(root, "destination");
+  const source = join(root, "source.docx");
   await writeFile(source, bytes);
-  await mkdir(dest);
-  const stage = await StagedManuscriptImport.inspect(source, importer, {
-    signal: signal(),
-    temporaryRoot: root,
-  });
-  expect(
-    stage.preview.chapters[0]!.content.content?.map((n) => n.type),
-  ).toEqual(["paragraph", "image", "paragraph"]);
-  expect(stage.preview.assets[0]!.base64).toBe(image.toString("base64"));
-  expect(stage.preview.chapters[0]!.content.content?.[1]).toMatchObject({
-    attrs: { alt: "海 illustration", size: "medium" },
-  });
-  expect(await readFile(source)).toEqual(Buffer.from(bytes));
-  await stage.commit(dest, { signal: signal() });
-  const project = await validateProjectFiles(dest);
-  const chapter = await loadChapter({
-    projectPath: dest,
-    chapterId: project.project.manuscript.order[0]!,
-  });
-  expect(texts(chapter.content)).toEqual(["before", "after"]);
+  await expect(
+    StagedManuscriptImport.inspect(source, importer, {
+      signal: signal(),
+      temporaryRoot: root,
+    }),
+  ).rejects.toBeDefined();
+  expect(await readdir(root)).toEqual(["source.docx"]);
   expect(await readFile(source)).toEqual(Buffer.from(bytes));
 });
+it("bounds aggregate asset bytes even when individual archive entries fit", async () => {
+  const entries: Record<string, string | Uint8Array> = {};
+  let body = "",
+    rels = "";
+  for (let i = 0; i < 3; i++) {
+    const image = new Uint8Array(17 * 1024 * 1024);
+    image.set([137, 80, 78, 71, 13, 10, 26, 10]);
+    entries[`word/media/${i}.png`] = image;
+    rels += rel(`i${i}`, "image", `media/${i}.png`);
+    body += `<w:p>${drawing().replace('="image"', `="i${i}"`)}</w:p>`;
+  }
+  entries["word/_rels/document.xml.rels"] = relationships(rels);
+  await expect(parse(docx(body, entries))).rejects.toMatchObject({
+    code: "DOCX_LIMIT",
+  });
+}, 15000);
 it("never fetches an external image and retains alternative text", async () => {
   const r = await parse(
     docx(`<w:p>${drawing(true)}</w:p>`, {
@@ -731,4 +777,90 @@ it("failed inspection and staging writes preserve the source; cancelling a runni
   abort.abort();
   await expect(pending).rejects.toMatchObject({ code: "IMPORT_CANCELLED" });
   expect(await readFile(source)).toEqual(Buffer.from(bytes));
+});
+
+it("only main-story headings propose chapters; nested headings retain their text in reading order", async () => {
+  const heading = (text: string) => p(text, '<w:pStyle w:val="Heading1"/>');
+  const bytes = docx(
+    heading("Chapter") +
+      `<w:tbl><w:tr><w:tc>${heading("Table heading")}</w:tc></w:tr></w:tbl><w:p><w:r><w:footnoteReference w:id="1"/><w:drawing><w:txbxContent>${heading("Box heading")}</w:txbxContent></w:drawing></w:r></w:p>` +
+      heading("Next"),
+    {
+      "word/_rels/document.xml.rels": relationships(
+        rel("f", "footnotes", "footnotes.xml") +
+          rel("h", "header", "header.xml"),
+      ),
+      "word/footnotes.xml": `<w:footnotes ${namespaces}><w:footnote w:id="1">${heading("Note heading")}</w:footnote></w:footnotes>`,
+      "word/header.xml": `<w:hdr ${namespaces}>${heading("Header heading")}</w:hdr>`,
+    },
+  );
+  const r = await parse(bytes);
+  expect(r.chapters.map((c) => c.title)).toEqual(["Chapter", "Next"]);
+  expect(r.chapters.map((c) => texts(c.content))).toEqual([
+    ["Chapter", "Table heading", "[footnote]", "Note heading", "Box heading"],
+    ["Next", "Header heading"],
+  ]);
+  expect(
+    r.warnings
+      .filter((w) => w.code === "DOCX_CHAPTER_PROPOSAL")
+      .map((w) => w.location.chapter),
+  ).toEqual([0, 1]);
+});
+it.each([
+  '<?xml version="1.0"?><?xml version="1.0"?>' + documentXml(p("text")),
+  documentXml('<w:p invalid="a<b"/>'),
+  documentXml(p("literal ]]> text")),
+  documentXml("<!-- invalid -- comment -->" + p("text")),
+])("rejects malformed XML lexical forms (%#)", async (source) => {
+  await expect(
+    parse(docx("", { "word/document.xml": source })),
+  ).rejects.toMatchObject({ code: "DOCX_XML" });
+});
+
+it("preserves text and warns when unsupported run semantics are flattened", async () => {
+  const r = await parse(
+    docx(
+      '<w:p><w:r><w:rPr><w:vanish/><w:vertAlign w:val="superscript"/><w:u/></w:rPr><w:t>Visible recovery</w:t></w:r></w:p>',
+    ),
+  );
+  expect(texts(r.chapters[0]!.content)).toEqual(["Visible recovery"]);
+  expect(r.warnings.map((w) => w.code)).toContain("DOCX_RUN_FORMAT");
+});
+it("blocks foreign text hidden in ignored properties and orphaned deleted text", async () => {
+  await expect(
+    parse(
+      docx(
+        '<w:p><w:r><w:rPr><m:t xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">meaningful equation</m:t></w:rPr></w:r></w:p>',
+      ),
+    ),
+  ).rejects.toMatchObject({ code: "DOCX_UNSUPPORTED" });
+  await expect(
+    parse(
+      docx(
+        "<w:p><w:r><w:rPr><w:delText>old revision</w:delText></w:rPr></w:r></w:p>",
+      ),
+    ),
+  ).rejects.toMatchObject({ code: "DOCX_REVISIONS" });
+});
+it("preserves numbering across paragraph interruptions", async () => {
+  const item = (text: string) =>
+    p(text, '<w:numPr><w:numId w:val="1"/></w:numPr>');
+  const r = await parse(
+    docx(item("first") + p("interruption") + item("second"), {
+      "word/_rels/document.xml.rels": relationships(
+        rel("n", "numbering", "numbering.xml"),
+      ),
+      "word/numbering.xml": `<w:numbering ${namespaces}><w:abstractNum w:abstractNumId="a"><w:lvl w:ilvl="0"><w:start w:val="4"/><w:numFmt w:val="decimal"/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="a"/></w:num></w:numbering>`,
+    }),
+  );
+  expect(r.chapters[0]!.content.content).toMatchObject([
+    { type: "orderedList", attrs: { start: 4 } },
+    { type: "paragraph" },
+    { type: "orderedList", attrs: { start: 5 } },
+  ]);
+  expect(texts(r.chapters[0]!.content)).toEqual([
+    "first",
+    "interruption",
+    "second",
+  ]);
 });

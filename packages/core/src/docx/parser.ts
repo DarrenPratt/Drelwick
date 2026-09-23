@@ -54,16 +54,23 @@ function from64(s: string) {
   return out;
 }
 function to64(b: Uint8Array) {
-  let s = "";
+  const chunks: string[] = [];
+  const chars: string[] = [];
   for (let i = 0; i < b.length; i += 3) {
     const n = (b[i]! << 16) | ((b[i + 1] ?? 0) << 8) | (b[i + 2] ?? 0);
-    s +=
-      B64[n >>> 18]! +
-      B64[(n >>> 12) & 63]! +
-      (i + 1 < b.length ? B64[(n >>> 6) & 63] : "=") +
-      (i + 2 < b.length ? B64[n & 63] : "=");
+    chars.push(
+      B64[n >>> 18]!,
+      B64[(n >>> 12) & 63]!,
+      i + 1 < b.length ? B64[(n >>> 6) & 63]! : "=",
+      i + 2 < b.length ? B64[n & 63]! : "=",
+    );
+    if (chars.length >= 16384) {
+      chunks.push(chars.join(""));
+      chars.length = 0;
+    }
   }
-  return s;
+  chunks.push(chars.join(""));
+  return chunks.join("");
 }
 const plain = (nodes: Node[]): string =>
   nodes
@@ -266,6 +273,24 @@ function convert(files: Map<string, Uint8Array>): ImporterResult {
   function emphasis(properties: Xml[]): Mark[] {
     const state: { bold?: boolean; italic?: boolean } = {};
     for (const p of properties) {
+      if (
+        p.children.some((c) =>
+          [
+            "w:u",
+            "w:strike",
+            "w:dstrike",
+            "w:vertAlign",
+            "w:vanish",
+            "w:smallCaps",
+            "w:caps",
+          ].includes(c.name),
+        )
+      )
+        warn(
+          "DOCX_RUN_FORMAT",
+          "Additional run formatting was not retained; the underlying text remains unchanged and visible.",
+          "run formatting",
+        );
       const b = toggle(child(p, "w:b")),
         i = toggle(child(p, "w:i"));
       if (b !== undefined) state.bold = b;
@@ -753,13 +778,15 @@ function convert(files: Map<string, Uint8Array>): ImporterResult {
         paragraphNumber,
       );
       if (
-        n.name.startsWith("w:") &&
+        (n.name.startsWith("w:") ||
+          part === main ||
+          tree.name.startsWith("w:")) &&
         n.text.trim() &&
         !["w:t", "w:instrText", "w:delText", "w:delInstrText"].includes(n.name)
       )
         fail("DOCX_UNSUPPORTED");
       if (
-        /^w:(?:ins|del|moveFrom|moveTo|.*Change|.*RangeStart|.*RangeEnd)$/.test(
+        /^w:(?:ins|del|delText|delInstrText|moveFrom|moveTo|.*Change|.*RangeStart|.*RangeEnd)$/.test(
           n.name,
         ) &&
         !["w:commentRangeStart", "w:commentRangeEnd"].includes(n.name)

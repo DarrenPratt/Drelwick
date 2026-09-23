@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { URL } from "node:url";
 import { build } from "esbuild";
 
 const notices = await Promise.all([

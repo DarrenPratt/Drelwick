@@ -91,6 +91,44 @@ export function xml(bytes: Uint8Array, budget = { nodes: 0 }): Xml {
   const source = decode(bytes);
   if (/<!\s*(?:DOCTYPE|ENTITY)/i.test(source) || invalidXmlCharacters(source))
     fail("DOCX_XML");
+  // sax strict mode does not reject all XML lexical errors. Check these on raw
+  // tokens, before entity expansion, so legal &lt; and CDATA remain unchanged.
+  for (let i = 0; i < source.length;) {
+    if (source[i] !== "<") {
+      let end = source.indexOf("<", i);
+      if (end < 0) end = source.length;
+      if (source.slice(i, end).includes("]]>")) fail("DOCX_XML");
+      i = end;
+      continue;
+    }
+    const delimiter = source.startsWith("<!--", i)
+      ? "-->"
+      : source.startsWith("<![CDATA[", i)
+        ? "]]>"
+        : source.startsWith("<?", i)
+          ? "?>"
+          : undefined;
+    if (delimiter) {
+      if (delimiter === "?>" && i !== 0) fail("DOCX_XML");
+      const end = source.indexOf(delimiter, i + 2);
+      if (end < 0) fail("DOCX_XML");
+      i = end + delimiter.length;
+      continue;
+    }
+    let quote = "";
+    i++;
+    for (; i < source.length; i++) {
+      const c = source[i]!;
+      if (c === "<") fail("DOCX_XML");
+      if (quote) {
+        if (c === quote) quote = "";
+      } else if (c === '"' || c === "'") quote = c;
+      else if (c === ">") {
+        i++;
+        break;
+      }
+    }
+  }
   const options = {
     xmlns: true,
     strictEntities: true,
@@ -116,7 +154,7 @@ export function xml(bytes: Uint8Array, budget = { nodes: 0 }): Xml {
     if (
       p.name !== "xml" ||
       root !== undefined ||
-      !/^version=["']1\.0["'](?:\s+encoding=["'](?:UTF-8|UTF-16|utf-8|utf-16)["'])?(?:\s+standalone=["'](?:yes|no)["'])?\s*$/.test(
+      !/^version\s*=\s*(?:"1\.0"|'1\.0')(?:\s+encoding\s*=\s*(?:"(?:UTF-8|UTF-16|utf-8|utf-16)"|'(?:UTF-8|UTF-16|utf-8|utf-16)'))?(?:\s+standalone\s*=\s*(?:"(?:yes|no)"|'(?:yes|no)'))?\s*$/.test(
         p.body,
       )
     )
