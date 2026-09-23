@@ -19,6 +19,99 @@ import {
 } from "@playwright/test";
 import { copyFixture } from "../helpers/fixture-projects.js";
 import { docx, p, unicode } from "../../packages/core/test/fixtures/docx.js";
+
+for (const format of ["txt", "md", "html"]) {
+  test(`imports ${format} offline through shared preview, edits, saves and reopens`, async () => {
+    const scratch = await mkdtemp(join(tmpdir(), "sarel-text-e2e-"));
+    let application: ElectronApplication | undefined;
+    const source = join(scratch, `novel.${format}`);
+    const destination = join(scratch, "imported");
+    const prose = "Café “hello” — – Ελληνικά 日本語 العربية 🌱 é";
+    const bytes = Buffer.from(
+      format === "html"
+        ? `<h1>Chapter One</h1><p>${prose}</p>`
+        : format === "md"
+          ? `# Chapter One\n\n${prose}`
+          : `Chapter One\n\n${prose}`,
+      "utf8",
+    );
+    try {
+      await writeFile(source, bytes);
+      await mkdir(destination);
+      const launched = await launchApplication(join(scratch, "user-data"));
+      application = launched.application;
+      const page = launched.page;
+      await page.context().setOffline(true);
+      await application.evaluate(({ dialog }, path) => {
+        dialog.showOpenDialog = async () => ({
+          canceled: false,
+          filePaths: [path],
+        });
+      }, source);
+      await page
+        .getByRole("button", { name: "Import manuscript", exact: true })
+        .click();
+      const preview = page.getByRole("dialog", { name: "Import manuscript" });
+      await expect(
+        preview.getByRole("heading", { name: "Imported metadata" }),
+      ).toBeVisible();
+      const commit = preview.getByRole("button", {
+        name: "Choose destination and import",
+      });
+      await expect(commit).toBeDisabled();
+      await preview.getByLabel("Chapter 1 title").fill("Reviewed chapter");
+      for (const decision of await preview.getByRole("checkbox").all())
+        await decision.check();
+      expect(await readFile(source)).toEqual(bytes);
+      expect(await readdir(destination)).toEqual([]);
+      await application.evaluate(({ dialog }, path) => {
+        dialog.showOpenDialog = async () => ({
+          canceled: false,
+          filePaths: [path],
+        });
+      }, destination);
+      await commit.click();
+      await expect(preview).not.toBeVisible();
+      const editor = page.locator(".ProseMirror");
+      await expect(editor).toHaveText(`Chapter One${prose}`);
+      await editor.click();
+      await page.keyboard.press("ControlOrMeta+End");
+      await page.keyboard.type(" Edited.");
+      await page
+        .getByRole("button", { name: "Save chapter", exact: true })
+        .click();
+      await expect(page.getByLabel("Chapter save status")).toHaveText(
+        "All changes saved",
+      );
+      await application.close();
+      application = undefined;
+      const restarted = await launchApplication(join(scratch, "user-data"));
+      application = restarted.application;
+      await restarted.page.context().setOffline(true);
+      await application.evaluate(({ dialog }, path) => {
+        dialog.showOpenDialog = async () => ({
+          canceled: false,
+          filePaths: [path],
+        });
+      }, destination);
+      await restarted.page
+        .getByRole("button", { name: "Open project", exact: true })
+        .click();
+      await expect(restarted.page.locator(".ProseMirror")).toHaveText(
+        `Chapter One${prose} Edited.`,
+      );
+      expect(await readFile(source)).toEqual(bytes);
+    } finally {
+      await application?.close();
+      await rm(scratch, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 200,
+      });
+    }
+  });
+}
 import { syntheticImage } from "../helpers/synthetic-images.js";
 
 const repositoryRoot = resolve(

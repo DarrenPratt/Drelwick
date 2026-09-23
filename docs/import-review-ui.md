@@ -1,4 +1,4 @@
-# Importing a DOCX manuscript
+# Importing a manuscript
 
 **Import manuscript** on the welcome screen or in the workspace opens the same
 workflow as **File → Import manuscript…** (Ctrl+Shift+I on Windows/Linux,
@@ -10,8 +10,10 @@ account, hosted conversion or Pro package is required.
 1. Save pending edits in the current project. Import uses the existing project
    navigation guard: if a save is pending or fails, the manuscript stays open.
    Wait for **All changes saved**, then retry Import manuscript.
-2. Choose a DOCX with the native file picker. Inspection parses the file in the
+2. Choose DOCX, TXT, Markdown (`.md`/`.markdown`) or HTML (`.html`/`.htm`) with the native file picker. Inspection parses the file in the
    existing isolated, bounded importer and creates only a private temporary stage.
+   Markdown/HTML local images require individual native selection; skip retains a
+   warned placeholder. No referenced local file is read automatically.
 3. Review imported metadata, proposed chapter titles/boundaries, manuscript blocks
    in reading order, asset count and located conversion warnings. This is semantic
    conversion, not a reproduction of Word pages. Text preview is paged in groups
@@ -27,7 +29,7 @@ account, hosted conversion or Pro package is required.
    warnings because the importer does not classify warning severity. There is no
    blanket approval, guessed recovery or unsupported skip operation. Cancel if
    the described conversion is unacceptable. Warning locations refer to the
-   original DOCX/proposal, even after chapter boundaries change.
+   original source/proposal, even after chapter boundaries change.
 6. Choose a new, existing empty folder using the native destination picker.
    Create a folder there if needed. It must be outside existing project folders.
    Dismissing this picker returns to the approved preview without writing a project.
@@ -41,7 +43,7 @@ account, hosted conversion or Pro package is required.
 
 Metadata reflects the importer output, including its explicitly warned missing
 metadata placeholders. This dialog does not introduce a separate metadata editor.
-See the [DOCX support matrix](docx-import.md) for supported conversions. Tracked
+See the [DOCX support matrix](docx-import.md) and [TXT/Markdown/HTML support matrix](text-import.md) for supported conversions. Tracked
 changes still **block inspection** with a located error: resolve revisions in a
 separate DOCX copy first. The application does not choose accepted/rejected text.
 
@@ -70,7 +72,7 @@ use Open project later. Failed saves retain dirty editor content and prevent
 commit/open. The modal holds the existing project operation guard and makes the
 editor read-only; it does not introduce another dirty-state system.
 
-The source DOCX is read only and remains byte-for-byte unchanged on preview,
+The source manuscript is read only and remains byte-for-byte unchanged on preview,
 cancellation, failure, commit and open. Import never merges into the active project.
 
 ## Implementation boundaries

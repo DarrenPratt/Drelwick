@@ -14,13 +14,15 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && node scripts/build-docx.mjs",
+    "build": "tsc -p tsconfig.json && node scripts/build-docx.mjs && node scripts/build-text.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@sarel/project-model": "workspace:*",
     "@sarel/shared": "workspace:*",
     "fflate": "0.8.3",
+    "marked": "18.0.14",
+    "parse5": "8.0.1",
     "sax": "1.6.1",
     "sharp": "0.35.4",
     "yauzl": "^3.4.0",

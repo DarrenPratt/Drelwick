@@ -10,6 +10,7 @@ import {
   reviewImportedManuscript,
   DocxManuscriptImporter,
   DocxImportError,
+  TextManuscriptImporter,
   type IsolatedManuscriptImporter,
 } from "@sarel/core";
 import {
@@ -22,6 +23,7 @@ import {
   IpcRequestSchemas,
   type ImportInspection,
 } from "@sarel/shared";
+import { extname } from "node:path";
 
 interface Dependencies {
   /** Fixed first-party registry; never populated from renderer/source data. */
@@ -44,7 +46,12 @@ const defaults: Dependencies = {
     const selection = await dialog.showOpenDialog(window, {
       title: "Inspect manuscript import",
       properties: ["openFile"],
-      filters: [{ name: "Word manuscript", extensions: ["docx"] }],
+      filters: [
+        {
+          name: "Manuscripts",
+          extensions: ["docx", "txt", "md", "markdown", "html", "htm"],
+        },
+      ],
     });
     return selection.canceled ? null : (selection.filePaths[0] ?? null);
   },
@@ -67,6 +74,35 @@ export function registerImportHandlers(
   overrides: Partial<Dependencies> = {},
 ) {
   const services = { ...defaults, ...overrides };
+  // Each reference needs its own explicit native selection. No relative resolution.
+  const selectImage = async (reference: string, signal: AbortSignal) => {
+    if (signal.aborted) throw importError("IMPORT_CANCELLED");
+    const window = getWindow();
+    if (!window || window.isDestroyed()) throw importError("IMPORT_CANCELLED");
+    const choice = await dialog.showMessageBox(window, {
+      type: "question",
+      title: "Manuscript image",
+      message: "Select a local image to include in this import?",
+      detail: `Referenced image: ${reference}\nOnly the file you explicitly select will be read. Skip retains an image placeholder for review.`,
+      buttons: ["Select image", "Skip image", "Cancel import"],
+      defaultId: 1,
+      cancelId: 2,
+    });
+    if (signal.aborted || choice.response === 2)
+      throw importError("IMPORT_CANCELLED");
+    if (choice.response !== 0) return null;
+    const selection = await dialog.showOpenDialog(window, {
+      title: "Authorize this manuscript image",
+      properties: ["openFile"],
+      filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }],
+    });
+    return selection.canceled ? null : (selection.filePaths[0] ?? null);
+  };
+  const textImporters = new Map([
+    ["txt", new TextManuscriptImporter("txt")],
+    ["markdown", new TextManuscriptImporter("markdown", selectImage)],
+    ["html", new TextManuscriptImporter("html", selectImage)],
+  ]);
   let detach = () => {};
   let operation:
     | {
@@ -124,8 +160,11 @@ export function registerImportHandlers(
           typeof request.data.importer !== "string"
         )
           return failure("IMPORT_INPUT_INVALID");
-        const importer = services.importers.get(request.data.importer);
-        if (!importer) return failure("IMPORT_UNSUPPORTED");
+        let importer =
+          services.importers.get(request.data.importer) ??
+          textImporters.get(request.data.importer);
+        if (!importer && request.data.importer !== "auto")
+          return failure("IMPORT_UNSUPPORTED");
         const current = {
           id: request.data.operationId,
           owner: event.senderFrame,
@@ -159,6 +198,21 @@ export function registerImportHandlers(
             detach();
             return { ok: true, value: null };
           }
+          if (request.data.importer === "auto") {
+            const formats: Record<string, string> = {
+              ".docx": "docx",
+              ".txt": "txt",
+              ".md": "markdown",
+              ".markdown": "markdown",
+              ".html": "html",
+              ".htm": "html",
+            };
+            const format = formats[extname(source).toLowerCase()];
+            importer = format
+              ? (services.importers.get(format) ?? textImporters.get(format))
+              : undefined;
+          }
+          if (!importer) throw importError("IMPORT_UNSUPPORTED");
           current.stage = await StagedManuscriptImport.inspect(
             source,
             importer,
@@ -205,9 +259,12 @@ export function registerImportHandlers(
               : current.abort.signal.aborted
                 ? "IMPORT_CANCELLED"
                 : error instanceof ApplicationError &&
-                    ["IMPORT_INVALID", "IMPORT_DESTINATION_INVALID"].includes(
-                      error.code,
-                    )
+                    [
+                      "IMPORT_INVALID",
+                      "IMPORT_DESTINATION_INVALID",
+                      "IMPORT_UNSUPPORTED",
+                      "IMPORT_CANCELLED",
+                    ].includes(error.code)
                   ? error.code
                   : "IMPORT_FAILED",
           );

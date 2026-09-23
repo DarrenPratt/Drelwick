@@ -20,6 +20,7 @@ export * from "./image-assets.js";
 export * from "./manuscript-import.js";
 export * from "./import-parser.js";
 export * from "./docx-importer.js";
+export * from "./text-importer.js";
 export { MIGRATION_DIRECTORY, MIGRATION_ERRORS } from "./migration-state.js";
 import {
   assertKnownVersion,
