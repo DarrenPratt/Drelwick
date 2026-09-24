@@ -4,7 +4,7 @@ import {
   IMAGE_SIZES,
 } from "@drelwick/project-model";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
-import type { JSONContent } from "@tiptap/core";
+import type { JSONContent, Editor as TipTapEditor } from "@tiptap/core";
 import { DOMParser as ProseMirrorDOMParser } from "@tiptap/pm/model";
 import { useEffect, useState } from "react";
 import { createManuscriptExtensions } from "./manuscript-extensions.js";
@@ -102,6 +102,7 @@ export function sanitizePastedHtml(html: string): string {
 }
 
 interface EditorProps {
+  onReady?(editor: TipTapEditor | null): void;
   projectId?: string;
   chapterId?: string;
   prepareImageImport?(): Promise<boolean>;
@@ -121,6 +122,7 @@ export function Editor({
   projectId,
   chapterId,
   prepareImageImport,
+  onReady,
 }: EditorProps) {
   const [linkError, setLinkError] = useState<string>();
   const [imageError, setImageError] = useState<string>();
@@ -166,6 +168,10 @@ export function Editor({
       },
     },
   });
+  useEffect(() => {
+    onReady?.(editor);
+    return () => onReady?.(null);
+  }, [editor, onReady]);
   const active = useEditorState({
     editor,
     selector: ({ editor: current }) => ({

@@ -19,3 +19,4 @@ export {
 export * from "./migration.js";
 export * from "./image-assets.js";
 export * from "./manuscript-import.js";
+export * from "./replacement-journal.js";

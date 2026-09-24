@@ -44,6 +44,7 @@ import {
   sameSnapshot,
   syncDirectory,
 } from "./project-snapshot.js";
+import { recoverManuscriptReplacement } from "./manuscript-replacement.js";
 
 export const MIGRATION_CHECKPOINTS = [
   "before-workspace",
@@ -163,6 +164,7 @@ export async function openProjectForEditing(
   options: MigrationOptions = {},
 ): Promise<OpenedProject> {
   const root = await canonicalRoot(projectPath);
+  await recoverManuscriptReplacement(root);
   const version = await inspectCompatibility(root);
   if (version === 1 || (await exists(join(root, MIGRATION_DIRECTORY))))
     await migrateProject(root, options);
@@ -174,6 +176,7 @@ export async function recoverProjectMigration(
   projectPath: string,
 ): Promise<void> {
   const root = await canonicalRoot(projectPath);
+  await recoverManuscriptReplacement(root);
   await inspectCompatibility(root);
   if (await exists(join(root, MIGRATION_DIRECTORY))) await migrateProject(root);
 }

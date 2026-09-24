@@ -1,5 +1,10 @@
 import { z } from "zod";
 import {
+  ReplacementRequestSchema,
+  type ReplacementRequest,
+} from "./search-contracts.js";
+export * from "./search-contracts.js";
+import {
   ImportInspectRequestSchema,
   ImportCommitRequestSchema,
   type ImportReview,
@@ -25,6 +30,8 @@ export const ChapterStatusSchema = z.enum([
 export type ChapterStatus = z.infer<typeof ChapterStatusSchema>;
 
 export const IPC = {
+  MANUSCRIPT_REPLACE: "manuscript:replace",
+  MANUSCRIPT_CANCEL_REPLACE: "manuscript:cancel-replace",
   IMPORT_INSPECT: "import:inspect",
   IMPORT_COMMIT: "import:commit",
   IMPORT_OPEN: "import:open",
@@ -67,6 +74,7 @@ export const ApplicationMenuCommandSchema = z.enum([
   "backup-project",
   "restore-project",
   "import-manuscript",
+  "find-manuscript",
 ]);
 export type ApplicationMenuCommand = z.infer<
   typeof ApplicationMenuCommandSchema
@@ -124,6 +132,8 @@ export type ProjectOperationResult<T> =
   | { ok: false; error: { code: string; message: string } };
 
 export const IpcRequestSchemas = {
+  [IPC.MANUSCRIPT_REPLACE]: ReplacementRequestSchema,
+  [IPC.MANUSCRIPT_CANCEL_REPLACE]: z.undefined(),
   [IPC.IMPORT_INSPECT]: ImportInspectRequestSchema,
   [IPC.IMPORT_OPEN]: ImportTokenRequestSchema,
   [IPC.IMPORT_COMMIT]: ImportCommitRequestSchema,
@@ -226,6 +236,10 @@ export interface DrelwickApi {
   ): () => void;
   onShutdownRequested(callback: () => Promise<boolean>): () => void;
   project: {
+    replaceManuscript(
+      input: ReplacementRequest,
+    ): Promise<ProjectOperationResult<{ matches: number; chapters: number }>>;
+    cancelReplacement(): Promise<ProjectOperationResult<null>>;
     create(
       input: CreateProjectRequest,
     ): Promise<ProjectOperationResult<ProjectWorkspace>>;

@@ -53,6 +53,8 @@ const menuListeners = new Set<
 >();
 
 beforeEach(async () => {
+  Range.prototype.getClientRects = vi.fn(() => [] as unknown as DOMRectList);
+  Range.prototype.getBoundingClientRect = vi.fn(() => new DOMRect());
   saveListeners.clear();
   shutdownListeners.clear();
   menuListeners.clear();
@@ -129,6 +131,8 @@ beforeEach(async () => {
       return () => menuListeners.delete(callback);
     }),
     project: {
+      replaceManuscript: vi.fn(),
+      cancelReplacement: vi.fn(),
       create,
       close: closeProject,
       backup: backupProject,
@@ -695,6 +699,190 @@ describe("existing project workflow", () => {
 });
 
 describe("chapter editor persistence", () => {
+  it("cancels while flushing without replacing or discarding pre-existing edits", async () => {
+    vi.useFakeTimers();
+    await openChapter();
+    await editText("silver new prose");
+    await click("Find and replace");
+    await searchInput("Find text", "silver");
+    await click("Review replace all");
+    let finish!: (
+      value: Awaited<ReturnType<DrelwickApi["project"]["saveChapter"]>>,
+    ) => void;
+    saveChapter.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await click("Confirm replace all");
+    expect(editor().isEditable).toBe(false);
+    await click("Cancel replacement");
+    await act(async () =>
+      finish({
+        ok: true,
+        value: {
+          id: "123e4567-e89b-42d3-a456-426614174001",
+          modified: "2026-09-24T12:00:00Z",
+        },
+      }),
+    );
+    expect(window.drelwick.project.replaceManuscript).not.toHaveBeenCalled();
+    expect(editor().getText()).toBe("silver new prose");
+    expect(editor().isEditable).toBe(true);
+    expect(saveStatus()).toBe("All changes saved");
+  });
+  it("keeps the current chapter when search navigation cannot flush edits", async () => {
+    vi.useFakeTimers();
+    await openTwoChapters();
+    await editText("silver newer prose");
+    loadChapter.mockImplementation(async ({ chapterId }) => ({
+      ok: true,
+      value: {
+        id: chapterId,
+        content: {
+          type: "doc",
+          content: [
+            { type: "paragraph", content: [{ type: "text", text: "silver" }] },
+          ],
+        },
+      },
+    }));
+    await click("Find and replace");
+    await wholeManuscript();
+    await searchInput("Find text", "silver");
+    await click("Next match");
+    saveChapter.mockResolvedValue({
+      ok: false,
+      error: { code: "CHAPTER_SAVE_FAILED", message: "Retry" },
+    });
+    await click("Next match");
+    expect(editor().getText()).toBe("silver newer prose");
+    expect(
+      container.querySelector('[aria-current="page"]')?.textContent,
+    ).toContain("First");
+    expect(saveStatus()).toBe("Unsaved changes");
+  });
+  async function searchInput(label: string, value: string) {
+    await act(async () => {
+      const field = Array.from(container.querySelectorAll("label"))
+        .find((node) => node.textContent?.startsWith(label))
+        ?.querySelector("input");
+      if (!field) throw new Error("Missing search input");
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!.call(field, value);
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+  async function wholeManuscript() {
+    await act(async () => {
+      const select = container.querySelector<HTMLSelectElement>(
+        'section[aria-label="Manuscript find and replace"] select',
+      )!;
+      select.value = "manuscript";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+  it("finds unsaved prose, navigates, replaces through editor undo and invalidates edited offsets", async () => {
+    vi.useFakeTimers();
+    await openChapter();
+    await editText("The silver moon silver");
+    await click("Find and replace");
+    await searchInput("Find text", "silver");
+    expect(container.textContent).toContain("0 of 2 matches");
+    expect(saveChapter).not.toHaveBeenCalled();
+    await click("Next match");
+    expect(container.textContent).toContain("1 of 2 matches");
+    await searchInput("Replacement text", "金色");
+    await click("Replace one");
+    expect(editor().getText()).toBe("The 金色 moon silver");
+    await act(async () => {
+      editor().commands.undo();
+    });
+    expect(editor().getText()).toContain("silver moon silver");
+    await click("Next match");
+    await editText("changed");
+    expect(button("Replace one").disabled).toBe(true);
+    expect(saveStatus()).toBe("Unsaved changes");
+  });
+  it("reviews whole manuscript counts and flushes newer prose before bulk replacement", async () => {
+    vi.useFakeTimers();
+    await openTwoChapters();
+    await editText("New silver prose");
+    await click("Find and replace");
+    await wholeManuscript();
+    await searchInput("Find text", "silver");
+    await searchInput("Replacement text", "gold");
+    await click("Review replace all");
+    expect(container.textContent).toContain(
+      "whole manuscript: 1 matches in 1 chapters",
+    );
+    expect(window.drelwick.project.replaceManuscript).not.toHaveBeenCalled();
+    vi.mocked(window.drelwick.project.replaceManuscript).mockImplementation(
+      async (request) => {
+        expect(saveChapter).toHaveBeenCalledOnce();
+        expect(JSON.stringify(request.expected)).toContain("New silver prose");
+        expect(request.chapterId).toBeUndefined();
+        return {
+          ok: false,
+          error: {
+            code: "REPLACEMENT_FAILED",
+            message: "Original content preserved",
+          },
+        };
+      },
+    );
+    await click("Confirm replace all");
+    expect(window.drelwick.project.replaceManuscript).toHaveBeenCalledOnce();
+    expect(editor().getText()).toBe("New silver prose");
+    expect(container.textContent).toContain("Original content preserved");
+  });
+  it("preserves unsaved prose and does not bulk-write after flush failure", async () => {
+    vi.useFakeTimers();
+    await openChapter();
+    await editText("silver");
+    saveChapter.mockResolvedValue({
+      ok: false,
+      error: { code: "CHAPTER_SAVE_FAILED", message: "save failed" },
+    });
+    await click("Find and replace");
+    await searchInput("Find text", "silver");
+    await click("Review replace all");
+    await click("Confirm replace all");
+    expect(window.drelwick.project.replaceManuscript).not.toHaveBeenCalled();
+    expect(editor().getText()).toBe("silver");
+    expect(saveStatus()).toBe("Unsaved changes");
+  });
+  it("invalidates a review when editing changes its counts", async () => {
+    vi.useFakeTimers();
+    await openChapter();
+    await editText("silver");
+    await click("Find and replace");
+    await searchInput("Find text", "silver");
+    await click("Review replace all");
+    await editText(" silver");
+    expect(button("Confirm replace all").disabled).toBe(true);
+    expect(container.textContent).toContain("0 of 2 matches");
+  });
+  it.each([{ ctrlKey: true }, { metaKey: true }])(
+    "opens Find from conventional keyboard access %j",
+    async (modifiers) => {
+      vi.useFakeTimers();
+      await openChapter();
+      await act(async () => {
+        window.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "f", ...modifiers }),
+        );
+        await vi.advanceTimersByTimeAsync(5);
+      });
+      expect(
+        container.querySelector(
+          'section[aria-label="Manuscript find and replace"]',
+        ),
+      ).not.toBeNull();
+    },
+  );
   async function shortcut(modifiers: KeyboardEventInit) {
     const event = new KeyboardEvent("keydown", {
       key: "s",

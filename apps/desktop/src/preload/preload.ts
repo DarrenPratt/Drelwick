@@ -62,6 +62,9 @@ const api: DrelwickApi = {
     deleteChapter: (input) => ipcRenderer.invoke(IPC.CHAPTER_DELETE, input),
     reorderChapters: (input) => ipcRenderer.invoke(IPC.CHAPTER_REORDER, input),
     createChapter: (input) => ipcRenderer.invoke(IPC.CHAPTER_CREATE, input),
+    replaceManuscript: (input) =>
+      ipcRenderer.invoke(IPC.MANUSCRIPT_REPLACE, input),
+    cancelReplacement: () => ipcRenderer.invoke(IPC.MANUSCRIPT_CANCEL_REPLACE),
     saveChapter: (input) => ipcRenderer.invoke(IPC.PROJECT_SAVE_CHAPTER, input),
     loadChapter: (input) => ipcRenderer.invoke(IPC.PROJECT_LOAD_CHAPTER, input),
   },

@@ -124,6 +124,47 @@ const document = {
   ],
 };
 
+it("authorizes replacement, validates payloads, preserves marks and never logs search content", async () => {
+  const { root, chapterId } = await fixture();
+  const { invoke, logger, event } = setup(root);
+  await invoke(IPC.PROJECT_OPEN);
+  await invoke(IPC.PROJECT_SAVE_CHAPTER, { chapterId, document });
+  const request = {
+    options: { query: "Formatted", matchCase: false, wholeWord: true },
+    replacement: "Private replacement",
+    expected: [{ id: chapterId, content: document }],
+  };
+  expect(
+    (await invoke(IPC.MANUSCRIPT_REPLACE, { ...request, projectPath: root }))
+      .ok,
+  ).toBe(false);
+  expect(
+    (
+      await invoke(IPC.MANUSCRIPT_REPLACE, request, {
+        ...event,
+        senderFrame: {},
+      } as IpcMainInvokeEvent)
+    ).ok,
+  ).toBe(false);
+  expect(await invoke(IPC.MANUSCRIPT_REPLACE, request)).toEqual({
+    ok: true,
+    value: { matches: 1, chapters: 1 },
+  });
+  const loaded = await invoke(IPC.PROJECT_LOAD_CHAPTER, { chapterId });
+  expect(JSON.stringify(loaded)).toContain("Private replacement");
+  expect(JSON.stringify(loaded)).toContain("bold");
+  const logs = JSON.stringify([
+    logger.info.mock.calls,
+    logger.warn.mock.calls,
+    logger.error.mock.calls,
+  ]);
+  expect(logs).not.toContain("Formatted");
+  expect(logs).not.toContain("Private replacement");
+  expect((await invoke(IPC.MANUSCRIPT_CANCEL_REPLACE, { path: root })).ok).toBe(
+    false,
+  );
+});
+
 it("round trips validated IPC through disk and a fresh main session", async () => {
   const { root, chapterId } = await fixture();
   const { invoke, logger } = setup(root);

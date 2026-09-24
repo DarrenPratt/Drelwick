@@ -17,7 +17,9 @@ function sendCommand(
     | "close-project"
     | "backup-project"
     | "restore-project"
-    | "import-manuscript",
+    | "import-manuscript"
+    | "find-manuscript",
+  // Find is delivered through the same restricted application command channel.
 ): void {
   if (!window || window.isDestroyed()) return;
   BrowserWindow.fromId(window.id)?.webContents.send(
@@ -76,7 +78,25 @@ export function installApplicationMenu(platform = process.platform): void {
         ...(!isMac ? [{ label: "Exit", role: "quit" as const }] : []),
       ],
     },
-    { role: "editMenu" },
+    {
+      role: "editMenu",
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "selectAll" },
+        { type: "separator" },
+        {
+          label: "Find and replace…",
+          accelerator: "CommandOrControl+F",
+          click: (_item, window) => sendCommand(window, "find-manuscript"),
+        },
+      ],
+    },
     { role: "viewMenu" },
     { role: "windowMenu" },
     ...(!isMac

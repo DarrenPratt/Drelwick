@@ -21,6 +21,8 @@ export * from "./manuscript-import.js";
 export * from "./import-parser.js";
 export * from "./docx-importer.js";
 export * from "./text-importer.js";
+export * from "./manuscript-replacement.js";
+import { assertReplacementReadable } from "./manuscript-replacement.js";
 export { MIGRATION_DIRECTORY, MIGRATION_ERRORS } from "./migration-state.js";
 import {
   assertKnownVersion,
@@ -97,6 +99,7 @@ export async function openProject(
   options: OpenProjectOptions = {},
   fileSystem: ProjectLoadingFileSystem = defaultProjectLoadingFileSystem,
 ): Promise<OpenedProject> {
+  await assertReplacementReadable(projectPath);
   return loadProjectFiles(projectPath, options, fileSystem, true);
 }
 
