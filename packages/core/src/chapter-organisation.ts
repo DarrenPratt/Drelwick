@@ -4,6 +4,7 @@ import { isDeepStrictEqual } from "node:util";
 import {
   ChapterFileSchema,
   ManuscriptDocumentSchema,
+  ProjectConfigSchema,
   type ReplacementJournal,
 } from "@drelwick/project-model";
 import {
@@ -123,11 +124,13 @@ export async function organiseChapter(
             )
           )
             throw new Error("Identity collision.");
-          try {
-            await lstat(join(root, "manuscript", `${id}.json`));
-            throw new Error("Identity collision.");
-          } catch (error) {
-            if (!isMissing(error)) throw error;
+          for (const suffix of [".json", ".json.tmp"]) {
+            try {
+              await lstat(join(root, "manuscript", `${id}${suffix}`));
+              throw new Error("Identity collision.");
+            } catch (error) {
+              if (!isMissing(error)) throw error;
+            }
           }
           let content = first.content;
           if (command.operation === "split") {
@@ -151,7 +154,7 @@ export async function organiseChapter(
             chapterSchema.parse({
               ...first,
               id,
-              title: `${first.title.slice(0, 190)} ${command.operation === "duplicate" ? "Copy" : "Continued"}`,
+              title: `${first.title.slice(0, 190).replace(/\p{Surrogate}$/u, "")} ${command.operation === "duplicate" ? "Copy" : "Continued"}`,
               created: now,
               modified: now,
               content,
@@ -161,9 +164,22 @@ export async function organiseChapter(
           result = id;
         }
         await assertRegularPath(root, "project.json");
+        try {
+          await lstat(join(root, "project.json.tmp"));
+          throw new Error("Pending manifest recovery data.");
+        } catch (error) {
+          if (!isMissing(error)) throw error;
+        }
         const beforeManifest = JSON.parse(
           await readFile(join(root, "project.json"), "utf8"),
         ) as Record<string, unknown>;
+        if (
+          !isDeepStrictEqual(
+            ProjectConfigSchema.parse(beforeManifest),
+            session.project,
+          )
+        )
+          throw new Error("Stale manifest.");
         const afterManifest = withChapterOrder(beforeManifest, nextOrder, now);
         return {
           entries,

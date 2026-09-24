@@ -57,8 +57,15 @@ export const ReplacementJournalSchema = z
       });
     }
     if (value.structure) {
-      const before = ProjectConfigSchema.parse(value.structure.beforeManifest);
-      const after = ProjectConfigSchema.parse(value.structure.afterManifest);
+      const parsedBefore = ProjectConfigSchema.safeParse(
+        value.structure.beforeManifest,
+      );
+      const parsedAfter = ProjectConfigSchema.safeParse(
+        value.structure.afterManifest,
+      );
+      if (!parsedBefore.success || !parsedAfter.success) return;
+      const before = parsedBefore.data;
+      const after = parsedAfter.data;
       const expected = new Set(
         before.manuscript.order.filter(
           (id) => !value.structure!.removed.some((entry) => entry.id === id),

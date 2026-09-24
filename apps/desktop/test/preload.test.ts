@@ -161,5 +161,14 @@ describe("preload API", () => {
     });
     await api.project.restore();
     expect(invoke).toHaveBeenLastCalledWith("project:restore");
+    const organisation = {
+      operation: "status" as const,
+      projectId: input.locationToken,
+      expectedOrder: [input.locationToken],
+      chapterId: input.locationToken,
+      status: "review" as const,
+    };
+    await api.project.organiseChapter(organisation);
+    expect(invoke).toHaveBeenLastCalledWith("chapter:organise", organisation);
   });
 });

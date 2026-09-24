@@ -132,3 +132,8 @@ payload is logged.
   flush ordering/failure, confirmation cancellation, statuses and close guards.
 - `apps/desktop/test/chapter-persistence-ipc.test.ts`: trusted sender, project
   authorization, strict inputs and persisted status through the real service.
+- `tests/e2e/desktop.spec.ts`: native Windows duplicate, keyboard cursor split,
+  explicit merge selection, status editing and restart with formatted content.
+
+See the [34-criterion acceptance audit](planning/119-chapter-organisation-audit.md)
+for implementation/test mappings and executed checks.

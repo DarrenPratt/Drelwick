@@ -1,4 +1,3 @@
-import { organiseChapter } from "@drelwick/core";
 import {
   dialog,
   ipcMain,
@@ -15,6 +14,7 @@ import {
   loadChapter,
   saveChapter,
   replaceManuscript,
+  organiseChapter,
   openProject,
   openProjectForEditing,
   MIGRATION_ERRORS,
@@ -1232,6 +1232,11 @@ export function registerProjectHandlers(
     const parsed = IpcRequestSchemas[IPC.CHAPTER_ORGANISE].safeParse(payload);
     if (!parsed.success)
       return failure("PROJECT_INPUT_INVALID", "Invalid chapter operation.");
+    if (parsed.data.projectId !== activeProjectId)
+      return failure(
+        "PROJECT_NOT_OPEN",
+        "Reopen the project before organising chapters.",
+      );
     if (busy || !activeProjectPath)
       return failure(
         "PROJECT_BUSY",

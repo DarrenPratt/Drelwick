@@ -351,6 +351,10 @@ input:focus-visible {
 .chapter-organisation {
   margin: 8px 3px;
 }
+.chapter-organisation p {
+  font-size: 11px;
+  color: var(--muted);
+}
 .chapter-menu-actions label {
   display: grid;
   gap: 4px;

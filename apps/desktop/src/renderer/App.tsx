@@ -40,7 +40,15 @@ export function App() {
   const [organising, setOrganising] = useState(false);
   const [mergeSelection, setMergeSelection] = useState<string[]>([]);
   const [splitPosition, setSplitPosition] = useState<number | null>(null);
+  const focusOrganisedChapter = useRef(false);
   const [searchEditor, setSearchEditor] = useState<TipTapEditor | null>(null);
+  const editorReady = useCallback((editor: TipTapEditor | null) => {
+    setSearchEditor(editor);
+    if (editor && focusOrganisedChapter.current) {
+      focusOrganisedChapter.current = false;
+      editor.commands.focus("start");
+    }
+  }, []);
   const [findRequest, setFindRequest] = useState(0);
   const [replacing, setReplacing] = useState(false);
   const [searchRefresh, setSearchRefresh] = useState(0);
@@ -742,6 +750,7 @@ export function App() {
       setProject(result.value.workspace);
       setMergeSelection([]);
       if (command.operation !== "status") {
+        focusOrganisedChapter.current = true;
         setDocumentSession((session) => session + 1);
         setActiveChapterId(result.value.chapterId);
         setSearchRefresh((value) => value + 1);
@@ -1065,6 +1074,7 @@ export function App() {
                 <span>{project.chapters.length} chapters</span>
               </div>
               <div className="chapter-organisation">
+                <p>Select two adjacent chapters to merge.</p>
                 <button
                   disabled={organisationDisabled || !mergeAdjacent}
                   onClick={() => {
@@ -1121,13 +1131,20 @@ export function App() {
                       checked={mergeSelection.includes(chapter.id)}
                       disabled={
                         organisationDisabled ||
-                        (mergeSelection.length >= 2 &&
+                        (selectedForMerge.length >= 2 &&
                           !mergeSelection.includes(chapter.id))
                       }
                       onChange={(event) =>
                         setMergeSelection((current) =>
                           event.target.checked
-                            ? [...current, chapter.id]
+                            ? [
+                                ...current.filter((id) =>
+                                  project.chapters.some(
+                                    (entry) => entry.id === id,
+                                  ),
+                                ),
+                                chapter.id,
+                              ]
                             : current.filter((id) => id !== chapter.id),
                         )
                       }
@@ -1207,6 +1224,7 @@ export function App() {
                             Duplicate
                           </button>
                           <button
+                            title="Place a cursor inside the active chapter, with content on both sides. Text selections and invalid structural boundaries cannot be split."
                             disabled={
                               organisationDisabled ||
                               activeChapterId !== chapter.id ||
@@ -1352,7 +1370,7 @@ export function App() {
               <>
                 {documentReady && documentState ? (
                   <Editor
-                    onReady={setSearchEditor}
+                    onReady={editorReady}
                     projectId={project.projectId}
                     prepareImageImport={async () =>
                       (await autosave.current?.flush()) ?? true

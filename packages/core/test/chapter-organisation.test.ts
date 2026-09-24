@@ -2,7 +2,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import {
   ChapterStatusSchema,
   type ChapterOrganisationRequest,
@@ -10,6 +10,8 @@ import {
 import {
   createChapter,
   createProject,
+  createHistorySnapshot,
+  scanRecoveryCandidates,
   loadChapter,
   openProject,
   openProjectForEditing,
@@ -29,6 +31,7 @@ import { syntheticImage } from "../../../tests/helpers/synthetic-images.js";
 
 const roots: string[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   for (const root of roots.splice(0))
     await rm(root, { recursive: true, force: true });
 });
@@ -157,6 +160,81 @@ it("splits formatted runs exactly and keeps marks on both halves", () => {
     { type: "doc", content: [paragraph("fox")] },
   ]);
 });
+
+it("splits around scene breaks without duplicating atoms or paragraphs", () => {
+  const before = paragraph("One");
+  const after = paragraph("Two");
+  const scene = { type: "sceneBreak" };
+  const document = { type: "doc", content: [before, scene, after] };
+  expect(splitChapterDocument(document, 5)).toEqual([
+    { type: "doc", content: [before] },
+    { type: "doc", content: [scene, after] },
+  ]);
+  expect(splitChapterDocument(document, 6)).toEqual([
+    { type: "doc", content: [before, scene] },
+    { type: "doc", content: [after] },
+  ]);
+});
+
+it.each(["blockquote", "bulletList", "orderedList", "epigraph"])(
+  "retains valid %s wrappers and attributes inside formatted text",
+  (type) => {
+    const wrap = (value: string) =>
+      type === "bulletList" || type === "orderedList"
+        ? {
+            type,
+            ...(type === "orderedList" ? { attrs: { start: 3 } } : {}),
+            content: [{ type: "listItem", content: [paragraph(value)] }],
+          }
+        : {
+            type,
+            ...(type === "epigraph"
+              ? { attrs: { attribution: "Author" } }
+              : {}),
+            content: [paragraph(value)],
+          };
+    const position = type === "bulletList" || type === "orderedList" ? 5 : 4;
+    expect(
+      splitChapterDocument({ type: "doc", content: [wrap("ABCD")] }, position),
+    ).toEqual([
+      { type: "doc", content: [wrap("AB")] },
+      { type: "doc", content: [wrap("CD")] },
+    ]);
+  },
+);
+
+it("conserves marks, text and asset/scene atoms at every accepted rich-document position", () => {
+  function tokens(value: unknown): string[] {
+    const node = value as {
+      type: string;
+      text?: string;
+      marks?: unknown;
+      attrs?: unknown;
+      content?: unknown[];
+    };
+    if (node.text)
+      return Array.from(node.text).map((character) =>
+        JSON.stringify([character, node.marks ?? []]),
+      );
+    if (
+      ["image", "sceneBreak", "horizontalRule", "hardBreak"].includes(node.type)
+    )
+      return [JSON.stringify(node)];
+    return (node.content ?? []).flatMap(tokens);
+  }
+  let accepted = 0;
+  for (let position = 0; position < 160; position++) {
+    let parts: ReturnType<typeof splitChapterDocument>;
+    try {
+      parts = splitChapterDocument(rich, position);
+    } catch {
+      continue;
+    }
+    expect(parts.flatMap(tokens)).toEqual(tokens(rich));
+    accepted++;
+  }
+  expect(accepted).toBeGreaterThan(50);
+});
 it.each([0, 1, 10, 11, -1, 1.2, 999])(
   "rejects empty/start/end/out-of-range position %i",
   (position) => {
@@ -215,11 +293,12 @@ it("shares real image originals through duplicate, split and merge without copyi
     type: "doc",
     content: [image, paragraph("Left Right"), image],
   };
-  await saveChapter({
-    projectPath: input.projectPath,
-    chapterId: id,
-    document,
-  });
+  for (const chapterId of input.expectedOrder)
+    await saveChapter({
+      projectPath: input.projectPath,
+      chapterId,
+      document,
+    });
   const duplicate = await organiseChapter({
     ...input,
     operation: "duplicate",
@@ -233,7 +312,7 @@ it("shares real image originals through duplicate, split and merge without copyi
     expectedContent: document,
     position: 7,
   });
-  await organiseChapter({
+  const merged = await organiseChapter({
     ...input,
     expectedOrder: split.session.project.manuscript.order,
     operation: "merge",
@@ -249,6 +328,48 @@ it("shares real image originals through duplicate, split and merge without copyi
   expect(
     JSON.stringify(await findImageReferences(input.projectPath)),
   ).toContain(asset.id);
+  const jpeg = await syntheticImage("jpeg");
+  const jpegPath = join(input.projectPath, "source.jpg");
+  await writeFile(jpegPath, jpeg);
+  const otherAsset = await importImageAsset({
+    projectPath: input.projectPath,
+    sourcePath: jpegPath,
+  });
+  const secondId = input.expectedOrder[1]!;
+  await saveChapter({
+    projectPath: input.projectPath,
+    chapterId: secondId,
+    document: {
+      type: "doc",
+      content: [
+        { type: "image", attrs: { ...image.attrs, assetId: otherAsset.id } },
+      ],
+    },
+  });
+  await organiseChapter({
+    ...input,
+    expectedOrder: merged.session.project.manuscript.order,
+    operation: "merge",
+    chapterIds: [secondId, duplicate.chapterId],
+    confirmed: true,
+  });
+  const references = (await findImageReferences(input.projectPath))
+    .filter((reference) => reference.chapterId === duplicate.chapterId)
+    .map((reference) => reference.assetId);
+  expect(references).toEqual([asset.id, asset.id, otherAsset.id]);
+  expect(
+    (await readImageAsset(input.projectPath, otherAsset.id)).bytes,
+  ).toEqual(jpeg);
+  expect((await readImageAsset(input.projectPath, asset.id)).bytes).toEqual(
+    bytes,
+  );
+  expect(
+    await readdir(join(input.projectPath, "assets", "images")),
+  ).toHaveLength(2);
+  for (const reference of await findImageReferences(input.projectPath))
+    expect(
+      (await readImageAsset(input.projectPath, reference.assetId)).bytes.length,
+    ).toBeGreaterThan(0);
 });
 it("splits then reopens, retaining identity, status, order, snapshots and exact semantics", async () => {
   const input = await fixture();
@@ -502,3 +623,221 @@ it.each(["split", "merge", "duplicate"] as const)(
     ).toEqual(input.expectedOrder);
   },
 );
+
+it.each(["split", "merge", "duplicate"] as const)(
+  "rolls back %s after manifest publication but before completion",
+  async (operation) => {
+    const input = await fixture();
+    const [a, b] = input.expectedOrder as [string, string];
+    const before = await originals(input);
+    const command =
+      operation === "merge"
+        ? { ...input, operation, chapterIds: [a, b], confirmed: true }
+        : operation === "split"
+          ? {
+              ...input,
+              operation,
+              chapterId: a,
+              position: 20,
+              expectedContent: rich,
+            }
+          : { ...input, operation, chapterId: a };
+    const script = `import { organiseChapter } from ${JSON.stringify(new URL("../dist/index.js", import.meta.url).href)}; await organiseChapter(JSON.parse(process.argv[1]), { afterWrite: async index => { if(index === ${operation === "duplicate" ? 1 : 2}) process.exit(73); } });`;
+    const child = spawn(
+      process.execPath,
+      ["--input-type=module", "-e", script, JSON.stringify(command)],
+      { stdio: "ignore", windowsHide: true },
+    );
+    const code = await new Promise((resolve, reject) => {
+      child.on("error", reject);
+      child.on("exit", resolve);
+    });
+    expect(code).toBe(73);
+    expect(
+      JSON.parse(
+        await readFile(join(input.projectPath, "project.json"), "utf8"),
+      ).manuscript.order,
+    ).not.toEqual(input.expectedOrder);
+    await openProjectForEditing(input.projectPath);
+    expect(await originals(input)).toEqual(before);
+    expect(
+      (await openProject(input.projectPath)).project.manuscript.order,
+    ).toEqual(input.expectedOrder);
+  },
+);
+
+it.each(["split", "merge"] as const)(
+  "rolls back in-flight cancellation of %s after writes start",
+  async (operation) => {
+    const input = await fixture();
+    const [a, b] = input.expectedOrder as [string, string];
+    const before = await originals(input);
+    const command: ChapterOrganisationRequest =
+      operation === "merge"
+        ? { ...input, operation, chapterIds: [a, b], confirmed: true }
+        : {
+            ...input,
+            operation,
+            chapterId: a,
+            position: 20,
+            expectedContent: rich,
+          };
+    let cancelled = false;
+    await expect(
+      organiseChapter(
+        { ...command, projectPath: input.projectPath },
+        {
+          cancelled: () => cancelled,
+          afterWrite: async (index) => {
+            if (index === 1) cancelled = true;
+          },
+        },
+      ),
+    ).rejects.toThrow();
+    expect(await originals(input)).toEqual(before);
+    expect(
+      (await openProject(input.projectPath)).project.manuscript.order,
+    ).toEqual(input.expectedOrder);
+  },
+);
+
+it("retains a conflicting external revision and fails closed during structural rollback", async () => {
+  const input = await fixture();
+  const id = input.expectedOrder[0]!;
+  await expect(
+    organiseChapter(
+      {
+        ...input,
+        operation: "split",
+        chapterId: id,
+        position: 20,
+        expectedContent: rich,
+      },
+      {
+        afterWrite: async (index) => {
+          if (index !== 0) return;
+          const changed = await envelope(input.projectPath, id);
+          await writeFile(
+            join(input.projectPath, "manuscript", id + ".json"),
+            JSON.stringify({
+              ...changed,
+              content: { type: "doc", content: [paragraph("External work")] },
+            }),
+          );
+          throw new Error("Interrupt");
+        },
+      },
+    ),
+  ).rejects.toMatchObject({ code: "CHAPTER_RECOVERY_REQUIRED" });
+  expect(text((await envelope(input.projectPath, id)).content)).toBe(
+    "External work",
+  );
+  await expect(openProjectForEditing(input.projectPath)).rejects.toThrow();
+  expect(
+    JSON.parse(
+      await readFile(
+        join(input.projectPath, ".manuscript-replace.json"),
+        "utf8",
+      ),
+    ).phase,
+  ).toBe("pending");
+});
+
+it("preserves manifest extension metadata and refuses an existing recovery temporary", async () => {
+  const input = await fixture();
+  const id = input.expectedOrder[0]!;
+  const manifestPath = join(input.projectPath, "project.json");
+  const raw = JSON.parse(await readFile(manifestPath, "utf8"));
+  raw.extension = { value: 7 };
+  raw.manuscript.extension = "retained";
+  await writeFile(manifestPath, JSON.stringify(raw));
+  await writeFile(
+    join(input.projectPath, "manuscript", id + ".json.tmp"),
+    "Retained recovery data",
+  );
+  await expect(
+    organiseChapter({ ...input, operation: "duplicate", chapterId: id }),
+  ).rejects.toThrow();
+  expect(
+    await readFile(
+      join(input.projectPath, "manuscript", id + ".json.tmp"),
+      "utf8",
+    ),
+  ).toBe("Retained recovery data");
+  await rm(join(input.projectPath, "manuscript", id + ".json.tmp"));
+  await organiseChapter({ ...input, operation: "duplicate", chapterId: id });
+  expect(JSON.parse(await readFile(manifestPath, "utf8"))).toMatchObject({
+    extension: raw.extension,
+    manuscript: { extension: "retained" },
+  });
+});
+
+it.each([".json", ".json.tmp"])(
+  "refuses UUID collision with a retained orphan %s",
+  async (suffix) => {
+    const input = await fixture();
+    const id = input.expectedOrder[0]!;
+    const collision = "00000000-0000-4000-8000-000000000777";
+    const path = join(input.projectPath, "manuscript", collision + suffix);
+    await writeFile(path, "Retained recovery content");
+    vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(collision);
+    await expect(
+      organiseChapter({ ...input, operation: "duplicate", chapterId: id }),
+    ).rejects.toThrow();
+    expect(await readFile(path, "utf8")).toBe("Retained recovery content");
+    expect(
+      (await openProject(input.projectPath)).project.manuscript.order,
+    ).toEqual(input.expectedOrder);
+  },
+);
+
+it("never reuses an existing chapter ID and refuses pending manifest recovery", async () => {
+  const input = await fixture();
+  const id = input.expectedOrder[0]!;
+  const before = await originals(input);
+  const random = vi
+    .spyOn(globalThis.crypto, "randomUUID")
+    .mockReturnValue(id as ReturnType<typeof crypto.randomUUID>);
+  await expect(
+    organiseChapter({
+      ...input,
+      operation: "split",
+      chapterId: id,
+      expectedContent: rich,
+      position: 20,
+    }),
+  ).rejects.toThrow();
+  random.mockRestore();
+  await writeFile(
+    join(input.projectPath, "project.json.tmp"),
+    "Retained manifest",
+  );
+  await expect(
+    organiseChapter({ ...input, operation: "duplicate", chapterId: id }),
+  ).rejects.toThrow();
+  expect(await originals(input)).toEqual(before);
+  expect(
+    await readFile(join(input.projectPath, "project.json.tmp"), "utf8"),
+  ).toBe("Retained manifest");
+});
+
+it("forces every pre-restructure snapshot and excludes it from newer-content recovery", async () => {
+  const input = await fixture();
+  const chapterId = input.expectedOrder[0]!;
+  for (let index = 0; index < 2; index++)
+    expect(
+      await createHistorySnapshot({
+        projectPath: input.projectPath,
+        chapterId,
+        document: rich,
+        reason: "before-restructure",
+        now: "2030-01-01T00:00:00.000Z",
+      }),
+    ).not.toBeNull();
+  expect((await scanRecoveryCandidates(input.projectPath)).candidates).toEqual(
+    [],
+  );
+  expect(
+    await readdir(join(input.projectPath, ".history", "snapshots", chapterId)),
+  ).toHaveLength(2);
+});
