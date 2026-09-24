@@ -21,7 +21,6 @@ import type { Editor as TipTapEditor } from "@tiptap/core";
 import { NewProjectDialog } from "./NewProjectDialog.js";
 import { Editor } from "./components/Editor.js";
 import { WorkspaceLayout } from "./components/WorkspaceLayout.js";
-import { WorkspaceDemo } from "./components/WorkspaceDemo.js";
 import { WorkspaceIcon } from "./components/WorkspaceIcon.js";
 import { RendererErrorBoundary } from "./RendererErrorBoundary.js";
 import type { JSONContent } from "@tiptap/core";
@@ -40,7 +39,6 @@ export function App() {
   const replacementCancelled = useRef(false);
   const [replacementRecoveryRequired, setReplacementRecoveryRequired] =
     useState(false);
-  const [demo, setDemo] = useState(false);
   const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [project, setProject] = useState<ProjectWorkspace | null>(null);
@@ -617,7 +615,6 @@ export function App() {
       return;
     pending.current = true;
     setError("");
-    setDemo(false);
     setImporting(true);
   }, [
     creating,
@@ -895,8 +892,6 @@ export function App() {
       </ul>
     </section>
   );
-
-  if (demo) return <WorkspaceDemo onExit={() => setDemo(false)} />;
 
   const content = (
     <>
@@ -1240,37 +1235,7 @@ export function App() {
               {projectMessage}
             </p>
           )}
-          <div className="welcome-grid">
-            <section className="welcome-panel demo-invitation">
-              <span className="section-label">A LOOK AHEAD</span>
-              <h2>Meet your next writing space.</h2>
-              <p>
-                Explore a sample book in the new workspace, with an outline, a
-                spacious editor and a look at the publishing tools to come.
-              </p>
-              <button
-                className="primary-button"
-                disabled={opening || creating}
-                onClick={() => setDemo(true)}
-              >
-                Explore workspace
-              </button>
-              <small>Interactive demo · no project files created</small>
-              <div className="mini-workspace" aria-hidden="true">
-                <div />
-                <div>
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                </div>
-                <div>
-                  <span>Aa</span>
-                </div>
-              </div>
-            </section>
-            {recentProjects}
-          </div>
+          {recentProjects}
         </main>
       )}
       {importing && (

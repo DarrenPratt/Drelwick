@@ -1,15 +1,13 @@
-# Authoring workspace demonstration
+# Authoring workspace
 
-Choose **Explore workspace** on the welcome screen to try the sample authoring layout. The outline, sample prose, preview, temporary theme controls and sample navigation are interactive. Changes stay in memory for that visit. Exiting returns to the project launcher; it does not write a project, save setting or export file.
+Create or open a local project from the welcome screen to enter the authoring
+workspace. The separate **Explore workspace** demo has been removed.
 
-The project workspace uses the same header, book outline, writing surface and tool sidebar. The current chapter editor, save state, autosave, project operations, retained history and crash-recovery flow remain connected to their existing local services.
+The project workspace includes the book outline, chapter editor, save state,
+autosave, manuscript Find/Replace and startup crash recovery. See
+[manuscript search](manuscript-search.md) for search and replacement behaviour.
 
-## Layout preview
-
-This screenshot shows the sample workspace. Front and back matter, theme selection, publication details, preview rendering, DOCX/EPUB/PDF export, manuscript search and a browsable history view have illustrative or marked unavailable states until their implementation issues are delivered.
-
-![Sample three-panel Drelwick workspace](screenshots/authoring-workspace-preview.png)
-
-The device and theme selectors demonstrate future layout directions. This page uses original sample prose; it does not render the author's project. It does not create a valid publishing preview or certify EPUB/PDF output. The local tools remain useful without an account or network connection.
-
-Related delivery issue: [#141](https://github.com/DarrenPratt/Drelwick/issues/141).
+Publishing preview, device and theme selectors remain illustrative controls using
+original sample prose. They do not render the current manuscript or create valid
+publishing output. Unimplemented publishing and history-browser controls are
+marked as unavailable or mock features.
