@@ -1,5 +1,5 @@
 {
-  "name": "sarel",
+  "name": "drelwick",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -17,7 +17,7 @@
     "test:e2e": "pnpm build && playwright test",
     "test:watch": "pnpm build && vitest",
     "test:coverage": "pnpm build && vitest run --coverage",
-    "check:workspace": "pnpm build && pnpm --filter @sarel/workspace-smoke smoke"
+    "check:workspace": "pnpm build && pnpm --filter @drelwick/workspace-smoke smoke"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

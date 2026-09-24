@@ -45,7 +45,7 @@ async function unicodeFixture(): Promise<FixtureCopy> {
 }
 
 async function temporaryDirectory(): Promise<string> {
-  const path = await mkdtemp(join(tmpdir(), "sarel-project-archive-"));
+  const path = await mkdtemp(join(tmpdir(), "drelwick-project-archive-"));
   temporaryRoots.push(path);
   return path;
 }
@@ -387,7 +387,7 @@ describe("portable project archive", () => {
 
     const items = await readZip(archive);
     const manifestEntry = items.find(
-      ({ name }) => name === ".bookeditor-archive.json",
+      ({ name }) => name === ".drelwick-archive.json",
     );
     expect(manifestEntry).toBeDefined();
     const manifest = JSON.parse(manifestEntry!.data.toString("utf8")) as {

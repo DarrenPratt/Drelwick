@@ -1,6 +1,6 @@
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { beforeEach, expect, it, vi } from "vitest";
-import { IPC, type SafeLogger } from "@sarel/shared";
+import { IPC, type SafeLogger } from "@drelwick/shared";
 
 const { handle } = vi.hoisted(() => ({ handle: vi.fn() }));
 vi.mock("electron", () => ({ ipcMain: { handle } }));

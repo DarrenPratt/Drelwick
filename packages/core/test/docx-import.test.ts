@@ -17,8 +17,8 @@ import {
   loadChapter,
   DOCX_LIMITS,
   IsolatedManuscriptImporter,
-} from "@sarel/core";
-import { validateImportedManuscript } from "@sarel/project-model";
+} from "@drelwick/core";
+import { validateImportedManuscript } from "@drelwick/project-model";
 import { syntheticImage } from "../../../tests/helpers/synthetic-images.js";
 import {
   docx,
@@ -216,7 +216,7 @@ it.each(["png", "jpeg"] as const)(
         "word/media/not-an-extension.bin": image,
       },
     );
-    const root = await mkdtemp(join(tmpdir(), "sarel-docx-"));
+    const root = await mkdtemp(join(tmpdir(), "drelwick-docx-"));
     roots.push(root);
     const source = join(root, "novel.docx"),
       dest = join(root, "destination");
@@ -257,7 +257,7 @@ it("rejects oversized decoded DOCX images before staging", async () => {
     ),
     "word/media/image.png": image,
   });
-  const root = await mkdtemp(join(tmpdir(), "sarel-docx-"));
+  const root = await mkdtemp(join(tmpdir(), "drelwick-docx-"));
   roots.push(root);
   const source = join(root, "source.docx");
   await writeFile(source, bytes);
@@ -492,7 +492,7 @@ it("blocks macro packages and unsupported image bytes", async () => {
 it.each(["staging", "before-commit", "failure"] as const)(
   "preserves source and cleans DOCX staging on %s",
   async (phase) => {
-    const root = await mkdtemp(join(tmpdir(), "sarel-docx-"));
+    const root = await mkdtemp(join(tmpdir(), "drelwick-docx-"));
     roots.push(root);
     const source = join(root, "source.docx"),
       destination = join(root, "dest");
@@ -729,7 +729,7 @@ it("image decoder rejects a fake PNG signature before any stage is written", asy
       137, 80, 78, 71, 13, 10, 26, 10, 0,
     ]),
   });
-  const root = await mkdtemp(join(tmpdir(), "sarel-docx-"));
+  const root = await mkdtemp(join(tmpdir(), "drelwick-docx-"));
   roots.push(root);
   const source = join(root, "bad.docx");
   await writeFile(source, bytes);
@@ -743,7 +743,7 @@ it("image decoder rejects a fake PNG signature before any stage is written", asy
   expect(await readFile(source)).toEqual(Buffer.from(bytes));
 });
 it("failed inspection and staging writes preserve the source; cancelling a running parser terminates it", async () => {
-  const root = await mkdtemp(join(tmpdir(), "sarel-docx-"));
+  const root = await mkdtemp(join(tmpdir(), "drelwick-docx-"));
   roots.push(root);
   const source = join(root, "source.docx");
   const invalid = docx("<w:p><w:ins/></w:p>");

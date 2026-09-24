@@ -20,7 +20,7 @@ import {
   IMAGE_LIMITS,
   ImageAssetIdSchema,
   ManuscriptDocumentSchema,
-} from "@sarel/project-model";
+} from "@drelwick/project-model";
 import {
   copyFixture,
   type FixtureCopy,
@@ -52,7 +52,7 @@ afterEach(async () => {
 async function fixture() {
   const copy = await copyFixture("multi-chapter-book");
   copies.push(copy);
-  const sourceRoot = await mkdtemp(join(tmpdir(), "sarel-images-"));
+  const sourceRoot = await mkdtemp(join(tmpdir(), "drelwick-images-"));
   temporary.push(sourceRoot);
   const sourcePath = join(sourceRoot, "synthetic.png");
   await writeFile(sourcePath, await syntheticImage());

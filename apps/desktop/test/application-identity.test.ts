@@ -7,11 +7,11 @@ import { configureApplicationIdentity } from "../src/main/application-identity.j
 it.each([false, true])(
   "preserves settings and recovery data (explicit directory: %s)",
   async (explicitDirectory) => {
-    const root = await mkdtemp(join(tmpdir(), "sarel-identity-"));
+    const root = await mkdtemp(join(tmpdir(), "drelwick-identity-"));
     try {
       const expected = explicitDirectory
         ? join(root, "isolated-profile")
-        : join(root, "@bookeditor", "desktop");
+        : join(root, "@drelwick", "desktop");
       await mkdir(expected, { recursive: true });
       await writeFile(
         join(expected, "session.json"),
@@ -23,7 +23,7 @@ it.each([false, true])(
       );
       const paths = new Map([
         ["appData", root],
-        ["userData", explicitDirectory ? expected : join(root, "SAREL")],
+        ["userData", explicitDirectory ? expected : join(root, "Drelwick")],
       ]);
       const setName = vi.fn();
       configureApplicationIdentity({
@@ -36,7 +36,7 @@ it.each([false, true])(
         },
         setName,
       });
-      expect(setName).toHaveBeenCalledWith("SAREL");
+      expect(setName).toHaveBeenCalledWith("Drelwick");
       expect(paths.get("userData")).toBe(expected);
       expect(paths.get("sessionData")).toBe(expected);
       expect(await readFile(join(expected, "session.json"), "utf8")).toBe(

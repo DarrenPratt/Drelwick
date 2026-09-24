@@ -16,7 +16,7 @@ afterEach(async () => {
 
 describe("chapter loading", () => {
   it("loads the active chapter document without changing its JSON", async () => {
-    const root = await mkdtemp(join(tmpdir(), "sarel-load-"));
+    const root = await mkdtemp(join(tmpdir(), "drelwick-load-"));
     directories.push(root);
     await createProject({
       projectPath: root,
@@ -42,7 +42,7 @@ describe("chapter loading", () => {
   });
 
   it("rejects chapters that are not in the manifest", async () => {
-    const root = await mkdtemp(join(tmpdir(), "sarel-load-"));
+    const root = await mkdtemp(join(tmpdir(), "drelwick-load-"));
     directories.push(root);
     await createProject({
       projectPath: root,

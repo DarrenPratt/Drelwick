@@ -1,8 +1,11 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { SessionMarkerSchema, type SessionMarker } from "@sarel/project-model";
-import { createUuid } from "@sarel/shared";
-import { writeJsonAtomically } from "@sarel/core";
+import {
+  SessionMarkerSchema,
+  type SessionMarker,
+} from "@drelwick/project-model";
+import { createUuid } from "@drelwick/shared";
+import { writeJsonAtomically } from "@drelwick/core";
 
 export interface SessionStart {
   previousSession: SessionMarker | null;

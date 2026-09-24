@@ -16,7 +16,7 @@ import {
   ApplicationError,
   ImportReviewSchema,
   type ImportReview,
-} from "@sarel/shared";
+} from "@drelwick/shared";
 import {
   IMPORT_LIMITS,
   validateImportedManuscript,
@@ -24,7 +24,7 @@ import {
   BookMetadataSchema,
   ImageAssetSchema,
   type ValidatedManuscript,
-} from "@sarel/project-model";
+} from "@drelwick/project-model";
 import {
   boundedRead,
   regularPath,
@@ -162,7 +162,7 @@ export class StagedManuscriptImport {
       // Canonicalize only this application-selected root, never picker paths.
       const temporaryRoot = options.temporaryRoot ?? (await realpath(tmpdir()));
       await regularPath(temporaryRoot, true);
-      root = await mkdtemp(join(temporaryRoot, "sarel-manuscript-import-"));
+      root = await mkdtemp(join(temporaryRoot, "drelwick-manuscript-import-"));
       await checkpoint(options, "staging");
       await (options.writeBytes ?? writeBytes)(
         join(root, "manuscript.json"),
@@ -267,7 +267,7 @@ export class StagedManuscriptImport {
         : original;
       await validateAssets(value, options.signal);
       // A stage inside the destination keeps all subsequent renames on one filesystem.
-      stage = join(destination, `.sarel-import-${randomUUID()}`);
+      stage = join(destination, `.drelwick-import-${randomUUID()}`);
       await mkdir(stage);
       const project = await createProject({
         ...value.metadata,

@@ -1,5 +1,5 @@
 import { Worker } from "node:worker_threads";
-import { IMPORT_LIMITS } from "@sarel/project-model";
+import { IMPORT_LIMITS } from "@drelwick/project-model";
 import { importError, type ManuscriptImporter } from "./manuscript-import.js";
 
 /** A packaged synchronous JS function: base64 source -> serialized ImporterResult.

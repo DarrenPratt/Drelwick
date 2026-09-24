@@ -1,8 +1,8 @@
-import type { SarelApi } from "@sarel/shared";
+import type { DrelwickApi } from "@drelwick/shared";
 
 declare global {
   interface Window {
-    sarel: SarelApi;
+    drelwick: DrelwickApi;
   }
 }
 

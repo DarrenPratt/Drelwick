@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { IPC, validateIpcPayload } from "@sarel/shared";
+import { IPC, validateIpcPayload } from "@drelwick/shared";
 
 describe("IPC contracts", () => {
   it("accepts valid chapter requests", () => {

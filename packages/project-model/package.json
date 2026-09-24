@@ -1,5 +1,5 @@
 {
-  "name": "@sarel/project-model",
+  "name": "@drelwick/project-model",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@sarel/shared": "workspace:*",
+    "@drelwick/shared": "workspace:*",
     "zod": "4.1.12"
   }
 }

@@ -4,8 +4,8 @@ import {
   migrateV1Manifest,
   type MigrationState,
   type ProjectSnapshot,
-} from "@sarel/project-model";
-import { ApplicationError, createUuid } from "@sarel/shared";
+} from "@drelwick/project-model";
+import { ApplicationError, createUuid } from "@drelwick/shared";
 import {
   copyFile,
   link,

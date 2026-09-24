@@ -10,14 +10,14 @@ import {
   unlink,
 } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
-import { ApplicationError, createIsoDate, createUuid } from "@sarel/shared";
+import { ApplicationError, createIsoDate, createUuid } from "@drelwick/shared";
 import {
   ChapterFileSchema,
   CountedChapterSummarySchema,
   ProjectConfigSchema,
   type ChapterFile,
   type ProjectConfig,
-} from "@sarel/project-model";
+} from "@drelwick/project-model";
 import {
   openProject,
   writeJsonAtomically,

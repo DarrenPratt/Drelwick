@@ -32,7 +32,7 @@ authoritative files are preserved and only the disposable summary cache may be
 rebuilt after a successful open. Issue #111 adds the
 [verified-backup and journaled V1 -> V2 migration](project-format.md); an
 unfinished or invalid migration cannot be exposed to the editor. Newer formats
-produce an explicit newer-compatible-SAREL error without mutation.
+produce an explicit newer-compatible-Drelwick error without mutation.
 
 ## Switching and pending changes
 

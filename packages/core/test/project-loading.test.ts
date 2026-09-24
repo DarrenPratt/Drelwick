@@ -12,8 +12,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createUuid } from "@sarel/shared";
-import { ChapterSummaryCacheSchema } from "@sarel/project-model";
+import { createUuid } from "@drelwick/shared";
+import { ChapterSummaryCacheSchema } from "@drelwick/project-model";
 import {
   CHAPTER_SUMMARY_CACHE_FILE,
   createProject,
@@ -32,7 +32,7 @@ afterEach(async () => {
 });
 
 async function fixture(chapterCount = 2) {
-  const root = await mkdtemp(join(tmpdir(), "sarel-open-"));
+  const root = await mkdtemp(join(tmpdir(), "drelwick-open-"));
   directories.push(root);
   const created = await createProject({
     projectPath: root,

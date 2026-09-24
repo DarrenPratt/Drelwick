@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { validateImportedManuscript } from "@sarel/project-model";
+import { validateImportedManuscript } from "@drelwick/project-model";
 import { reviewImportedManuscript } from "../src/manuscript-import.js";
 const paragraph = (text: string) => ({
   type: "paragraph",

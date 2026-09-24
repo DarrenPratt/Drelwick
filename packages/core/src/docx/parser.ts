@@ -1,4 +1,4 @@
-import type { ImporterResult } from "@sarel/project-model";
+import type { ImporterResult } from "@drelwick/project-model";
 import {
   DOCX_ERRORS,
   DOCX_LIMITS as L,

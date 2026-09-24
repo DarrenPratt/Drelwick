@@ -1,6 +1,6 @@
 # Development workflow
 
-SAREL is in private development. Do not accept unrestricted external contributions until the Licensing & Commercial Architecture milestone is complete and the contributor/copyright strategy is formally approved. This document does not grant a licence or establish a contributor agreement.
+Drelwick is in private development. Do not accept unrestricted external contributions until the Licensing & Commercial Architecture milestone is complete and the contributor/copyright strategy is formally approved. This document does not grant a licence or establish a contributor agreement.
 
 Use `Requirement -> Design -> Issue -> Branch -> Commit -> Pull Request -> Tests -> Review -> Merge`. Prefer one implementation issue per focused PR. Use `feature/<issue-number>-short-description`, `fix/<issue-number>-short-description` or `chore/<issue-number>-short-description`. Complete PRs use `Closes #<issue>`; partial work uses `Related to #<issue>`. Review and merge are separate from creating a PR.
 
@@ -27,7 +27,7 @@ Split work that delivers independently scoped products. Basic themes are CORE, p
 4. Expose only a restricted preload API.
 5. Validate IPC inputs and authorize project/path access in the privileged process.
 6. Pro depends on Community; Community never depends on Pro. Build and test Community with no Pro checkout.
-7. Keep project files portable and recoverable outside SAREL.
+7. Keep project files portable and recoverable outside Drelwick.
 8. A database may be a rebuildable cache, never the only manuscript source.
 9. Never log manuscript body text, including error payloads.
 10. EPUB/PDF are generated outputs, never editable master documents.
@@ -49,6 +49,6 @@ An issue is Ready only when dependencies are resolved, acceptance criteria and t
 
 Done requires satisfied acceptance criteria, relevant passing checks, documentation, review and merge. Documentation-only PRs may mark application tests inapplicable with an explanation. Once the toolchain exists, CI must run install, lint, format check, typecheck, tests and build on PRs and main. Configure protection against the real checks then; do not label absent checks as passing.
 
-Development board: [@SAREL](https://github.com/users/DarrenPratt/projects/1), private and linked to this repository. This owner-created board fulfils the build plan target `SAREL Development`; retain its name and reuse it. Fields: Status, Priority, Area, Milestone and Estimate. Status values: Backlog, Ready, In Progress, Review, Blocked, Done. Estimate values: XS, S, M, L, XL; leave estimates unset until assessed. Use issue labels for multi-area details and native milestone data. PR closure and Project status automation must be verified before relying on it.
+Development board: [Drelwick](https://github.com/users/DarrenPratt/projects/1), private and linked to this repository. This owner-created board fulfils the build plan target `Drelwick Development`; retain its name and reuse it. Fields: Status, Priority, Area, Milestone and Estimate. Status values: Backlog, Ready, In Progress, Review, Blocked, Done. Estimate values: XS, S, M, L, XL; leave estimates unset until assessed. Use issue labels for multi-area details and native milestone data. PR closure and Project status automation must be verified before relying on it.
 
 The [tracking register](planning/github-tracking.md#project-board-setup) records current fields and initialization. Maintain Status, Priority and representative Area explicitly during triage; native Labels retains every applicable area. Estimates remain unset until assessed. Do not assume automated readiness, status transitions or label-to-field synchronization.

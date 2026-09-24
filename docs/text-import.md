@@ -122,7 +122,7 @@ No manuscript text, raw parser exceptions, paths or image data are logged.
 - [Marked 18.0.14](https://marked.js.org/), MIT: maintained standalone CommonMark/GFM
   parser, zero runtime dependencies, no browser required. No plugins, hooks,
   highlighting or custom executable extensions are installed. Marked explicitly
-  does **not** sanitize HTML; SAREL always applies its semantic converter.
+  does **not** sanitize HTML; Drelwick always applies its semantic converter.
 - [parse5 8.0.1](https://github.com/inikulin/parse5), MIT: WHATWG HTML parser already
   present transitively through jsdom; now pinned as a direct core dependency. It
   handles malformed markup and entities without browser resource loading.
@@ -131,7 +131,7 @@ No manuscript text, raw parser exceptions, paths or image data are logged.
   `dist/text-parser.bundle.js`. Runtime module loading remains unavailable.
 
 Installed licences are included in the bundle. These dependencies do not choose
-SAREL's licence or alter its independent Community build.
+Drelwick's licence or alter its independent Community build.
 
 ## Executable evidence
 

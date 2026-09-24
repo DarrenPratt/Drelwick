@@ -18,11 +18,11 @@ import {
   createProject,
   loadChapter,
   type TextFormat,
-} from "@sarel/core";
+} from "@drelwick/core";
 import {
   validateImportedManuscript,
   ManuscriptDocumentSchema,
-} from "@sarel/project-model";
+} from "@drelwick/project-model";
 import { syntheticImage } from "../../../tests/helpers/synthetic-images.js";
 
 const signal = () => new AbortController().signal;
@@ -58,7 +58,7 @@ afterEach(async () => {
     await rm(root, { recursive: true, force: true });
 });
 async function root() {
-  const path = await mkdtemp(join(tmpdir(), "sarel-text-import-"));
+  const path = await mkdtemp(join(tmpdir(), "drelwick-text-import-"));
   roots.push(path);
   return path;
 }

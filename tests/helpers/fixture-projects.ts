@@ -30,7 +30,7 @@ export interface FixtureCopy {
 }
 
 export async function copyFixture(name: FixtureName): Promise<FixtureCopy> {
-  const temporaryRoot = await mkdtemp(join(tmpdir(), "sarel-fixture-"));
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "drelwick-fixture-"));
   const projectPath = join(temporaryRoot, name);
   try {
     await cp(fixturePath(name), projectPath, {

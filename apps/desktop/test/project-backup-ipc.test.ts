@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { openProject } from "@sarel/core";
-import { ApplicationError, IPC, type SafeLogger } from "@sarel/shared";
+import { openProject } from "@drelwick/core";
+import { ApplicationError, IPC, type SafeLogger } from "@drelwick/shared";
 import {
   copyFixture,
   type FixtureCopy,

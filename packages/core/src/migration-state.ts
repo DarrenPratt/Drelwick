@@ -2,17 +2,17 @@ import {
   MigrationStateSchema,
   detectProjectVersion,
   type MigrationState,
-} from "@sarel/project-model";
-import { ApplicationError } from "@sarel/shared";
+} from "@drelwick/project-model";
+import { ApplicationError } from "@drelwick/shared";
 import { lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export const MIGRATION_DIRECTORY = ".bookeditor-migration";
+export const MIGRATION_DIRECTORY = ".drelwick-migration";
 export const MIGRATION_ERRORS = {
   PROJECT_VERSION_MALFORMED:
     "The project has missing or malformed version information. Preserve the project and restore a valid copy.",
   PROJECT_SCHEMA_UNSUPPORTED:
-    "This project requires a newer compatible version of SAREL. Its files have not been rewritten.",
+    "This project requires a newer compatible version of Drelwick. Its files have not been rewritten.",
   MIGRATION_BACKUP_FAILED:
     "Unable to create the pre-migration backup. Check disk space and permissions; project files were not migrated.",
   MIGRATION_BACKUP_INVALID:

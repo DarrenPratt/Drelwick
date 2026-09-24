@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import {
   ProjectSnapshotSchema,
   type ProjectSnapshot,
-} from "@sarel/project-model";
+} from "@drelwick/project-model";
 import { MIGRATION_DIRECTORY, migrationError } from "./migration-state.js";
 
 /** Complete local recovery copies deliberately do not use portable ZIP exclusions. */

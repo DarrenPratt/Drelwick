@@ -1,4 +1,4 @@
-# SAREL
+# Drelwick
 
 ## Software Design Document
 
@@ -12,9 +12,9 @@
 
 ## Current product decision — September 2026
 
-SAREL is a cross-platform, local-first, open-core authoring and publishing application in private development. Community will eventually be public; Pro remains a separate private commercial product. AGPLv3 is only a candidate Community licence. Licence selection, contributor/copyright strategy, dual licensing and trademarks require proper review before public release. Do not accept unrestricted external contributions until that strategy is approved.
+Drelwick is a cross-platform, local-first, open-core authoring and publishing application in private development. Community will eventually be public; Pro remains a separate private commercial product. AGPLv3 is only a candidate Community licence. Licence selection, contributor/copyright strategy, dual licensing and trademarks require proper review before public release. Do not accept unrestricted external contributions until that strategy is approved.
 
-The dependency direction is always `SAREL Pro -> SAREL Community`. Community must build and test with no Pro repository present. No Pro repository is required during the v0.1 foundation. Manuscript/project files belong to the author and remain authoritative, recoverable outside the application and usable without cloud connectivity. EPUB/PDF are generated outputs, never editable master documents.
+The dependency direction is always `Drelwick Pro -> Drelwick Community`. Community must build and test with no Pro repository present. No Pro repository is required during the v0.1 foundation. Manuscript/project files belong to the author and remain authoritative, recoverable outside the application and usable without cloud connectivity. EPUB/PDF are generated outputs, never editable master documents.
 
 | Classification | Product scope                                                                                                                                                                                                                                                                                                          |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -31,7 +31,7 @@ The [commercial addendum](planning/commercial-architecture-addendum.md), [audit]
 
 ## 1.1 Purpose
 
-SAREL is a cross-platform desktop authoring, formatting, preview and publishing application designed primarily for fiction and long-form prose.
+Drelwick is a cross-platform desktop authoring, formatting, preview and publishing application designed primarily for fiction and long-form prose.
 
 The application provides an alternative to tools such as Kindle Create while avoiding dependence on proprietary manuscript formats.
 
@@ -124,7 +124,7 @@ The application must support:
 - local backups;
 - local exports.
 
-Cloud editing, hosted conversion and collaboration are outside the current delivery roadmap. Optional off-device backup may later use user-owned storage such as Google Drive, Wasabi or Git repositories. This is exploration, not a selected provider or implementation commitment. Storage-provider backups use consistent archives. Git research also compares commits of validated staged project snapshots with archive commits; neither approach synchronizes the live manuscript working directory. Local project files remain authoritative, and writing, import, preview and export must work without a connection or SAREL account. See the [local publishing plan](planning/local-publishing-plan.md).
+Cloud editing, hosted conversion and collaboration are outside the current delivery roadmap. Optional off-device backup may later use user-owned storage such as Google Drive, Wasabi or Git repositories. This is exploration, not a selected provider or implementation commitment. Storage-provider backups use consistent archives. Git research also compares commits of validated staged project snapshots with archive commits; neither approach synchronizes the live manuscript working directory. Local project files remain authoritative, and writing, import, preview and export must work without a connection or Drelwick account. See the [local publishing plan](planning/local-publishing-plan.md).
 
 ---
 

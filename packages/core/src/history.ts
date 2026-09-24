@@ -2,13 +2,13 @@ import {
   HistorySnapshotSchema,
   ManuscriptDocumentSchema,
   type HistorySnapshot,
-} from "@sarel/project-model";
+} from "@drelwick/project-model";
 import {
   ApplicationError,
   createIsoDate,
   createUuid,
   isUuid,
-} from "@sarel/shared";
+} from "@drelwick/shared";
 import {
   lstat,
   mkdir,

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isSafeRelativePath } from "@sarel/shared";
+import { isSafeRelativePath } from "@drelwick/shared";
 import {
   ProjectConfigSchema,
   ProjectArchiveManifestSchema,
@@ -14,7 +14,7 @@ const path = z
       value
         .split("/")
         .every((part) => part !== "." && !/[\\:*?"<>|]/.test(part)) &&
-      ![".bookeditor-migration", ".chapter-create.lock"].includes(
+      ![".drelwick-migration", ".chapter-create.lock"].includes(
         value.split("/")[0] ?? "",
       ),
   );

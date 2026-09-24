@@ -1,7 +1,7 @@
 # Manuscript recovery
 
 Issue #40 (CORE) adds startup decisions to the read-only crash scan from #39.
-After an unclean session, SAREL scans recent projects and shows a modal
+After an unclean session, Drelwick scans recent projects and shows a modal
 before mounting the editor. Each candidate shows its chapter, project folder,
 source and timestamp. Candidates are ordered newest first within each project.
 Visual comparison remains future work.

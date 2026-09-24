@@ -1,5 +1,5 @@
 import { Node } from "@tiptap/core";
-import { ImageAttributesSchema } from "@sarel/project-model";
+import { ImageAttributesSchema } from "@drelwick/project-model";
 
 // Keep normal editor reads sequential to bound decoded image work in main.
 let reads = Promise.resolve();
@@ -54,7 +54,7 @@ export const ManuscriptImage = Node.create<{ projectId?: string }>({
           try {
             if (!projectId || !attributes.success)
               throw new Error("Unavailable");
-            const result = await window.sarel.images.read({
+            const result = await window.drelwick.images.read({
               projectId,
               assetId: attributes.data.assetId,
             });

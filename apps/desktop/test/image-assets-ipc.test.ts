@@ -6,7 +6,7 @@ import {
   IPC,
   type ProjectOperationResult,
   type ProjectWorkspace,
-} from "@sarel/shared";
+} from "@drelwick/shared";
 import {
   copyFixture,
   type FixtureCopy,

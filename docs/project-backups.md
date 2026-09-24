@@ -1,15 +1,15 @@
 # Portable project backups
 
-Use **File → Back Up Project** to save a local `.sarel.zip` copy, and
+Use **File → Back Up Project** to save a local `.drelwick.zip` copy, and
 **File → Restore Project Backup** to restore one. These commands work offline and
-do not use a SAREL account or remote service. The active chapter is flushed
+do not use a Drelwick account or remote service. The active chapter is flushed
 before either operation can replace the workspace. If saving fails, the command
 stops and the unsaved editor state stays open.
 
 ## Archive format
 
 Archive entries use UTF-8 names with portable `/` separators. The archive root
-contains `.bookeditor-archive.json`, a strict version-1 manifest with the source
+contains `.drelwick-archive.json`, a strict version-1 manifest with the source
 project UUID, archive creation time, the optional-history flag, and an inventory
 of every included relative path, uncompressed byte size and SHA-256 checksum.
 The manifest is separate from the authoritative project format. Both V1 projects
@@ -25,9 +25,9 @@ Git data, dependency/build/test caches, logs, `.tmp` files, lock files, common
 credential files (`.env`, `credentials.json`, `secrets.json`, private-key and
 certificate files), or the archive manifest from a nested folder. Symbolic
 links and non-regular project entries in included folders make backup fail;
-SAREL will not follow them.
+Drelwick will not follow them.
 
-The `.bookeditor-migration/` workspace is not included in portable archives.
+The `.drelwick-migration/` workspace is not included in portable archives.
 An unfinished migration blocks archiving. Its complete pre-migration recovery copy
 is distinct from this filtered ZIP format; see [project migration recovery](project-format.md).
 
@@ -54,7 +54,7 @@ folder, verifies every path, declared size and checksum, then opens the staged
 project with the normal project loader. Only after validation does it rename the
 project into a new child folder based on the book title. If that name is already
 in use, a numbered name is chosen; an existing folder is never overwritten.
-Restore destinations inside any existing SAREL project are rejected. A
+Restore destinations inside any existing Drelwick project are rejected. A
 failed or cancelled restore leaves the current workspace and its project files
 unchanged. A successful restore opens the new project and records it in Recent
 projects.
