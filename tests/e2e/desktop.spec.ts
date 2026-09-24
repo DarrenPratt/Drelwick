@@ -913,10 +913,35 @@ test("organises formatted chapters offline with duplicate split merge status and
       .getByRole("button", { name: "Split at cursor", exact: true })
       .first()
       .click();
+    const splitDialog = page.getByRole("dialog", { name: "Split chapter" });
+    await expect(menu).not.toHaveAttribute("open");
+    await expect(splitDialog).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(splitDialog).not.toBeVisible();
+    await expect(page.locator(".ProseMirror")).toBeFocused();
+    await page.keyboard.type("X");
+    await expect(page.locator(".ProseMirror")).toHaveText("Left XRight");
+    await page.keyboard.press("Backspace");
+    await expect(page.locator(".ProseMirror")).toHaveText("Left Right");
+    await page.getByLabel("Actions for First", { exact: true }).click();
+    await page
+      .getByRole("button", { name: "Split at cursor", exact: true })
+      .first()
+      .click();
+    await splitDialog
+      .getByRole("button", { name: "Split chapter", exact: true })
+      .click();
+    await expect(splitDialog).not.toBeVisible();
+    await expect(menu).not.toHaveAttribute("open");
     await expect(page.locator(".chapter-select")).toHaveCount(5);
     await expect(page.locator(".chapter-select").nth(1)).toContainText(
       "First Continued",
     );
+    await expect(page.locator(".ProseMirror")).toHaveText("Right");
+    await expect(page.locator(".ProseMirror")).toBeFocused();
+    await page.keyboard.type("X");
+    await expect(page.locator(".ProseMirror")).toHaveText("XRight");
+    await page.keyboard.press("Backspace");
     await expect(page.locator(".ProseMirror")).toHaveText("Right");
     await page
       .getByLabel("Select First Continued for merge", { exact: true })
