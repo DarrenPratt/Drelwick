@@ -1905,6 +1905,7 @@ describe("chapter organisation", () => {
             ? "Split at cursor"
             : "Duplicate",
       );
+      if (operation === "split") await click("Split chapter");
       expect(saveChapter).toHaveBeenCalled();
       expect(window.drelwick.project.organiseChapter).not.toHaveBeenCalled();
       expect(editor().getJSON()).toEqual(before);
@@ -1922,6 +1923,7 @@ describe("chapter organisation", () => {
       await click(
         operation === "merge" ? "Merge selected chapters" : "Split at cursor",
       );
+      if (operation === "split") await click("Cancel");
       expect(window.drelwick.project.organiseChapter).not.toHaveBeenCalled();
       expect(saveChapter).not.toHaveBeenCalled();
       expect(editor().getJSON()).toEqual(before);
@@ -1952,6 +1954,10 @@ describe("chapter organisation", () => {
       },
     );
     await click("Split at cursor");
+    expect(container.querySelector("dialog")?.textContent).toContain("First");
+    expect(window.drelwick.project.organiseChapter).not.toHaveBeenCalled();
+    await click("Split chapter");
+    expect(container.querySelector("dialog")).toBeNull();
     expect(events).toEqual(["saved", "split"]);
     expect(window.drelwick.project.organiseChapter).toHaveBeenCalledWith({
       projectId: workspace.projectId,
@@ -1961,6 +1967,27 @@ describe("chapter organisation", () => {
       position: 6,
       expectedContent: content,
     });
+  });
+  it("closes the split menu and cancels with Escape without changing the cursor or content", async () => {
+    await prepare();
+    const before = editor().getJSON();
+    const menu = container.querySelector<HTMLDetailsElement>(".chapter-menu")!;
+    menu.open = true;
+    await click("Split at cursor");
+    expect(menu.open).toBe(false);
+    expect(window.confirm).not.toHaveBeenCalled();
+    await act(async () => {
+      container
+        .querySelector("dialog")!
+        .dispatchEvent(
+          new Event("cancel", { bubbles: false, cancelable: true }),
+        );
+    });
+    expect(container.querySelector("dialog")).toBeNull();
+    expect(editor().getJSON()).toEqual(before);
+    expect(editor().state.selection.from).toBe(6);
+    expect(saveChapter).not.toHaveBeenCalled();
+    expect(window.drelwick.project.organiseChapter).not.toHaveBeenCalled();
   });
   it("disables split at start, end and nonempty selection", async () => {
     await prepare();

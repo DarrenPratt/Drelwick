@@ -168,10 +168,6 @@ export function Editor({
       },
     },
   });
-  useEffect(() => {
-    onReady?.(editor);
-    return () => onReady?.(null);
-  }, [editor, onReady]);
   const active = useEditorState({
     editor,
     selector: ({ editor: current }) => ({
@@ -201,6 +197,13 @@ export function Editor({
   useEffect(() => {
     editor?.setEditable(editable && !importing, false);
   }, [editor, editable, importing]);
+
+  // Consumers may focus the editor here. Initialise content and editability
+  // first so setContent cannot replace their requested cursor position.
+  useEffect(() => {
+    onReady?.(editor);
+    return () => onReady?.(null);
+  }, [editor, onReady]);
 
   if (!editor) return <p>Loading editor…</p>;
 

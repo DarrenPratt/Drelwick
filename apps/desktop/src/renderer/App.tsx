@@ -24,6 +24,7 @@ import {
 import type { ReplacementRequest } from "@drelwick/shared";
 import type { Editor as TipTapEditor } from "@tiptap/core";
 import { NewProjectDialog } from "./NewProjectDialog.js";
+import { SplitChapterDialog } from "./SplitChapterDialog.js";
 import { Editor } from "./components/Editor.js";
 import { WorkspaceLayout } from "./components/WorkspaceLayout.js";
 import { WorkspaceIcon } from "./components/WorkspaceIcon.js";
@@ -40,6 +41,10 @@ export function App() {
   const [organising, setOrganising] = useState(false);
   const [mergeSelection, setMergeSelection] = useState<string[]>([]);
   const [splitPosition, setSplitPosition] = useState<number | null>(null);
+  const [splitConfirmation, setSplitConfirmation] = useState<{
+    title: string;
+    command: Extract<ChapterOrganisationRequest, { operation: "split" }>;
+  } | null>(null);
   const focusOrganisedChapter = useRef(false);
   const [searchEditor, setSearchEditor] = useState<TipTapEditor | null>(null);
   const editorReady = useCallback((editor: TipTapEditor | null) => {
@@ -1230,7 +1235,7 @@ export function App() {
                               activeChapterId !== chapter.id ||
                               splitPosition === null
                             }
-                            onClick={() => {
+                            onClick={(event) => {
                               if (
                                 !organisationBase ||
                                 !searchEditor ||
@@ -1241,18 +1246,19 @@ export function App() {
                               )
                                 return;
                               const expectedContent = searchEditor.getJSON();
-                              if (
-                                window.confirm(
-                                  `Split “${chapter.title}” at the current cursor? A new chapter will contain everything after the cursor. Both chapters keep the current status.`,
-                                )
-                              )
-                                void organise({
+                              event.currentTarget
+                                .closest("details")
+                                ?.removeAttribute("open");
+                              setSplitConfirmation({
+                                title: chapter.title,
+                                command: {
                                   ...organisationBase,
                                   operation: "split",
                                   chapterId: chapter.id,
                                   position: splitPosition,
                                   expectedContent,
-                                });
+                                },
+                              });
                             }}
                           >
                             Split at cursor
@@ -1483,6 +1489,20 @@ export function App() {
           )}
           {recentProjects}
         </main>
+      )}
+      {splitConfirmation && (
+        <SplitChapterDialog
+          title={splitConfirmation.title}
+          onCancel={() => {
+            setSplitConfirmation(null);
+            searchEditor?.commands.focus();
+          }}
+          onConfirm={() => {
+            const { command } = splitConfirmation;
+            setSplitConfirmation(null);
+            void organise(command);
+          }}
+        />
       )}
       {importing && (
         <ImportManuscriptDialog

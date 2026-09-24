@@ -38,8 +38,11 @@ introduce a separate persistence/recovery system.
 Use each chapter's **Actions** menu for **Duplicate**, **Split at cursor**, or
 **Status**. Select exactly two chapters using their labelled merge checkboxes,
 then choose **Merge selected chapters**. Controls use native keyboard-accessible
-buttons, checkboxes and selects. Split/merge use the existing native confirmation
-convention; Cancel preserves the live editor and chapter structure.
+buttons, checkboxes and selects. Split closes the chapter menu and opens an
+in-app confirmation dialog. Cancel or Escape returns focus to the unchanged
+editor at its original cursor; a successful split focuses the new chapter for
+immediate typing. Merge uses native confirmation. Cancel preserves the live
+editor and chapter structure.
 
 - Duplicate preserves semantic content, type, status and extension metadata,
   assigns a new UUID/storage filename and new timestamps, and inserts immediately
