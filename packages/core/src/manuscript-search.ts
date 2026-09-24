@@ -136,8 +136,9 @@ export function replaceMatches(
   )
     throw new Error("Search results changed. Search again before replacing.");
   const root = validated(document);
+  const originalRuns = runs(root);
   for (const match of [...matches].sort((a, b) => b.from - a.from)) {
-    const run = runs(root).find(
+    const run = originalRuns.find(
       (run) => run.from <= match.from && run.from + run.text.length >= match.to,
     );
     if (

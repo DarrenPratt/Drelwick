@@ -202,118 +202,133 @@ export async function replaceManuscript(
         "Replacement cancelled. Original content was preserved.",
       );
   };
-  try {
-    await publish(root, `${CHAPTER_CREATION_LOCK}/replacement-owner.json`, {
-      token,
-    });
-    const opened = await openProject(root);
-    const ids = input.chapterId
-      ? [input.chapterId]
-      : opened.project.manuscript.order;
-    if (
-      !ids.every((id) => opened.project.manuscript.order.includes(id)) ||
-      !equal(
-        ids,
-        input.expected.map((chapter) => chapter.id),
-      )
-    )
-      throw new Error("Stale review.");
-    const entries: ReplacementJournal["entries"] = [];
-    let matches = 0;
-    for (const id of ids) {
-      cancelled();
-      const path = `manuscript/${id}.json`;
-      await assertRegularPath(root, path);
-      const before = ChapterFileSchema.extend({
-        content: ManuscriptDocumentSchema,
-      })
-        .passthrough()
-        .parse(JSON.parse(await readFile(join(root, path), "utf8")));
+  const execute = async (): Promise<{ matches: number; chapters: number }> => {
+    try {
+      await publish(root, `${CHAPTER_CREATION_LOCK}/replacement-owner.json`, {
+        token,
+      });
+      const opened = await openProject(root);
+      const ids = input.chapterId
+        ? [input.chapterId]
+        : opened.project.manuscript.order;
       if (
+        !ids.every((id) => opened.project.manuscript.order.includes(id)) ||
         !equal(
-          before.content,
-          input.expected.find((chapter) => chapter.id === id)?.content,
+          ids,
+          input.expected.map((chapter) => chapter.id),
         )
       )
         throw new Error("Stale review.");
-      const found = searchChapter(id, before.content, input.options);
-      matches += found.length;
-      if (!found.length) continue;
-      const content = replaceMatches(
-        id,
-        before.content,
-        input.options,
-        found,
-        input.replacement,
-      );
-      if (equal(content, before.content)) continue;
-      entries.push({
-        before,
-        after: ChapterFileSchema.extend({ content: ManuscriptDocumentSchema })
+      const entries: ReplacementJournal["entries"] = [];
+      let matches = 0;
+      for (const id of ids) {
+        cancelled();
+        const path = `manuscript/${id}.json`;
+        await assertRegularPath(root, path);
+        try {
+          await lstat(join(root, `${path}.tmp`));
+          throw new Error("A chapter has pending recovery data.");
+        } catch (error) {
+          if (!isMissing(error)) throw error;
+        }
+        const before = ChapterFileSchema.extend({
+          content: ManuscriptDocumentSchema,
+        })
           .passthrough()
-          .parse({
-            ...before,
-            content,
-            modified: new Date().toISOString(),
-          }),
-      });
-    }
-    if (!entries.length) return { matches, chapters: 0 };
-    for (const entry of entries) {
-      cancelled();
-      await (hooks.snapshot ?? createHistorySnapshot)({
-        projectPath: root,
-        chapterId: entry.before.id,
-        document: entry.before.content,
-        reason: "before-replace",
-      });
-    }
-    cancelled();
-    state = {
-      schemaVersion: 1,
-      token,
-      pid: process.pid,
-      host: hostname(),
-      phase: "pending",
-      entries,
-    };
-    await publish(root, REPLACEMENT_JOURNAL, state);
-    for (const [index, entry] of entries.entries()) {
-      cancelled();
-      await hooks.beforeWrite?.(index);
-      cancelled();
-      const path = `manuscript/${entry.before.id}.json`;
-      await assertRegularPath(root, path);
-      if (
-        !equal(
-          JSON.parse(await readFile(join(root, path), "utf8")),
-          entry.before,
+          .parse(JSON.parse(await readFile(join(root, path), "utf8")));
+        if (
+          !equal(
+            before.content,
+            input.expected.find((chapter) => chapter.id === id)?.content,
+          )
         )
-      )
-        throw replacementError();
-      await publish(root, `manuscript/${entry.before.id}.json`, entry.after);
-    }
-    cancelled();
-    await publish(root, REPLACEMENT_JOURNAL, { ...state, phase: "complete" });
-    return { matches, chapters: entries.length };
-  } catch (error) {
-    if (state) {
-      try {
-        await restore(root, state);
-      } catch {
-        keepLock = true;
-        throw replacementError();
+          throw new Error("Stale review.");
+        const found = searchChapter(id, before.content, input.options);
+        matches += found.length;
+        if (!found.length) continue;
+        const content = replaceMatches(
+          id,
+          before.content,
+          input.options,
+          found,
+          input.replacement,
+        );
+        if (equal(content, before.content)) continue;
+        entries.push({
+          before,
+          after: ChapterFileSchema.extend({ content: ManuscriptDocumentSchema })
+            .passthrough()
+            .parse({
+              ...before,
+              content,
+              modified: new Date().toISOString(),
+            }),
+        });
       }
+      if (!entries.length) return { matches, chapters: 0 };
+      for (const entry of entries) {
+        cancelled();
+        await (hooks.snapshot ?? createHistorySnapshot)({
+          projectPath: root,
+          chapterId: entry.before.id,
+          document: entry.before.content,
+          reason: "before-replace",
+        });
+      }
+      cancelled();
+      state = {
+        schemaVersion: 1,
+        token,
+        pid: process.pid,
+        host: hostname(),
+        phase: "pending",
+        entries,
+      };
+      await publish(root, REPLACEMENT_JOURNAL, state);
+      for (const [index, entry] of entries.entries()) {
+        cancelled();
+        await hooks.beforeWrite?.(index);
+        cancelled();
+        const path = `manuscript/${entry.before.id}.json`;
+        await assertRegularPath(root, path);
+        if (
+          !equal(
+            JSON.parse(await readFile(join(root, path), "utf8")),
+            entry.before,
+          )
+        )
+          throw replacementError();
+        await publish(root, `manuscript/${entry.before.id}.json`, entry.after);
+      }
+      cancelled();
+      await publish(root, REPLACEMENT_JOURNAL, { ...state, phase: "complete" });
+      return { matches, chapters: entries.length };
+    } catch (error) {
+      if (state) {
+        try {
+          await restore(root, state);
+        } catch {
+          keepLock = true;
+          throw replacementError();
+        }
+      }
+      if (
+        error instanceof ApplicationError &&
+        error.code === "REPLACEMENT_CANCELLED"
+      )
+        throw error;
+      throw new ApplicationError(
+        "REPLACEMENT_FAILED",
+        "Replacement failed or its review became stale. Original content was preserved; refresh the search before retrying.",
+      );
     }
-    if (
-      error instanceof ApplicationError &&
-      error.code === "REPLACEMENT_CANCELLED"
-    )
-      throw error;
-    throw new ApplicationError(
-      "REPLACEMENT_FAILED",
-      "Replacement failed or its review became stale. Original content was preserved; refresh the search before retrying.",
-    );
+  };
+  let result: { matches: number; chapters: number } | undefined;
+  let failure: unknown;
+  try {
+    result = await execute();
+  } catch (error) {
+    failure = error;
   } finally {
     active.delete(root);
     finished.add(token);
@@ -322,8 +337,10 @@ export async function replaceManuscript(
         await release(root, token);
       } catch {
         // Do not report success with an uncertain lock/operation outcome.
-        throw replacementError();
+        failure = replacementError();
       }
     }
   }
+  if (failure) throw failure;
+  return result!;
 }

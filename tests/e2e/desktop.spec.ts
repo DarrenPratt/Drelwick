@@ -183,6 +183,9 @@ test("finds live prose, reviews whole-manuscript replacement and reopens formatt
     await expect(find).toContainText(
       "whole manuscript: 3 matches in 3 chapters",
     );
+    await page.screenshot({
+      path: test.info().outputPath("manuscript-search-review.png"),
+    });
     await find.getByRole("button", { name: "Confirm replace all" }).click();
     await expect(
       page.getByText(

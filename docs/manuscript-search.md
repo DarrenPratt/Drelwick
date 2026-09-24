@@ -102,6 +102,10 @@ the UI explicitly reports recovery failure. Originals remain in the journal and
 history rather than being silently discarded. Successful rollback returns a known
 pre-replacement manuscript, not a partially replaced one.
 
+Existing chapter `.tmp` recovery files block bulk replacement and remain untouched,
+matching normal chapter-save behavior. Successful replacement also refreshes the
+workspace's chapter and manuscript word counts.
+
 Authorized reopen and unclean startup recover pending replacement journals before
 migration or chapter recovery. Recovery verifies lock ownership and host and only
 reclaims an operation whose process has exited (or which finished in this process).

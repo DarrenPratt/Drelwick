@@ -46,6 +46,7 @@ export function ManuscriptSearch({
   const [selected, setSelected] = useState<SearchMatch | null>(null);
   const [selectedDocument, setSelectedDocument] = useState("");
   const appliedSelection = useRef<SearchMatch | null>(null);
+  const selectedEditorDocument = useRef("");
   const [review, setReview] = useState<ReplacementRequest | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const order = JSON.stringify(project.chapters.map((chapter) => chapter.id));
@@ -156,6 +157,7 @@ export function ManuscriptSearch({
         .scrollIntoView()
         .run();
       appliedSelection.current = selected;
+      selectedEditorDocument.current = JSON.stringify(editor.getJSON());
     }
   }, [selected, selectionValid, active, editor, options]);
 
@@ -198,7 +200,11 @@ export function ManuscriptSearch({
       [{ id: active.id, content: editor.getJSON() }],
       options,
     ).find((match) => match.from === current.from && match.to === current.to);
-    if (!fresh || JSON.stringify(editor.getJSON()) !== selectedDocument) return;
+    if (
+      !fresh ||
+      JSON.stringify(editor.getJSON()) !== selectedEditorDocument.current
+    )
+      return;
     const marks = editor.state.doc.nodeAt(fresh.from)?.marks ?? [];
     const transaction = closeHistory(editor.state.tr);
     if (replacement)
@@ -244,7 +250,12 @@ export function ManuscriptSearch({
                 event.preventDefault();
                 void move(event.shiftKey ? -1 : 1);
               }
-              if (event.key === "Escape") setOpen(false);
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setOpen(false);
+                setReview(null);
+                editor?.commands.focus();
+              }
             }}
           />
         </label>
@@ -286,7 +297,9 @@ export function ManuscriptSearch({
         <p role="status">
           {ready
             ? `${index + 1} of ${matches.length} matches · ${scope === "chapter" ? "Current chapter" : "Whole manuscript"}`
-            : "Loading manuscript…"}
+            : active
+              ? "Loading manuscript…"
+              : "Select a chapter to search."}
         </p>
         <label>
           Replacement text{" "}

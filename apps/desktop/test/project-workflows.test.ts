@@ -699,6 +699,73 @@ describe("existing project workflow", () => {
 });
 
 describe("chapter editor persistence", () => {
+  it("replaces loaded adjacent text nodes even when the editor coalesces them", async () => {
+    loadChapter.mockResolvedValue({
+      ok: true,
+      value: {
+        id: "123e4567-e89b-42d3-a456-426614174001",
+        content: {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: "silver ", marks: [{ type: "bold" }] },
+                { type: "text", text: "moon", marks: [{ type: "bold" }] },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    await openChapter();
+    await click("Find and replace");
+    await searchInput("Find text", "silver moon");
+    await searchInput("Replacement text", "sun");
+    await click("Next match");
+    expect(saveStatus()).toBe("All changes saved");
+    await click("Replace one");
+    expect(editor().getText()).toBe("sun");
+    expect(editor().getJSON().content?.[0]?.content?.[0]?.marks).toEqual([
+      { type: "bold" },
+    ]);
+  });
+  it("replaces across editor marks with first-character inheritance and independent undo", async () => {
+    vi.useFakeTimers();
+    await openChapter();
+    const formatted = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "The " },
+            { type: "text", text: "quick", marks: [{ type: "bold" }] },
+            { type: "text", text: " brown", marks: [{ type: "italic" }] },
+            { type: "text", text: " tail", marks: [{ type: "italic" }] },
+          ],
+        },
+      ],
+    };
+    await act(async () => {
+      editor().commands.setContent(formatted);
+    });
+    const before = editor().getJSON();
+    await click("Find and replace");
+    await searchInput("Find text", "quick brown");
+    await searchInput("Replacement text", "swift");
+    await click("Next match");
+    await click("Replace one");
+    expect(editor().getJSON().content?.[0]?.content).toEqual([
+      { type: "text", text: "The " },
+      { type: "text", text: "swift", marks: [{ type: "bold" }] },
+      { type: "text", text: " tail", marks: [{ type: "italic" }] },
+    ]);
+    await act(async () => {
+      editor().commands.undo();
+    });
+    expect(editor().getJSON()).toEqual(before);
+  });
   it("cancels while flushing without replacing or discarding pre-existing edits", async () => {
     vi.useFakeTimers();
     await openChapter();

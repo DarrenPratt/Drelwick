@@ -126,6 +126,21 @@ it("restores all chapters after injected second-write failure, including previou
     replaceManuscript(input, {
       beforeWrite: async (index) => {
         if (index === 1) {
+          const first = JSON.parse(
+            await readFile(
+              join(
+                input.projectPath,
+                "manuscript",
+                `${input.expected[0]!.id}.json`,
+              ),
+              "utf8",
+            ),
+          );
+          expect(
+            first.content.content[0].content
+              .map((node: { text: string }) => node.text)
+              .join(""),
+          ).toBe("New unsaved prose 銀色");
           reached = true;
           throw new Error("Injected failure");
         }
@@ -171,6 +186,17 @@ it("rejects stale review, invalid replacement document and failed snapshot befor
       },
     }),
   ).rejects.toMatchObject({ code: "REPLACEMENT_FAILED" });
+  expect(await contents(input)).toEqual(input.expected);
+  const temporary = join(
+    input.projectPath,
+    "manuscript",
+    `${input.expected[1]!.id}.json.tmp`,
+  );
+  await writeFile(temporary, "Recoverable newer content");
+  await expect(replaceManuscript(input)).rejects.toMatchObject({
+    code: "REPLACEMENT_FAILED",
+  });
+  expect(await readFile(temporary, "utf8")).toBe("Recoverable newer content");
   expect(await contents(input)).toEqual(input.expected);
 });
 it("blocks editing and retains journal when rollback detects external conflicting work", async () => {
@@ -222,6 +248,23 @@ it("recovers a terminated process midway through writes on reopen", async () => 
   await expect(contents(input)).rejects.toMatchObject({
     code: "REPLACEMENT_RECOVERY_REQUIRED",
   });
+  const manifestPath = join(input.projectPath, "project.json");
+  const originalManifest = await readFile(manifestPath, "utf8");
+  const pendingJournal = await readFile(
+    join(input.projectPath, REPLACEMENT_JOURNAL),
+    "utf8",
+  );
+  await writeFile(
+    manifestPath,
+    JSON.stringify({ ...JSON.parse(originalManifest), schemaVersion: 999 }),
+  );
+  await expect(openProjectForEditing(input.projectPath)).rejects.toMatchObject({
+    code: "PROJECT_SCHEMA_UNSUPPORTED",
+  });
+  expect(
+    await readFile(join(input.projectPath, REPLACEMENT_JOURNAL), "utf8"),
+  ).toBe(pendingJournal);
+  await writeFile(manifestPath, originalManifest);
   await openProjectForEditing(input.projectPath);
   expect(await contents(input)).toEqual(input.expected);
 });
