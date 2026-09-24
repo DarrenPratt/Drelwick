@@ -3,10 +3,10 @@ import { act, createElement, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
-  SarelApi,
+  DrelwickApi,
   ProjectOperationResult,
   ProjectWorkspace,
-} from "@sarel/shared";
+} from "@drelwick/shared";
 import { App } from "../src/renderer/App.js";
 
 const selected = {
@@ -21,21 +21,21 @@ const workspace = {
   language: "en-GB",
   chapters: [],
 };
-const create = vi.fn<SarelApi["project"]["create"]>();
-const closeProject = vi.fn<SarelApi["project"]["close"]>();
-const backupProject = vi.fn<SarelApi["project"]["backup"]>();
-const restoreProject = vi.fn<SarelApi["project"]["restore"]>();
-const selectLocation = vi.fn<SarelApi["project"]["selectLocation"]>();
-const open = vi.fn<SarelApi["project"]["open"]>();
-const listRecent = vi.fn<SarelApi["project"]["listRecent"]>();
-const openRecent = vi.fn<SarelApi["project"]["openRecent"]>();
-const removeRecent = vi.fn<SarelApi["project"]["removeRecent"]>();
-const renameChapter = vi.fn<SarelApi["project"]["renameChapter"]>();
-const deleteChapter = vi.fn<SarelApi["project"]["deleteChapter"]>();
-const reorderChapters = vi.fn<SarelApi["project"]["reorderChapters"]>();
-const createChapter = vi.fn<SarelApi["project"]["createChapter"]>();
-const saveChapter = vi.fn<SarelApi["project"]["saveChapter"]>();
-const loadChapter = vi.fn<SarelApi["project"]["loadChapter"]>();
+const create = vi.fn<DrelwickApi["project"]["create"]>();
+const closeProject = vi.fn<DrelwickApi["project"]["close"]>();
+const backupProject = vi.fn<DrelwickApi["project"]["backup"]>();
+const restoreProject = vi.fn<DrelwickApi["project"]["restore"]>();
+const selectLocation = vi.fn<DrelwickApi["project"]["selectLocation"]>();
+const open = vi.fn<DrelwickApi["project"]["open"]>();
+const listRecent = vi.fn<DrelwickApi["project"]["listRecent"]>();
+const openRecent = vi.fn<DrelwickApi["project"]["openRecent"]>();
+const removeRecent = vi.fn<DrelwickApi["project"]["removeRecent"]>();
+const renameChapter = vi.fn<DrelwickApi["project"]["renameChapter"]>();
+const deleteChapter = vi.fn<DrelwickApi["project"]["deleteChapter"]>();
+const reorderChapters = vi.fn<DrelwickApi["project"]["reorderChapters"]>();
+const createChapter = vi.fn<DrelwickApi["project"]["createChapter"]>();
+const saveChapter = vi.fn<DrelwickApi["project"]["saveChapter"]>();
+const loadChapter = vi.fn<DrelwickApi["project"]["loadChapter"]>();
 let root: Root;
 let container: HTMLDivElement;
 const saveListeners = new Set<() => void>();
@@ -98,7 +98,7 @@ beforeEach(async () => {
     "confirm",
     vi.fn(() => true),
   );
-  window.sarel = {
+  window.drelwick = {
     reportRendererError: vi.fn(),
     imports: {
       inspect: vi.fn(),
@@ -847,7 +847,7 @@ describe("chapter editor persistence", () => {
     await openChapter();
     await editText("First edit");
     let finish!: (
-      result: Awaited<ReturnType<SarelApi["project"]["saveChapter"]>>,
+      result: Awaited<ReturnType<DrelwickApi["project"]["saveChapter"]>>,
     ) => void;
     saveChapter.mockReturnValueOnce(
       new Promise((resolve) => {
@@ -977,8 +977,8 @@ describe("chapter editor persistence", () => {
       for (const listener of menuListeners) listener("import-manuscript");
     });
     expect(saveChapter).toHaveBeenCalled();
-    expect(window.sarel.imports.inspect).not.toHaveBeenCalled();
-    expect(window.sarel.imports.open).not.toHaveBeenCalled();
+    expect(window.drelwick.imports.inspect).not.toHaveBeenCalled();
+    expect(window.drelwick.imports.open).not.toHaveBeenCalled();
     expect(editor().getText()).toBe("Unsaved import guard");
     expect(saveStatus()).toBe("Unsaved changes");
   });
@@ -1065,7 +1065,9 @@ describe("chapter editor persistence", () => {
   });
   it("keeps late chapter loads from replacing edits after a rapid switch back", async () => {
     await openTwoChapters();
-    type LoadResult = Awaited<ReturnType<SarelApi["project"]["loadChapter"]>>;
+    type LoadResult = Awaited<
+      ReturnType<DrelwickApi["project"]["loadChapter"]>
+    >;
     let finishSecond!: (result: LoadResult) => void;
     let finishFirst!: (result: LoadResult) => void;
     loadChapter.mockReturnValueOnce(
@@ -1161,7 +1163,7 @@ describe("chapter editor persistence", () => {
     it("keeps typing responsive and saves newer edits after their own debounce", async () => {
       await openChapter();
       let finish!: (
-        result: Awaited<ReturnType<SarelApi["project"]["saveChapter"]>>,
+        result: Awaited<ReturnType<DrelwickApi["project"]["saveChapter"]>>,
       ) => void;
       saveChapter.mockReturnValueOnce(
         new Promise((resolve) => {
@@ -1307,19 +1309,19 @@ const importPreview = {
   ],
 };
 function mockImport() {
-  vi.mocked(window.sarel.imports.inspect).mockResolvedValue({
+  vi.mocked(window.drelwick.imports.inspect).mockResolvedValue({
     ok: true,
     value: importPreview,
   });
-  vi.mocked(window.sarel.imports.cancel).mockResolvedValue({
+  vi.mocked(window.drelwick.imports.cancel).mockResolvedValue({
     ok: true,
     value: null,
   });
-  vi.mocked(window.sarel.imports.commit).mockResolvedValue({
+  vi.mocked(window.drelwick.imports.commit).mockResolvedValue({
     ok: true,
     value: { projectId: selected.token },
   });
-  vi.mocked(window.sarel.imports.open).mockResolvedValue({
+  vi.mocked(window.drelwick.imports.open).mockResolvedValue({
     ok: true,
     value: { ...workspace, title: "Imported novel" },
   });
@@ -1339,15 +1341,18 @@ it("requires a decision, maps chapters and opens only after commit through the w
   expect(container.textContent).toContain("Table recovered as text");
   expect(button("Choose destination and import").disabled).toBe(true);
   await click("Choose destination and import");
-  expect(window.sarel.imports.commit).not.toHaveBeenCalled();
+  expect(window.drelwick.imports.commit).not.toHaveBeenCalled();
   await approveWarning();
   await click("Remove boundary before Two");
   await click("Choose destination and import");
-  expect(window.sarel.imports.commit).toHaveBeenCalledWith(expect.any(String), {
-    boundaries: [{ block: 0, title: "One" }],
-    acceptedWarnings: [0],
-  });
-  expect(window.sarel.imports.open).toHaveBeenCalledOnce();
+  expect(window.drelwick.imports.commit).toHaveBeenCalledWith(
+    expect.any(String),
+    {
+      boundaries: [{ block: 0, title: "One" }],
+      acceptedWarnings: [0],
+    },
+  );
+  expect(window.drelwick.imports.open).toHaveBeenCalledOnce();
   expect(container.querySelector("dialog")).toBeNull();
   expect(container.textContent).toContain("Imported novel");
 });
@@ -1357,10 +1362,10 @@ it("uses the same native workflow and preserves the active project after preview
   await act(async () => {
     for (const listener of menuListeners) listener("import-manuscript");
   });
-  expect(window.sarel.imports.inspect).toHaveBeenCalledOnce();
+  expect(window.drelwick.imports.inspect).toHaveBeenCalledOnce();
   await click("Cancel import");
-  expect(window.sarel.imports.cancel).toHaveBeenCalledOnce();
-  expect(window.sarel.imports.commit).not.toHaveBeenCalled();
+  expect(window.drelwick.imports.cancel).toHaveBeenCalledOnce();
+  expect(window.drelwick.imports.commit).not.toHaveBeenCalled();
   expect(container.querySelector("dialog")).toBeNull();
   expect(container.textContent).toContain("Example");
 });
@@ -1369,14 +1374,14 @@ it("retains review on destination cancellation and never opens a failed commit",
   await click("Open project");
   await click("Import manuscript");
   await approveWarning();
-  vi.mocked(window.sarel.imports.commit).mockResolvedValueOnce({
+  vi.mocked(window.drelwick.imports.commit).mockResolvedValueOnce({
     ok: true,
     value: null,
   });
   await click("Choose destination and import");
   expect(container.querySelector("dialog")).not.toBeNull();
-  expect(window.sarel.imports.open).not.toHaveBeenCalled();
-  vi.mocked(window.sarel.imports.commit).mockResolvedValueOnce({
+  expect(window.drelwick.imports.open).not.toHaveBeenCalled();
+  vi.mocked(window.drelwick.imports.commit).mockResolvedValueOnce({
     ok: false,
     error: {
       code: "IMPORT_FAILED",
@@ -1384,7 +1389,7 @@ it("retains review on destination cancellation and never opens a failed commit",
     },
   });
   await click("Choose destination and import");
-  expect(window.sarel.imports.open).not.toHaveBeenCalled();
+  expect(window.drelwick.imports.open).not.toHaveBeenCalled();
   expect(container.textContent).toContain("Write failed");
   expect(container.textContent).toContain("Example");
   await click("Close import");
@@ -1392,7 +1397,7 @@ it("retains review on destination cancellation and never opens a failed commit",
 it("keeps the old project if committed project validation fails", async () => {
   mockImport();
   await click("Open project");
-  vi.mocked(window.sarel.imports.open).mockResolvedValueOnce({
+  vi.mocked(window.drelwick.imports.open).mockResolvedValueOnce({
     ok: false,
     error: {
       code: "PROJECT_SCHEMA_INVALID",
@@ -1410,9 +1415,9 @@ it("keeps the old project if committed project validation fails", async () => {
 it("waits for privileged inspection cancellation to settle", async () => {
   mockImport();
   let finish!: (
-    value: Awaited<ReturnType<SarelApi["imports"]["inspect"]>>,
+    value: Awaited<ReturnType<DrelwickApi["imports"]["inspect"]>>,
   ) => void;
-  vi.mocked(window.sarel.imports.inspect).mockImplementationOnce(
+  vi.mocked(window.drelwick.imports.inspect).mockImplementationOnce(
     () =>
       new Promise((resolve) => {
         finish = resolve;
@@ -1426,7 +1431,7 @@ it("waits for privileged inspection cancellation to settle", async () => {
   expect(container.querySelector('[role="status"]')?.textContent).toContain(
     "Cancelling import and cleaning up",
   );
-  expect(window.sarel.imports.cancel).toHaveBeenCalledOnce();
+  expect(window.drelwick.imports.cancel).toHaveBeenCalledOnce();
   expect(container.querySelector("dialog")).not.toBeNull();
   await act(async () =>
     finish({
@@ -1435,24 +1440,24 @@ it("waits for privileged inspection cancellation to settle", async () => {
     }),
   );
   expect(container.querySelector("dialog")).toBeNull();
-  expect(window.sarel.imports.open).not.toHaveBeenCalled();
+  expect(window.drelwick.imports.open).not.toHaveBeenCalled();
 });
 
 it("does not hide a completed preview until privileged cancellation acknowledges cleanup", async () => {
   mockImport();
   let finishInspection!: (
-    value: Awaited<ReturnType<SarelApi["imports"]["inspect"]>>,
+    value: Awaited<ReturnType<DrelwickApi["imports"]["inspect"]>>,
   ) => void;
   let finishCancellation!: (
-    value: Awaited<ReturnType<SarelApi["imports"]["cancel"]>>,
+    value: Awaited<ReturnType<DrelwickApi["imports"]["cancel"]>>,
   ) => void;
-  vi.mocked(window.sarel.imports.inspect).mockImplementationOnce(
+  vi.mocked(window.drelwick.imports.inspect).mockImplementationOnce(
     () =>
       new Promise((resolve) => {
         finishInspection = resolve;
       }),
   );
-  vi.mocked(window.sarel.imports.cancel).mockImplementationOnce(
+  vi.mocked(window.drelwick.imports.cancel).mockImplementationOnce(
     () =>
       new Promise((resolve) => {
         finishCancellation = resolve;
@@ -1474,14 +1479,14 @@ it("does not hide a completed preview until privileged cancellation acknowledges
   expect(container.textContent).toContain("Preserve the interrupted folder");
   expect(container.querySelector("dialog")).not.toBeNull();
   await click("Close import");
-  expect(window.sarel.imports.open).not.toHaveBeenCalled();
+  expect(window.drelwick.imports.open).not.toHaveBeenCalled();
 });
 it("retains a project completed before late cancellation without opening it", async () => {
   mockImport();
   let finish!: (
-    value: Awaited<ReturnType<SarelApi["imports"]["commit"]>>,
+    value: Awaited<ReturnType<DrelwickApi["imports"]["commit"]>>,
   ) => void;
-  vi.mocked(window.sarel.imports.commit).mockImplementationOnce(
+  vi.mocked(window.drelwick.imports.commit).mockImplementationOnce(
     () =>
       new Promise((resolve) => {
         finish = resolve;
@@ -1498,7 +1503,7 @@ it("retains a project completed before late cancellation without opening it", as
   await act(async () =>
     finish({ ok: true, value: { projectId: selected.token } }),
   );
-  expect(window.sarel.imports.open).not.toHaveBeenCalled();
+  expect(window.drelwick.imports.open).not.toHaveBeenCalled();
   expect(container.querySelector("dialog")).toBeNull();
   expect(container.textContent).toContain(
     "Import finished before cancellation",
@@ -1507,7 +1512,7 @@ it("retains a project completed before late cancellation without opening it", as
 });
 it("explains blocked tracked changes and prevents commit", async () => {
   mockImport();
-  vi.mocked(window.sarel.imports.inspect).mockResolvedValueOnce({
+  vi.mocked(window.drelwick.imports.inspect).mockResolvedValueOnce({
     ok: false,
     error: {
       code: "DOCX_REVISIONS",
@@ -1518,13 +1523,13 @@ it("explains blocked tracked changes and prevents commit", async () => {
   await click("Import manuscript");
   expect(container.textContent).toContain("Resolve revisions in a copy");
   expect(button("Choose destination and import").disabled).toBe(true);
-  expect(window.sarel.imports.commit).not.toHaveBeenCalled();
+  expect(window.drelwick.imports.commit).not.toHaveBeenCalled();
   await click("Close import");
 });
 
 it("shows semantic line and scene breaks in the reading-order preview", async () => {
   mockImport();
-  vi.mocked(window.sarel.imports.inspect).mockResolvedValueOnce({
+  vi.mocked(window.drelwick.imports.inspect).mockResolvedValueOnce({
     ok: true,
     value: {
       ...importPreview,
@@ -1563,7 +1568,7 @@ it("shows semantic line and scene breaks in the reading-order preview", async ()
 it("allows cancellation to be retried after a transport failure during cancelled inspection", async () => {
   mockImport();
   let fail!: (error: Error) => void;
-  vi.mocked(window.sarel.imports.inspect).mockImplementationOnce(
+  vi.mocked(window.drelwick.imports.inspect).mockImplementationOnce(
     () =>
       new Promise((_resolve, reject) => {
         fail = reject;
@@ -1574,6 +1579,6 @@ it("allows cancellation to be retried after a transport failure during cancelled
   await act(async () => fail(new Error("transport failure")));
   expect(container.textContent).toContain("Unable to inspect");
   await click("Cancel import");
-  expect(window.sarel.imports.cancel).toHaveBeenCalledTimes(2);
+  expect(window.drelwick.imports.cancel).toHaveBeenCalledTimes(2);
   expect(container.querySelector("dialog")).toBeNull();
 });

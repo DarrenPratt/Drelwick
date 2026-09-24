@@ -16,7 +16,7 @@ afterEach(async () => {
 });
 
 async function createTemporaryDirectory(): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), "sarel-create-"));
+  const directory = await mkdtemp(join(tmpdir(), "drelwick-create-"));
   temporaryDirectories.push(directory);
   return directory;
 }

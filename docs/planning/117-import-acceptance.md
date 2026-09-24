@@ -120,7 +120,7 @@ Final successful results in this Windows session (Node 24.18.0, pnpm 10.34.5):
 | Exact command                                                                                                 | Result                                                                                    |
 | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `pnpm install --frozen-lockfile`                                                                              | PASS, before implementation and after dependency update                                   |
-| `pnpm --filter @sarel/core build`                                                                             | PASS                                                                                      |
+| `pnpm --filter @drelwick/core build`                                                                          | PASS                                                                                      |
 | `pnpm exec vitest run packages/core/test/text-import.test.ts`                                                 | PASS, 33 tests at that checkpoint; subsequent heading/link cases included in coverage run |
 | `pnpm exec vitest run packages/core/test/text-import.test.ts apps/desktop/test/manuscript-import-ipc.test.ts` | PASS, 55 tests at that checkpoint                                                         |
 | `pnpm exec tsc -p tsconfig.test.json --noEmit`                                                                | PASS, including final added tests                                                         |

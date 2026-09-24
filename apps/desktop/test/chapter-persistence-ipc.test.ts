@@ -8,13 +8,13 @@ import {
   createChapter,
   createHistorySnapshot,
   saveChapter,
-} from "@sarel/core";
-import { createAutosaveCoordinator } from "@sarel/core/autosave";
+} from "@drelwick/core";
+import { createAutosaveCoordinator } from "@drelwick/core/autosave";
 import {
   IPC,
   type ProjectOperationResult,
   type SafeLogger,
-} from "@sarel/shared";
+} from "@drelwick/shared";
 const { handle } = vi.hoisted(() => ({ handle: vi.fn() }));
 vi.mock("electron", () => ({ ipcMain: { handle }, dialog: {} }));
 import { registerProjectHandlers } from "../src/main/ipc/project-handlers.js";
@@ -29,7 +29,7 @@ afterEach(async () => {
   );
 });
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "sarel-save-ipc-"));
+  const root = await mkdtemp(join(tmpdir(), "drelwick-save-ipc-"));
   directories.push(root);
   await createProject({
     projectPath: root,

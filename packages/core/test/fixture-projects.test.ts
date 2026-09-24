@@ -9,7 +9,7 @@ import {
   HistorySnapshotSchema,
   ManuscriptDocumentSchema,
   ProjectConfigSchema,
-} from "@sarel/project-model";
+} from "@drelwick/project-model";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   copyFixture,

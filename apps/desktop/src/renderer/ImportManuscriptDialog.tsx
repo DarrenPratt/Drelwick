@@ -4,7 +4,7 @@ import type {
   ImportReview,
   ProjectWorkspace,
   ProjectOperationResult,
-} from "@sarel/shared";
+} from "@drelwick/shared";
 interface Props {
   beforeOpen(): Promise<boolean>;
   onCancel(message?: string): void;
@@ -82,7 +82,7 @@ export function ImportManuscriptDialog({
     if (started.current) return;
     started.current = true;
     pending.current = true;
-    void window.sarel.imports
+    void window.drelwick.imports
       .inspect({ operationId: operationId.current, importer: "auto" })
       .then(async (result) => {
         if (!result.ok) {
@@ -138,7 +138,7 @@ export function ImportManuscriptDialog({
     }
     cancelled.current = true;
     setCancelling(true);
-    cancellation.current = window.sarel.imports.cancel(operationId.current);
+    cancellation.current = window.drelwick.imports.cancel(operationId.current);
     // In-flight inspection/commit waits for this acknowledgement before closing.
     void cancellation.current.catch(() => undefined);
     if (!pending.current) await finishCancellation();
@@ -153,7 +153,7 @@ export function ImportManuscriptDialog({
         );
         return;
       }
-      const result = await window.sarel.imports.open(operationId.current);
+      const result = await window.drelwick.imports.open(operationId.current);
       if (!result.ok)
         setError(
           `${result.error.message} The imported folder is retained; the previous project remains open.`,
@@ -196,7 +196,7 @@ export function ImportManuscriptDialog({
         );
         return;
       }
-      const result = await window.sarel.imports.commit(operationId.current, {
+      const result = await window.drelwick.imports.commit(operationId.current, {
         boundaries,
         acceptedWarnings: accepted,
       });

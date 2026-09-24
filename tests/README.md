@@ -7,7 +7,7 @@ pnpm test
 pnpm test:e2e
 pnpm test:watch
 pnpm test:coverage
-pnpm test --project @sarel/shared
+pnpm test --project @drelwick/shared
 pnpm typecheck
 ```
 
@@ -189,7 +189,7 @@ Coverage thresholds should be set when application behaviour exists.
 ## Workspace smoke check
 
 Run `pnpm check:workspace` from the repository root. It builds the workspace and
-executes a separate TypeScript consumer of `@sarel/shared` through Node.
+executes a separate TypeScript consumer of `@drelwick/shared` through Node.
 A zero exit code verifies that the local `workspace:*` dependency resolves during
 compilation and at runtime. A missing package, declaration or JavaScript entry
 point fails the command.

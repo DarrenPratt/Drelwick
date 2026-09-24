@@ -8,8 +8,8 @@ The project workspace uses the same header, book outline, writing surface and to
 
 This screenshot shows the sample workspace. Front and back matter, theme selection, publication details, preview rendering, DOCX/EPUB/PDF export, manuscript search and a browsable history view have illustrative or marked unavailable states until their implementation issues are delivered.
 
-![Sample three-panel SAREL workspace](screenshots/authoring-workspace-preview.png)
+![Sample three-panel Drelwick workspace](screenshots/authoring-workspace-preview.png)
 
 The device and theme selectors demonstrate future layout directions. This page uses original sample prose; it does not render the author's project. It does not create a valid publishing preview or certify EPUB/PDF output. The local tools remain useful without an account or network connection.
 
-Related delivery issue: [#141](https://github.com/DarrenPratt/SAREL/issues/141).
+Related delivery issue: [#141](https://github.com/DarrenPratt/Drelwick/issues/141).

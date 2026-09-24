@@ -1,6 +1,6 @@
 import { marked } from "marked";
 import { parse as parseHtml, type DefaultTreeAdapterMap } from "parse5";
-import type { ImporterResult } from "@sarel/project-model";
+import type { ImporterResult } from "@drelwick/project-model";
 
 type HtmlNode = DefaultTreeAdapterMap["node"];
 interface Node {

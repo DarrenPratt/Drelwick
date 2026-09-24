@@ -1,7 +1,10 @@
 import { lstat, mkdir, readFile, realpath, rmdir } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
-import { ApplicationError, createIsoDate } from "@sarel/shared";
-import { ProjectConfigSchema, type ProjectConfig } from "@sarel/project-model";
+import { ApplicationError, createIsoDate } from "@drelwick/shared";
+import {
+  ProjectConfigSchema,
+  type ProjectConfig,
+} from "@drelwick/project-model";
 import {
   CHAPTER_CREATION_LOCK,
   openProject,

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ApplicationError } from "@sarel/shared";
+import { ApplicationError } from "@drelwick/shared";
 import { ManuscriptDocumentSchema } from "./manuscript-document.js";
 import { ChapterTypeSchema } from "./versions/v1.js";
 import {

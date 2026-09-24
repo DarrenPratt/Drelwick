@@ -2,7 +2,7 @@
 import { act, createElement, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
-import type { SarelApi } from "@sarel/shared";
+import type { DrelwickApi } from "@drelwick/shared";
 import { RecoveryStartup } from "../src/renderer/RecoveryStartup.js";
 const candidate = {
   id: "123e4567-e89b-42d3-a456-426614174000",
@@ -12,15 +12,15 @@ const candidate = {
   created: "2026-09-18T16:05:00.000Z",
   source: "temporary" as const,
 };
-const list = vi.fn<SarelApi["recovery"]["list"]>();
-const recover = vi.fn<SarelApi["recovery"]["recover"]>();
-const discard = vi.fn<SarelApi["recovery"]["discard"]>();
-const cancel = vi.fn<SarelApi["recovery"]["cancel"]>();
+const list = vi.fn<DrelwickApi["recovery"]["list"]>();
+const recover = vi.fn<DrelwickApi["recovery"]["recover"]>();
+const discard = vi.fn<DrelwickApi["recovery"]["discard"]>();
+const cancel = vi.fn<DrelwickApi["recovery"]["cancel"]>();
 let root: Root;
 let container: HTMLDivElement;
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  vi.stubGlobal("sarel", {
+  vi.stubGlobal("drelwick", {
     onShutdownRequested: () => () => {},
     recovery: { list, recover, discard, cancel },
   });
@@ -112,7 +112,7 @@ it("keeps the editor blocked on scan failure but permits cancellation", async ()
 });
 it("disables decisions during persistence and waits for all candidates", async () => {
   let resolve!: (
-    value: Awaited<ReturnType<SarelApi["recovery"]["recover"]>>,
+    value: Awaited<ReturnType<DrelwickApi["recovery"]["recover"]>>,
   ) => void;
   recover.mockImplementationOnce(
     () =>

@@ -1,9 +1,9 @@
-import { ChapterStatusSchema, isIsoDate, isUuid } from "@sarel/shared";
+import { ChapterStatusSchema, isIsoDate, isUuid } from "@drelwick/shared";
 import { z } from "zod";
 import { ManuscriptDocumentSchema } from "../manuscript-document.js";
 
 export { ChapterStatusSchema };
-export type { ChapterStatus } from "@sarel/shared";
+export type { ChapterStatus } from "@drelwick/shared";
 
 const schemaVersion = z.literal(1);
 const uuid = z.string().refine(isUuid, "Expected a UUID v4");

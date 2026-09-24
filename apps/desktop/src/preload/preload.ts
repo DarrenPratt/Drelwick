@@ -5,10 +5,10 @@ import {
   ApplicationMenuCommandSchema,
   SAVE_COMMAND_CHANNEL,
   SHUTDOWN_REQUEST_CHANNEL,
-} from "@sarel/shared";
-import type { SarelApi } from "@sarel/shared";
+} from "@drelwick/shared";
+import type { DrelwickApi } from "@drelwick/shared";
 
-const api: SarelApi = {
+const api: DrelwickApi = {
   imports: {
     inspect: (input) => ipcRenderer.invoke(IPC.IMPORT_INSPECT, input),
     open: (operationId) => ipcRenderer.invoke(IPC.IMPORT_OPEN, { operationId }),
@@ -75,4 +75,4 @@ const api: SarelApi = {
   },
 };
 
-contextBridge.exposeInMainWorld("sarel", api);
+contextBridge.exposeInMainWorld("drelwick", api);

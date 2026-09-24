@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { IPC } from "@sarel/shared";
+import { IPC } from "@drelwick/shared";
 const mocks = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   listeners: new Map<string, (...args: unknown[]) => void>(),
@@ -37,8 +37,8 @@ vi.mock("electron", () => ({
       mocks.handlers.set(channel, handler),
   },
 }));
-vi.mock("@sarel/core", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@sarel/core")>()),
+vi.mock("@drelwick/core", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@drelwick/core")>()),
   recoverProjectMigration: mocks.recoverMigration,
   RecoveryService: class {
     scanProject = mocks.scanProject;
@@ -188,7 +188,7 @@ it("shows a safe fatal-error message and exits without marking the session clean
   mocks.fatalHandler?.("uncaught_exception");
 
   expect(mocks.showErrorBox).toHaveBeenCalledWith(
-    "SAREL encountered an unexpected error",
+    "Drelwick encountered an unexpected error",
     expect.stringContaining("Saved project files have been preserved"),
   );
   expect(mocks.exit).toHaveBeenCalledWith(1);

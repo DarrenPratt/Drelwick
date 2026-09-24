@@ -22,7 +22,7 @@ const document = {
 };
 
 async function setup() {
-  const root = await mkdtemp(join(tmpdir(), "sarel-history-"));
+  const root = await mkdtemp(join(tmpdir(), "drelwick-history-"));
   directories.push(root);
   return root;
 }
@@ -112,7 +112,7 @@ it("ignores invalid history files and reports write failures", async () => {
       {
         mkdir: async () => undefined,
         lstat: async (path) => {
-          if (path.endsWith(".bookeditor-migration"))
+          if (path.endsWith(".drelwick-migration"))
             throw Object.assign(new Error("missing"), { code: "ENOENT" });
           return {
             isDirectory: () => true,
@@ -140,7 +140,7 @@ it("does not follow symbolic links in project history paths", async () => {
   const fakeFileSystem = {
     mkdir: vi.fn(async () => undefined),
     lstat: async (path: string) => {
-      if (path.endsWith(".bookeditor-migration"))
+      if (path.endsWith(".drelwick-migration"))
         throw Object.assign(new Error("missing"), { code: "ENOENT" });
       return {
         isDirectory: () => path === root,

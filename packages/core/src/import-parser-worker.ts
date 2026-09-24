@@ -1,6 +1,6 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { createContext, Script } from "node:vm";
-import { IMPORT_LIMITS } from "@sarel/project-model";
+import { IMPORT_LIMITS } from "@drelwick/project-model";
 
 // Only packaged, first-party parser programs may reach this worker. The document
 // is a string argument, never executable code. No Node/browser capabilities are

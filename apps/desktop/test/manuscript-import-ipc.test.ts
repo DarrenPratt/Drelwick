@@ -17,14 +17,14 @@ import {
   type ProjectOperationResult,
   type ImportInspection,
   type ImportReview,
-} from "@sarel/shared";
+} from "@drelwick/shared";
 import {
   IsolatedManuscriptImporter,
   StagedManuscriptImport,
   importError,
   createProject,
   openProject,
-} from "@sarel/core";
+} from "@drelwick/core";
 const { handle, showMessageBox, showOpenDialog } = vi.hoisted(() => ({
   handle: vi.fn(),
   showMessageBox: vi.fn(),
@@ -156,7 +156,7 @@ it.each([0, 1, 2])(
 );
 async function setup(program?: string, builtinDocx = false) {
   handle.mockReset();
-  const root = await mkdtemp(join(tmpdir(), "sarel-import-ipc-"));
+  const root = await mkdtemp(join(tmpdir(), "drelwick-import-ipc-"));
   cleanups.push(() => rm(root, { recursive: true, force: true }));
   const source = join(root, "source");
   const destination = join(root, "destination");

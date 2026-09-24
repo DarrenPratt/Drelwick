@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
-import { IMAGE_LIMITS, validateImportedManuscript } from "@sarel/project-model";
+import {
+  IMAGE_LIMITS,
+  validateImportedManuscript,
+} from "@drelwick/project-model";
 import { IsolatedManuscriptImporter } from "./import-parser.js";
 import { importError } from "./manuscript-import.js";
 import { boundedRead, validateImageContent } from "./image-assets.js";

@@ -5,7 +5,7 @@ import {
   isSafeRelativePath,
   joinSafeRelativePath,
   countDocumentWords,
-} from "@sarel/shared";
+} from "@drelwick/shared";
 export * from "./chapter-creation.js";
 export * from "./chapter-deletion.js";
 export * from "./chapter-ordering.js";
@@ -39,7 +39,7 @@ import {
   type ChapterSummaryCache,
   type CountedChapterSummary,
   type ProjectConfig,
-} from "@sarel/project-model";
+} from "@drelwick/project-model";
 import {
   access,
   lstat,

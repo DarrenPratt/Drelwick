@@ -194,7 +194,7 @@ export interface RecoveryCandidateSummary {
   source: "temporary" | "history";
 }
 
-export interface SarelApi {
+export interface DrelwickApi {
   imports: {
     inspect(
       input: z.infer<typeof ImportInspectRequestSchema>,

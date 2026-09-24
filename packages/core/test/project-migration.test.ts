@@ -15,7 +15,7 @@ import {
   type FixtureCopy,
   type FixtureName,
 } from "../../../tests/helpers/fixture-projects.js";
-import { MigrationStateSchema } from "@sarel/project-model";
+import { MigrationStateSchema } from "@drelwick/project-model";
 import {
   MIGRATION_CHECKPOINTS,
   MIGRATION_RECOVERY_CHECKPOINTS,
@@ -572,7 +572,7 @@ describe("V1 -> V2 project migration", () => {
     // A sibling outside both projects supplies the existing archive API destination.
     const destination = join(parent, "..", "restored");
     await mkdir(destination);
-    const archive = join(parent, "..", "migration.sarel.zip");
+    const archive = join(parent, "..", "migration.drelwick.zip");
     await openProjectForEditing(root);
     await createProjectArchive({ projectPath: root, archivePath: archive });
     const restored = await restoreProjectArchive({

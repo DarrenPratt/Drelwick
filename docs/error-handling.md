@@ -1,6 +1,6 @@
 # Global error handling
 
-SAREL handles unexpected failures at both Electron process boundaries so a
+Drelwick handles unexpected failures at both Electron process boundaries so a
 renderer exception does not leave a blank window and a fatal main-process error
 does not end silently.
 

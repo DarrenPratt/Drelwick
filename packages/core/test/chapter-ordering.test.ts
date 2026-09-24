@@ -20,7 +20,7 @@ afterEach(async () => {
 });
 
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "sarel-order-"));
+  const root = await mkdtemp(join(tmpdir(), "drelwick-order-"));
   directories.push(root);
   await createProject({
     projectPath: root,

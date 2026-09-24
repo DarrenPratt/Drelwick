@@ -3,8 +3,8 @@ import {
   createHistorySnapshot,
   HISTORY_SNAPSHOT_INTERVAL_MS,
   type HistoryRetentionResult,
-} from "@sarel/core";
-import { safeErrorContext, type SafeLogger } from "@sarel/shared";
+} from "@drelwick/core";
+import { safeErrorContext, type SafeLogger } from "@drelwick/shared";
 
 export interface HistoryRuntimeOptions {
   snapshot?: typeof createHistorySnapshot;

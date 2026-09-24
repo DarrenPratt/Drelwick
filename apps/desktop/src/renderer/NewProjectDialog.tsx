@@ -3,7 +3,7 @@ import {
   CreateProjectRequestSchema,
   type ProjectLocation,
   type ProjectWorkspace,
-} from "@sarel/shared";
+} from "@drelwick/shared";
 
 interface Props {
   onCancel(): void;
@@ -33,7 +33,7 @@ export function NewProjectDialog({ onCancel, onCreated }: Props) {
     setBusy(true);
     setError("");
     try {
-      const result = await window.sarel.project.selectLocation();
+      const result = await window.drelwick.project.selectLocation();
       if (!result.ok) setError(result.error.message);
       else if (result.value) setLocation(result.value);
     } catch {
@@ -64,7 +64,7 @@ export function NewProjectDialog({ onCancel, onCreated }: Props) {
     setBusy(true);
     setError("");
     try {
-      const result = await window.sarel.project.create(parsed.data);
+      const result = await window.drelwick.project.create(parsed.data);
       if (result.ok) onCreated(result.value, result.warning);
       else setError(result.error.message);
     } catch {

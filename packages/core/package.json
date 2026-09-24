@@ -1,5 +1,5 @@
 {
-  "name": "@sarel/core",
+  "name": "@drelwick/core",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -18,8 +18,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@sarel/project-model": "workspace:*",
-    "@sarel/shared": "workspace:*",
+    "@drelwick/project-model": "workspace:*",
+    "@drelwick/shared": "workspace:*",
     "fflate": "0.8.3",
     "marked": "18.0.14",
     "parse5": "8.0.1",

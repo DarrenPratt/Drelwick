@@ -2,14 +2,14 @@ import "./app.css";
 import {
   createAutosaveCoordinator,
   type AutosaveCoordinator,
-} from "@sarel/core/autosave";
+} from "@drelwick/core/autosave";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   countDocumentWords,
   type ProjectWorkspace,
   type RecentProject,
-} from "@sarel/shared";
+} from "@drelwick/shared";
 import { ImportManuscriptDialog } from "./ImportManuscriptDialog.js";
 import { NewProjectDialog } from "./NewProjectDialog.js";
 import { Editor } from "./components/Editor.js";
@@ -85,7 +85,7 @@ export function App() {
   useEffect(() => {
     if (!projectPath || !activeChapterId) return;
     let active = true;
-    void window.sarel.project
+    void window.drelwick.project
       .loadChapter({ chapterId: activeChapterId })
       .then((result) => {
         if (!active) return;
@@ -126,7 +126,7 @@ export function App() {
     });
     setEditorError("");
     try {
-      const result = await window.sarel.project.saveChapter({
+      const result = await window.drelwick.project.saveChapter({
         chapterId: snapshot.chapterId,
         document: snapshot.content,
         source: saveSource.current,
@@ -194,7 +194,7 @@ export function App() {
   }, [persistDocument]);
 
   useEffect(() => {
-    return window.sarel.onShutdownRequested(async () => {
+    return window.drelwick.onShutdownRequested(async () => {
       const saved = (await autosave.current?.flush()) ?? true;
       if (!saved) {
         setError(
@@ -217,7 +217,7 @@ export function App() {
   }, [documentReady, changingDocument]);
 
   useEffect(() => {
-    const unsubscribe = window.sarel.onSaveRequested(saveActiveChapter);
+    const unsubscribe = window.drelwick.onSaveRequested(saveActiveChapter);
     const onKeyDown = (event: KeyboardEvent) => {
       if (
         event.key.toLowerCase() !== "s" ||
@@ -292,7 +292,7 @@ export function App() {
 
   useEffect(() => {
     let active = true;
-    void window.sarel.project
+    void window.drelwick.project
       .listRecent()
       .then((result) => {
         if (!active) return;
@@ -313,7 +313,7 @@ export function App() {
 
   const refreshRecents = useCallback(async () => {
     try {
-      const result = await window.sarel.project.listRecent();
+      const result = await window.drelwick.project.listRecent();
       if (result.ok) {
         setRecents(result.value);
         setRecentError("");
@@ -329,7 +329,7 @@ export function App() {
     setLoadingRecents(true);
     setRecentError("");
     try {
-      const result = await window.sarel.project.removeRecent(id);
+      const result = await window.drelwick.project.removeRecent(id);
       if (result.ok) setRecents(result.value);
       else setRecentError(result.error.message);
     } catch {
@@ -349,8 +349,8 @@ export function App() {
       setError("");
       try {
         const result = await (id
-          ? window.sarel.project.openRecent(id)
-          : window.sarel.project.open());
+          ? window.drelwick.project.openRecent(id)
+          : window.drelwick.project.open());
         if (!result.ok) setError(result.error.message);
         else if (result.value) {
           setProject(result.value);
@@ -374,7 +374,7 @@ export function App() {
     pending.current = true;
     setError("");
     try {
-      const result = await window.sarel.project.close();
+      const result = await window.drelwick.project.close();
       if (!result.ok) {
         setError(result.error.message);
         return;
@@ -422,7 +422,7 @@ export function App() {
           return;
         }
       }
-      const result = await window.sarel.project.backup({ includeHistory });
+      const result = await window.drelwick.project.backup({ includeHistory });
       if (!result.ok) setError(result.error.message);
       else if (result.value.created)
         setProjectMessage("Project backup created successfully.");
@@ -465,7 +465,7 @@ export function App() {
           return;
         }
       }
-      const result = await window.sarel.project.restore();
+      const result = await window.drelwick.project.restore();
       if (!result.ok) setError(result.error.message);
       else if (result.value) {
         setProject(result.value);
@@ -522,7 +522,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    return window.sarel.onApplicationMenuCommand((command) => {
+    return window.drelwick.onApplicationMenuCommand((command) => {
       if (command === "new-project") {
         if (
           pending.current ||
@@ -563,7 +563,7 @@ export function App() {
     setRenamingChapterId(editingChapterId);
     setError("");
     try {
-      const result = await window.sarel.project.renameChapter({
+      const result = await window.drelwick.project.renameChapter({
         chapterId: editingChapterId,
         title: chapterTitle,
       });
@@ -591,7 +591,7 @@ export function App() {
     setDeletingChapter(true);
     setError("");
     try {
-      const result = await window.sarel.project.deleteChapter({
+      const result = await window.drelwick.project.deleteChapter({
         chapterId,
       });
       if (result.ok) {
@@ -624,7 +624,7 @@ export function App() {
     setReordering(true);
     setError("");
     try {
-      const result = await window.sarel.project.reorderChapters({
+      const result = await window.drelwick.project.reorderChapters({
         chapterIds,
       });
       if (result.ok) setProject(result.value);
@@ -649,7 +649,7 @@ export function App() {
     setCreatingChapter(true);
     setError("");
     try {
-      const result = await window.sarel.project.createChapter({
+      const result = await window.drelwick.project.createChapter({
         title: newChapterTitle,
       });
       if (result.ok) {
@@ -678,7 +678,7 @@ export function App() {
     setReordering(true);
     setError("");
     try {
-      const result = await window.sarel.project.reorderChapters({
+      const result = await window.drelwick.project.reorderChapters({
         chapterIds,
       });
       if (result.ok) setProject(result.value);
@@ -1081,7 +1081,7 @@ export function App() {
         <main className="app-shell" aria-busy={opening || projectTask !== null}>
           <header className="app-header">
             <p className="eyebrow">
-              <WorkspaceIcon name="book" /> SAREL · Your words, your world
+              <WorkspaceIcon name="book" /> Drelwick · Your words, your world
             </p>
             <h1>Your manuscript workspace</h1>
             <p className="welcome-description">

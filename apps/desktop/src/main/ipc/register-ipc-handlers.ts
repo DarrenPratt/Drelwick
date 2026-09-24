@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import { IPC, validateIpcPayload, type IpcChannel } from "@sarel/shared";
+import { IPC, validateIpcPayload, type IpcChannel } from "@drelwick/shared";
 
 export type IpcHandlers = Partial<
   Record<IpcChannel, (payload: unknown) => unknown | Promise<unknown>>

@@ -110,13 +110,13 @@ never accepted. Destinations must already exist and be empty, and may not be ins
 an existing project. These checks coordinate application operations; they do not
 claim protection from a hostile external process replacing directories concurrently.
 
-Inspection writes a private `sarel-manuscript-import-*/manuscript.json` under the OS
+Inspection writes a private `drelwick-manuscript-import-*/manuscript.json` under the OS
 temporary directory, with an exclusive file create and flush. It has an internal
 `schemaVersion: 1` envelope containing `manuscript`. The coordinator retains its
 SHA-256 digest. Commit rereads it with bounded safe-path checks, verifies the digest
 and revalidates all data and images. Mutating a preview cannot change staged data.
 
-Commit builds `.sarel-import-<uuid>/` inside the selected destination, reusing
+Commit builds `.drelwick-import-<uuid>/` inside the selected destination, reusing
 `createProject`, existing schemas, the atomic JSON writer and directory flushing.
 This keeps publication on one filesystem. Current project format remains v2;
 book/chapter/image component versions remain v1. No migration or existing-save
@@ -162,7 +162,7 @@ Preserve it for inspection; do not infer a successful import from staging alone:
   folder. After verifying the unchanged source, the abandoned folder can be
   removed explicitly; the importer will not overwrite it on retry.
 - A destination with a successfully published root manifest contains the complete
-  project. Validate/open it normally. A retained `.sarel-import-<uuid>` directory
+  project. Validate/open it normally. A retained `.drelwick-import-<uuid>` directory
   is a cleanup artifact; it is not an alternate authoritative project.
 
 Automatic broad temp-directory deletion is deliberately avoided. Existing

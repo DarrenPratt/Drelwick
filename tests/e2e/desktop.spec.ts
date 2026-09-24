@@ -22,7 +22,7 @@ import { docx, p, unicode } from "../../packages/core/test/fixtures/docx.js";
 
 for (const format of ["txt", "md", "html"]) {
   test(`imports ${format} offline through shared preview, edits, saves and reopens`, async () => {
-    const scratch = await mkdtemp(join(tmpdir(), "sarel-text-e2e-"));
+    const scratch = await mkdtemp(join(tmpdir(), "drelwick-text-e2e-"));
     let application: ElectronApplication | undefined;
     const source = join(scratch, `novel.${format}`);
     const destination = join(scratch, "imported");
@@ -122,7 +122,7 @@ const desktopDirectory = join(repositoryRoot, "apps", "desktop");
 
 test("imports local images, edits semantics and reopens a portable project offline", async () => {
   const fixture = await copyFixture("minimal-book");
-  const scratch = await mkdtemp(join(tmpdir(), "sarel-image-e2e-"));
+  const scratch = await mkdtemp(join(tmpdir(), "drelwick-image-e2e-"));
   let application: ElectronApplication | undefined;
   try {
     const source = join(scratch, "synthetic.png");
@@ -249,8 +249,10 @@ async function launchApplication(userDataDirectory: string) {
     },
   });
   const page = await application.firstWindow();
-  await expect(page).toHaveTitle("SAREL");
-  expect(await application.evaluate(({ app }) => app.getName())).toBe("SAREL");
+  await expect(page).toHaveTitle("Drelwick");
+  expect(await application.evaluate(({ app }) => app.getName())).toBe(
+    "Drelwick",
+  );
   expect(await application.evaluate(({ app }) => app.getPath("userData"))).toBe(
     userDataDirectory,
   );
@@ -261,7 +263,7 @@ async function launchApplication(userDataDirectory: string) {
 }
 
 test("validates Windows authoring, autosave, formatting, ordering and restart", async () => {
-  const testDirectory = await mkdtemp(join(tmpdir(), "sarel-e2e-"));
+  const testDirectory = await mkdtemp(join(tmpdir(), "drelwick-e2e-"));
   const projectDirectory = join(testDirectory, "project");
   const userDataDirectory = join(testDirectory, "user-data");
   const title = "E2E persistence project";
@@ -439,7 +441,7 @@ test("recovers a history version after a forced process shutdown", async () => {
     );
   }
   const userDataDirectory = await mkdtemp(
-    join(tmpdir(), "sarel-recovery-e2e-"),
+    join(tmpdir(), "drelwick-recovery-e2e-"),
   );
   let application: ElectronApplication | undefined;
 
@@ -569,7 +571,7 @@ test("recovers a history version after a forced process shutdown", async () => {
 });
 
 test("reviews DOCX warnings and chapter mapping, then imports, edits, saves and reopens exact Unicode text", async () => {
-  const scratch = await mkdtemp(join(tmpdir(), "sarel-docx-e2e-"));
+  const scratch = await mkdtemp(join(tmpdir(), "drelwick-docx-e2e-"));
   let application: ElectronApplication | undefined;
   const source = join(scratch, "novel.docx");
   const destination = join(scratch, "imported");

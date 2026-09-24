@@ -12,17 +12,17 @@ import {
   DocxImportError,
   TextManuscriptImporter,
   type IsolatedManuscriptImporter,
-} from "@sarel/core";
+} from "@drelwick/core";
 import {
   ImportInspectionSchema,
   validateImportedManuscript,
-} from "@sarel/project-model";
+} from "@drelwick/project-model";
 import {
   ApplicationError,
   IPC,
   IpcRequestSchemas,
   type ImportInspection,
-} from "@sarel/shared";
+} from "@drelwick/shared";
 import { extname } from "node:path";
 
 interface Dependencies {

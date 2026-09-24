@@ -1,4 +1,4 @@
-import { ApplicationError } from "@sarel/shared";
+import { ApplicationError } from "@drelwick/shared";
 import {
   DOCX_ERRORS,
   DOCX_LOCATIONS,

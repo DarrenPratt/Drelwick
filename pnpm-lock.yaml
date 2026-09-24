@@ -50,13 +50,13 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@sarel/core':
+      '@drelwick/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@sarel/project-model':
+      '@drelwick/project-model':
         specifier: workspace:*
         version: link:../../packages/project-model
-      '@sarel/shared':
+      '@drelwick/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@tiptap/core':
@@ -108,10 +108,10 @@ importers:
 
   packages/core:
     dependencies:
-      '@sarel/project-model':
+      '@drelwick/project-model':
         specifier: workspace:*
         version: link:../project-model
-      '@sarel/shared':
+      '@drelwick/shared':
         specifier: workspace:*
         version: link:../shared
       fflate:
@@ -151,7 +151,7 @@ importers:
 
   packages/project-model:
     dependencies:
-      '@sarel/shared':
+      '@drelwick/shared':
         specifier: workspace:*
         version: link:../shared
       zod:
@@ -166,7 +166,7 @@ importers:
 
   tests/workspace-smoke:
     dependencies:
-      '@sarel/shared':
+      '@drelwick/shared':
         specifier: workspace:*
         version: link:../../packages/shared
 

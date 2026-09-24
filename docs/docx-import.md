@@ -10,12 +10,12 @@ let authors approve this parser's proposed manuscript before creating a project.
 Pinned runtime libraries:
 
 - [fflate 0.8.3](https://github.com/101arrowz/fflate), MIT: pure JavaScript streaming
-  DEFLATE. SAREL checks ZIP central/local records before using its inflater and
+  DEFLATE. Drelwick checks ZIP central/local records before using its inflater and
   checks actual expanded lengths and CRCs afterwards. A full archive extraction
   API is deliberately not used. Its synchronous stream runs inside the existing
   terminable parser worker.
 - [sax 1.6.1](https://github.com/isaacs/sax-js), BlueOak-1.0.0: event-driven XML,
-  namespace-aware strict mode, predefined entities only, no resolver. SAREL adds
+  namespace-aware strict mode, predefined entities only, no resolver. Drelwick adds
   declaration, Unicode, duplicate-attribute, depth, aggregate-node and package
   structure checks; this is not an OOXML XSD validator.
 - Build only: esbuild 0.28.2 (MIT) bundles the adapter and these libraries into
@@ -24,7 +24,7 @@ Pinned runtime libraries:
   remains unavailable.
 
 The installed licences were checked. These permissive dependencies impose no
-account, paid API or Pro restriction and do not decide SAREL's eventual licence.
+account, paid API or Pro restriction and do not decide Drelwick's eventual licence.
 The build includes dependency notices in the bundle; retain them when packaging.
 Repository public-release/licensing gates remain unchanged. Upgrades require the
 adversarial fixture suite; parser libraries alone do not provide the resource or

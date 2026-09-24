@@ -16,8 +16,8 @@ import {
   IMPORT_LIMITS,
   validateImportedManuscript,
   type ImporterResult,
-} from "@sarel/project-model";
-import { IsolatedManuscriptImporter } from "@sarel/core";
+} from "@drelwick/project-model";
+import { IsolatedManuscriptImporter } from "@drelwick/core";
 import {
   StagedManuscriptImport,
   createProject,
@@ -68,7 +68,7 @@ const manuscript = (): ImporterResult => ({
   ],
 });
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "sarel-import-test-"));
+  const root = await mkdtemp(join(tmpdir(), "drelwick-import-test-"));
   roots.push(root);
   const source = join(root, "source.bin");
   const destination = join(root, "destination");
@@ -133,7 +133,7 @@ it.each(["parsed", "staging", "staged"] as const)(
   async (phase) => {
     const f = await fixture();
     const before = (await readdir(f.root)).filter((name) =>
-      name.startsWith("sarel-manuscript-import-"),
+      name.startsWith("drelwick-manuscript-import-"),
     );
     await expect(
       StagedManuscriptImport.inspect(
@@ -150,7 +150,7 @@ it.each(["parsed", "staging", "staged"] as const)(
     ).rejects.toMatchObject({ code: "IMPORT_CANCELLED" });
     expect(
       (await readdir(f.root)).filter((name) =>
-        name.startsWith("sarel-manuscript-import-"),
+        name.startsWith("drelwick-manuscript-import-"),
       ),
     ).toEqual(before);
     expect(await readdir(f.destination)).toEqual([]);
@@ -505,7 +505,7 @@ it("reports retained private staging when cleanup fails", async () => {
     ),
   ).rejects.toMatchObject({ code: "IMPORT_CLEANUP_REQUIRED" });
   const retained = (await readdir(f.root)).find((name) =>
-    name.startsWith("sarel-manuscript-import-"),
+    name.startsWith("drelwick-manuscript-import-"),
   )!;
   const envelope = JSON.parse(
     await readFile(join(f.root, retained, "manuscript.json"), "utf8"),

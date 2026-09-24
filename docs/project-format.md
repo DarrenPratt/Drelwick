@@ -1,22 +1,28 @@
 # Project format and local migration
 
-## SAREL rename compatibility
+## Pre-release product identity
 
-SAREL was previously named BookEditor. This branding change does not change
-project or chapter schema versions and does not rewrite manuscript files.
-Archive manifests retain `.bookeditor-archive.json`, and migration recovery
-retains `.bookeditor-migration/`, so existing backups and interrupted migrations
-remain readable. New backup filenames use `.sarel.zip`; restore accepts either
-name because it validates ZIP contents rather than the filename.
+Drelwick uses `@drelwick/*` workspace packages and the restricted
+`window.drelwick` preload API (`DrelwickApi`). Application settings,
+recent projects, Chromium session data and unclean-session recovery live in
+`appData/@drelwick/desktop`; an explicit `--user-data-dir` takes precedence.
+Logs use `drelwick.log`.
 
-The desktop keeps its original `appData/@bookeditor/desktop` settings directory
-for recent projects and unclean-session recovery. An explicit `--user-data-dir`
-still takes precedence. No settings are moved or deleted. Logs now use
-`sarel.log`; earlier logs remain in place. Workspace packages use `@sarel/*`,
-and the internal restricted preload API is now `window.sarel` (`SarelApi`).
-The GitHub repository and existing project board are renamed in place; issue
-numbers, milestones and history are retained. The local checkout folder may
-remain named `BookEditor` without affecting the application.
+Portable backups use `.drelwick.zip` filenames and a
+`.drelwick-archive.json` manifest. Schema migration recovery uses
+`.drelwick-migration/`. This is a clean pre-release identity change: previous
+application profiles, archive manifests and interrupted migration directories
+are not discovered or converted. Development data in those locations is left
+untouched. Finish any in-progress schema migration with its originating build
+before using that development project here, and recreate development backups.
+
+Project and chapter schema versions and manuscript content are unchanged. The
+existing version-1-to-version-2 schema migration remains part of normal project
+loading; it is unrelated to the product rename. Projects remain directories
+containing `project.json`, rather than using a branded project-file extension.
+
+The existing GitHub repository and project board have also been renamed; see
+the [tracking register](planning/github-tracking.md#pre-release-product-identity).
 
 ## Implemented format
 
@@ -104,7 +110,7 @@ ambiguously interpreting author data.
 - Positive integer 2 is the current project version.
 - Version 1 is supported historical input requiring migration for desktop editing.
 - A version greater than 2 is unsupported and requires a newer compatible
-  SAREL. It is rejected before migration artifacts, caches or locks are written.
+  Drelwick. It is rejected before migration artifacts, caches or locks are written.
 - Missing, string, fractional, zero, negative or otherwise malformed versions fail
   explicitly. Missing/corrupt JSON is not treated as version 1.
 
@@ -120,7 +126,7 @@ the current application expects".
 
 ## Complete backup and staging
 
-Migration creates `.bookeditor-migration/` inside the project. It contains a
+Migration creates `.drelwick-migration/` inside the project. It contains a
 versioned `state.json`, owner/recovery records, `backup-<uuid>/` copies and
 `stage-<uuid>/` directories. These are recovery artifacts, not the editor's
 authoritative manuscript. No authoritative file changes before backup verification.

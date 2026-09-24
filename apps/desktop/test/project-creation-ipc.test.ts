@@ -3,14 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
-import { createProject } from "@sarel/core";
+import { createProject } from "@drelwick/core";
 import {
   ApplicationError,
   IPC,
   type ProjectOperationResult,
   type ProjectLocation,
   type SafeLogger,
-} from "@sarel/shared";
+} from "@drelwick/shared";
 
 const { handle, showOpenDialog } = vi.hoisted(() => ({
   handle: vi.fn(),
@@ -134,7 +134,7 @@ describe("project creation IPC", () => {
 
   it("creates a real project only in the native-selected folder", async () => {
     const { selectFolder, invoke, request, create, logger } = setup();
-    const path = await mkdtemp(join(tmpdir(), "sarel-dialog-"));
+    const path = await mkdtemp(join(tmpdir(), "drelwick-dialog-"));
     directories.push(path);
     selectFolder.mockResolvedValue(path);
     const input = await request();

@@ -1,4 +1,4 @@
-# SAREL
+# Drelwick
 
 ## Technical Implementation Specification
 
@@ -26,7 +26,7 @@ The v0.1 build plan defines the minimal editor schema (text/paragraphs, bold/ita
 
 # 1. Purpose
 
-This document defines the implementation architecture for SAREL described in the Software Design Document.
+This document defines the implementation architecture for Drelwick described in the Software Design Document.
 
 The intent is to move from conceptual architecture to a practical codebase structure with:
 
@@ -59,7 +59,7 @@ The project should initially use a single repository.
 Recommended layout:
 
 ```text
-sarel/
+@drelwick/
 │
 ├── apps/
 │   └── desktop/
@@ -319,7 +319,7 @@ The preload script should expose a narrow application API.
 Example:
 
 ```typescript
-export interface SarelApi {
+export interface DrelwickApi {
   project: {
     create(): Promise<CreateProjectResult>;
     open(): Promise<OpenProjectResult>;
@@ -343,13 +343,13 @@ export interface SarelApi {
 Expose it using:
 
 ```typescript
-contextBridge.exposeInMainWorld("sarel", api);
+contextBridge.exposeInMainWorld("drelwick", api);
 ```
 
 The renderer should use:
 
 ```typescript
-window.sarel.project.open();
+window.drelwick.project.open();
 ```
 
 rather than Electron APIs directly.
@@ -2971,7 +2971,7 @@ The editor must become dependable first.
 After the first slice, the repository should approximately resemble:
 
 ```text
-sarel/
+@drelwick/
 │
 ├── apps/
 │   └── desktop/

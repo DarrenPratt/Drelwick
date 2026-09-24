@@ -2,8 +2,8 @@ import {
   ChapterFileSchema,
   HistorySnapshotSchema,
   ProjectConfigSchema,
-} from "@sarel/project-model";
-import { ApplicationError, createUuid, isUuid } from "@sarel/shared";
+} from "@drelwick/project-model";
+import { ApplicationError, createUuid, isUuid } from "@drelwick/shared";
 import {
   lstat,
   mkdir,

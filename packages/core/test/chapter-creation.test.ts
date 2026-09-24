@@ -15,7 +15,10 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
-import { ChapterFileSchema, ProjectConfigSchema } from "@sarel/project-model";
+import {
+  ChapterFileSchema,
+  ProjectConfigSchema,
+} from "@drelwick/project-model";
 import {
   CHAPTER_CREATION_LOCK,
   createChapter,
@@ -34,7 +37,7 @@ afterEach(async () => {
   );
 });
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "sarel-chapter-"));
+  const root = await mkdtemp(join(tmpdir(), "drelwick-chapter-"));
   directories.push(root);
   await createProject({
     projectPath: root,
@@ -234,7 +237,7 @@ it("detects an external manifest edit and preserves both it and the unreferenced
 
 it("rejects competing creation through a root alias and permits retry after lock release", async () => {
   const root = await fixture();
-  const aliasParent = await mkdtemp(join(tmpdir(), "sarel-alias-"));
+  const aliasParent = await mkdtemp(join(tmpdir(), "drelwick-alias-"));
   directories.push(aliasParent);
   const alias = join(aliasParent, "book");
   await symlink(root, alias, process.platform === "win32" ? "junction" : "dir");

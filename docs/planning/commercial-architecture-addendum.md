@@ -1,4 +1,4 @@
-# SAREL — GitHub Build Plan
+# Drelwick — GitHub Build Plan
 
 ## Commercial Architecture Addendum
 
@@ -17,7 +17,7 @@ Task 60 is future work, after the Community/Pro package boundary is established 
 
 ## Local delivery update — 19 September 2026
 
-Basic DOCX import is CORE in v0.2; basic manuscript DOCX export is CORE by v0.3. Cloud editing, hosted conversion and collaboration are outside the current roadmap. Optional Google Drive/Wasabi/Git repository backup is exploration of user-owned storage, not a SAREL hosted service. Client-side integration does not automatically imply SERVICE classification; provider fees and any future SAREL-operated infrastructure are separate decisions. See the [local publishing plan](local-publishing-plan.md). The rest of the feature-boundary review remains open in actual GitHub issue #52.
+Basic DOCX import is CORE in v0.2; basic manuscript DOCX export is CORE by v0.3. Cloud editing, hosted conversion and collaboration are outside the current roadmap. Optional Google Drive/Wasabi/Git repository backup is exploration of user-owned storage, not a Drelwick hosted service. Client-side integration does not automatically imply SERVICE classification; provider fees and any future Drelwick-operated infrastructure are separate decisions. See the [local publishing plan](local-publishing-plan.md). The rest of the feature-boundary review remains open in actual GitHub issue #52.
 
 # Commercial Architecture Milestone
 
@@ -38,12 +38,12 @@ It does not block development of v0.1.
 ## Title
 
 ```text
-Define SAREL Community and Pro feature boundary
+Define Drelwick Community and Pro feature boundary
 ```
 
 ## Objective
 
-Document which capabilities form the open-source Community product and which belong to SAREL Pro.
+Document which capabilities form the open-source Community product and which belong to Drelwick Pro.
 
 ## Initial Community Scope
 
@@ -104,7 +104,7 @@ commercial
 ## Title
 
 ```text
-Review and select SAREL Community licence
+Review and select Drelwick Community licence
 ```
 
 ## Objective
@@ -337,13 +337,13 @@ AI Provider
 Where practical:
 
 ```text
-SAREL Pro
+Drelwick Pro
       │
       ▼
 Public Extension API
       │
       ▼
-SAREL Community
+Drelwick Community
 ```
 
 rather than Pro directly modifying Community internals.
@@ -376,12 +376,12 @@ priority:normal
 ## Title
 
 ```text
-Create public SAREL project format specification
+Create public Drelwick project format specification
 ```
 
 ## Objective
 
-Ensure manuscripts remain portable and recoverable independently of SAREL.
+Ensure manuscripts remain portable and recoverable independently of Drelwick.
 
 ## Document
 
@@ -426,19 +426,19 @@ priority:high
 ## Title
 
 ```text
-Define SAREL branding and official distribution policy
+Define Drelwick branding and official distribution policy
 ```
 
 ## Objective
 
-Separate source-code rights from rights associated with official SAREL branding and builds.
+Separate source-code rights from rights associated with official Drelwick branding and builds.
 
 ## Consider
 
 ```text
-SAREL name
-SAREL Community
-SAREL Pro
+Drelwick name
+Drelwick Community
+Drelwick Pro
 logos
 fork naming
 official binaries
@@ -470,7 +470,7 @@ priority:normal
 ## Title
 
 ```text
-Prepare SAREL Community for public release
+Prepare Drelwick Community for public release
 ```
 
 ## Objective
@@ -515,12 +515,12 @@ priority:high
 
 ---
 
-# Issue 60 — Create SAREL Pro Repository
+# Issue 60 — Create Drelwick Pro Repository
 
 ## Title
 
 ```text
-Create private SAREL Pro repository and integration skeleton
+Create private Drelwick Pro repository and integration skeleton
 ```
 
 ## Objective
@@ -530,13 +530,13 @@ Establish the commercial codebase without coupling Community to it.
 ## Proposed Repository
 
 ```text
-SAREL-Pro
+Drelwick-Pro
 ```
 
 ## Initial Structure
 
 ```text
-SAREL-Pro/
+Drelwick-Pro/
 │
 ├── packages/
 │   ├── advanced-print/
@@ -623,7 +623,7 @@ Definitions:
 
 **CORE**
 
-Fundamental SAREL functionality available in Community.
+Fundamental Drelwick functionality available in Community.
 
 **PRO**
 
@@ -669,7 +669,7 @@ packages/shared           ─┘
            ▲
            │ allowed
            │
-SAREL-Pro
+Drelwick-Pro
 ```
 
 A Community build must always succeed when the Pro repository does not exist.

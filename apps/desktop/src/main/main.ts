@@ -4,8 +4,8 @@ import {
   SHUTDOWN_REQUEST_CHANNEL,
   safeErrorContext,
   validateIpcPayload,
-} from "@sarel/shared";
-import { RecoveryService, recoverProjectMigration } from "@sarel/core";
+} from "@drelwick/shared";
+import { RecoveryService, recoverProjectMigration } from "@drelwick/core";
 
 import { createMainWindow, getRendererUrl } from "./windows/main-window.js";
 import { registerProjectHandlers } from "./ipc/project-handlers.js";
@@ -63,8 +63,8 @@ function handleFatalProcessError(source: FatalProcessErrorSource): void {
   fatalErrorHandled = true;
   try {
     dialog.showErrorBox(
-      "SAREL encountered an unexpected error",
-      "Saved project files have been preserved. SAREL must close without marking this session clean. Restart the application to check for recoverable manuscript changes.",
+      "Drelwick encountered an unexpected error",
+      "Saved project files have been preserved. Drelwick must close without marking this session clean. Restart the application to check for recoverable manuscript changes.",
     );
   } finally {
     exitApplication(`fatal_${source}`, 1);
