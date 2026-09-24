@@ -45,6 +45,11 @@ warnings before choosing a new empty destination. The source stays unchanged.
 The committed project is validated before opening; failed saves and failed imports
 preserve the current manuscript. See the [import review workflow](docs/import-review-ui.md).
 
+Use **Edit → Find and replace** (**Ctrl+F / Cmd+F**) to search the live chapter or
+whole manuscript. Replace One uses editor undo; Replace All requires an explicit
+scope/count review, flushes pending edits and keeps pre-operation history with
+recoverable multi-chapter writes. See [search semantics and recovery](docs/manuscript-search.md).
+
 The welcome screen and workspace also list **Recent projects**. Select a title
 to reopen it or **Remove** to forget the entry without deleting the project.
 The list persists in application settings across restarts; project files remain

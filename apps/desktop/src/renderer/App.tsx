@@ -11,6 +11,13 @@ import {
   type RecentProject,
 } from "@drelwick/shared";
 import { ImportManuscriptDialog } from "./ImportManuscriptDialog.js";
+import { ManuscriptSearch } from "./ManuscriptSearch.js";
+import {
+  replaceMatches,
+  searchChapter,
+} from "@drelwick/core/manuscript-search";
+import type { ReplacementRequest } from "@drelwick/shared";
+import type { Editor as TipTapEditor } from "@tiptap/core";
 import { NewProjectDialog } from "./NewProjectDialog.js";
 import { Editor } from "./components/Editor.js";
 import { WorkspaceLayout } from "./components/WorkspaceLayout.js";
@@ -26,6 +33,13 @@ import {
 } from "./document-state.js";
 
 export function App() {
+  const [searchEditor, setSearchEditor] = useState<TipTapEditor | null>(null);
+  const [findRequest, setFindRequest] = useState(0);
+  const [replacing, setReplacing] = useState(false);
+  const [searchRefresh, setSearchRefresh] = useState(0);
+  const replacementCancelled = useRef(false);
+  const [replacementRecoveryRequired, setReplacementRecoveryRequired] =
+    useState(false);
   const [demo, setDemo] = useState(false);
   const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -75,6 +89,7 @@ export function App() {
   const autosave = useRef<AutosaveCoordinator | null>(null);
   const saveSource = useRef<"autosave" | "manual">("autosave");
   const changingDocument =
+    replacing ||
     importing ||
     opening ||
     creatingChapter ||
@@ -217,6 +232,98 @@ export function App() {
   }, [documentReady, changingDocument]);
 
   useEffect(() => {
+    const find = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() === "f" &&
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        !event.isComposing
+      ) {
+        event.preventDefault();
+        setFindRequest((request) => request + 1);
+      }
+    };
+    window.addEventListener("keydown", find);
+    return () => window.removeEventListener("keydown", find);
+  }, []);
+
+  async function replaceAll(input: ReplacementRequest): Promise<boolean> {
+    if (
+      pending.current ||
+      changingDocument ||
+      !documentReady ||
+      replacementRecoveryRequired
+    )
+      return false;
+    pending.current = true;
+    replacementCancelled.current = false;
+    setReplacing(true);
+    setError("");
+    try {
+      const saved = await autosave.current?.flush();
+      if (
+        !saved ||
+        savePending.current ||
+        isDocumentDirty(documentRef.current)
+      ) {
+        setError(
+          "Unable to save pending edits. Replacement did not start; your edits remain in the editor.",
+        );
+        return false;
+      }
+      if (replacementCancelled.current) return false;
+      const result = await window.drelwick.project.replaceManuscript(input);
+      if (!result.ok) {
+        setError(result.error.message);
+        if (result.error.code === "REPLACEMENT_RECOVERY_REQUIRED")
+          setReplacementRecoveryRequired(true);
+        return false;
+      }
+      setDocumentSession((session) => session + 1);
+      setSearchRefresh((value) => value + 1);
+      const wordCounts = new Map(
+        input.expected.map((chapter) => [
+          chapter.id,
+          countDocumentWords(
+            replaceMatches(
+              chapter.id,
+              chapter.content,
+              input.options,
+              searchChapter(chapter.id, chapter.content, input.options),
+              input.replacement,
+            ),
+          ),
+        ]),
+      );
+      setProject((current) =>
+        current
+          ? {
+              ...current,
+              chapters: current.chapters.map((chapter) => ({
+                ...chapter,
+                wordCount: wordCounts.get(chapter.id) ?? chapter.wordCount,
+              })),
+            }
+          : current,
+      );
+      setProjectMessage(
+        `Replaced ${result.value.matches} matches in ${result.value.chapters} changed chapters. Pre-replacement history retained.`,
+      );
+      return true;
+    } catch {
+      setReplacementRecoveryRequired(true);
+      setError(
+        "Replacement outcome could not be confirmed. Preserve the project and reopen to resolve recovery before editing.",
+      );
+      return false;
+    } finally {
+      pending.current = false;
+      setReplacing(false);
+    }
+  }
+
+  useEffect(() => {
     const unsubscribe = window.drelwick.onSaveRequested(saveActiveChapter);
     const onKeyDown = (event: KeyboardEvent) => {
       if (
@@ -259,6 +366,8 @@ export function App() {
 
   async function selectChapter(chapterId: string) {
     if (
+      pending.current ||
+      replacing ||
       chapterId === activeChapterId ||
       switchingChapter ||
       opening ||
@@ -353,6 +462,7 @@ export function App() {
           : window.drelwick.project.open());
         if (!result.ok) setError(result.error.message);
         else if (result.value) {
+          setReplacementRecoveryRequired(false);
           setProject(result.value);
           setDocumentSession((session) => session + 1);
           setActiveChapterId(result.value.chapters[0]?.id ?? null);
@@ -468,6 +578,7 @@ export function App() {
       const result = await window.drelwick.project.restore();
       if (!result.ok) setError(result.error.message);
       else if (result.value) {
+        setReplacementRecoveryRequired(false);
         setProject(result.value);
         setDocumentSession((session) => session + 1);
         setActiveChapterId(result.value.chapters[0]?.id ?? null);
@@ -523,7 +634,9 @@ export function App() {
 
   useEffect(() => {
     return window.drelwick.onApplicationMenuCommand((command) => {
-      if (command === "new-project") {
+      if (command === "find-manuscript") {
+        setFindRequest((request) => request + 1);
+      } else if (command === "new-project") {
         if (
           pending.current ||
           opening ||
@@ -559,6 +672,7 @@ export function App() {
   ]);
 
   async function renameSelectedChapter() {
+    if (pending.current || replacing) return;
     if (!project || !editingChapterId || !chapterTitle.trim()) return;
     setRenamingChapterId(editingChapterId);
     setError("");
@@ -610,6 +724,7 @@ export function App() {
   }
 
   async function moveChapter(chapterId: string, direction: -1 | 1) {
+    if (pending.current || replacing) return;
     if (!project || reordering) return;
     const index = project.chapters.findIndex(
       (chapter) => chapter.id === chapterId,
@@ -667,6 +782,7 @@ export function App() {
   }
 
   async function dropChapter(targetId: string) {
+    if (pending.current || replacing) return;
     if (!project || !draggedChapterId || draggedChapterId === targetId) return;
     const chapterIds = project.chapters.map((chapter) => chapter.id);
     const from = chapterIds.indexOf(draggedChapterId);
@@ -798,6 +914,28 @@ export function App() {
           }
           notice={
             <>
+              <ManuscriptSearch
+                key={project.projectId}
+                project={project}
+                active={
+                  documentReady && documentState
+                    ? {
+                        id: documentState.chapterId,
+                        content: documentState.content,
+                      }
+                    : null
+                }
+                editor={documentReady ? searchEditor : null}
+                focusRequest={findRequest}
+                busy={replacing}
+                refresh={searchRefresh}
+                navigate={selectChapter}
+                replace={replaceAll}
+                cancel={() => {
+                  replacementCancelled.current = true;
+                  void window.drelwick.project.cancelReplacement();
+                }}
+              />
               {error && (
                 <p className="error-message" role="alert">
                   {error}
@@ -991,13 +1129,14 @@ export function App() {
               <>
                 {documentReady && documentState ? (
                   <Editor
+                    onReady={setSearchEditor}
                     projectId={project.projectId}
                     prepareImageImport={async () =>
                       (await autosave.current?.flush()) ?? true
                     }
                     {...(activeChapterId ? { chapterId: activeChapterId } : {})}
                     key={chapterKey}
-                    editable={!changingDocument}
+                    editable={!changingDocument && !replacementRecoveryRequired}
                     title={
                       project.chapters.find(
                         (chapter) => chapter.id === activeChapterId,
@@ -1146,6 +1285,7 @@ export function App() {
             );
           }}
           onOpened={(opened, warning) => {
+            setReplacementRecoveryRequired(false);
             setProject(opened);
             setDocumentSession((session) => session + 1);
             setActiveChapterId(opened.chapters[0]?.id ?? null);
@@ -1159,6 +1299,7 @@ export function App() {
         <NewProjectDialog
           onCancel={() => setCreating(false)}
           onCreated={(created, warning) => {
+            setReplacementRecoveryRequired(false);
             setProject(created);
             setDocumentSession((session) => session + 1);
             setCreating(false);

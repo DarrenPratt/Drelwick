@@ -30,6 +30,7 @@ Operational documents:
 - [Chapter creation and failure recovery](chapter-creation.md)
 - [Chapter document persistence](chapter-persistence.md)
 - [Manuscript semantic elements](manuscript-semantics.md)
+- [Manuscript Find and Replace](manuscript-search.md)
 - [Local image assets and recovery](local-image-assets.md)
 - [Staged local manuscript import](manuscript-import.md)
 - [Manuscript import preview and approval workflow](import-review-ui.md)

@@ -13,6 +13,7 @@ import {
   deleteChapter,
   loadChapter,
   saveChapter,
+  replaceManuscript,
   openProject,
   openProjectForEditing,
   MIGRATION_ERRORS,
@@ -28,6 +29,7 @@ import {
   CreateProjectRequestSchema,
   IPC,
   IpcRequestSchemas,
+  ReplacementReceiptSchema,
   noopLogger,
   safeErrorContext,
   type ProjectLocation,
@@ -234,6 +236,7 @@ export function registerProjectHandlers(
     | { owner: IpcMainInvokeEvent["senderFrame"]; token: string; path: string }
     | undefined;
   let busy = false;
+  let replacementCancellation: { cancelled: boolean } | undefined;
   let activeProjectPath: string | undefined;
   let activeProjectId: string | undefined;
   const trusted = (event: IpcMainInvokeEvent) => {
@@ -1218,6 +1221,61 @@ export function registerProjectHandlers(
       }
     },
   );
+
+  ipcMain.handle(IPC.MANUSCRIPT_CANCEL_REPLACE, (event, payload: unknown) => {
+    if (!trusted(event) || payload !== undefined)
+      return failure(
+        "PROJECT_ACCESS_DENIED",
+        "Replacement access is not permitted.",
+      );
+    if (replacementCancellation) replacementCancellation.cancelled = true;
+    return { ok: true, value: null };
+  });
+  ipcMain.handle(IPC.MANUSCRIPT_REPLACE, async (event, payload: unknown) => {
+    if (!trusted(event))
+      return failure(
+        "PROJECT_ACCESS_DENIED",
+        "Replacement access is not permitted.",
+      );
+    const parsed = IpcRequestSchemas[IPC.MANUSCRIPT_REPLACE].safeParse(payload);
+    if (!parsed.success)
+      return failure("PROJECT_INPUT_INVALID", "Invalid replacement request.");
+    if (busy || !activeProjectPath)
+      return failure(
+        "PROJECT_BUSY",
+        "Open a project and wait for current operations to finish.",
+      );
+    busy = true;
+    const cancellation = { cancelled: false };
+    replacementCancellation = cancellation;
+    try {
+      await history.settleProject(activeProjectPath);
+      const value = await replaceManuscript(
+        { ...parsed.data, projectPath: activeProjectPath },
+        { cancelled: () => cancellation.cancelled },
+      );
+      return { ok: true, value: ReplacementReceiptSchema.parse(value) };
+    } catch (error) {
+      // Fixed domain messages only; never log requests, parser issues or causes.
+      if (
+        error instanceof ApplicationError &&
+        [
+          "REPLACEMENT_FAILED",
+          "REPLACEMENT_CANCELLED",
+          "REPLACEMENT_RECOVERY_REQUIRED",
+          "PROJECT_BUSY",
+        ].includes(error.code)
+      )
+        return failure(error.code, error.message);
+      return failure(
+        "REPLACEMENT_RECOVERY_REQUIRED",
+        "Replacement could not finish. Preserve the project and reopen to verify recovery.",
+      );
+    } finally {
+      replacementCancellation = undefined;
+      busy = false;
+    }
+  });
 
   ipcMain.handle(IPC.PROJECT_SAVE_CHAPTER, async (event, payload: unknown) => {
     if (!trusted(event))

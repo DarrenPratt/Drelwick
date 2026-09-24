@@ -8,6 +8,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./manuscript-search": {
+      "types": "./dist/manuscript-search.d.ts",
+      "import": "./dist/manuscript-search.js"
+    },
     "./autosave": {
       "types": "./dist/autosave.d.ts",
       "import": "./dist/autosave.js"

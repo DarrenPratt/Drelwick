@@ -120,6 +120,129 @@ const repositoryRoot = resolve(
 );
 const desktopDirectory = join(repositoryRoot, "apps", "desktop");
 
+test("finds live prose, reviews whole-manuscript replacement and reopens formatted results", async () => {
+  const fixture = await copyFixture("multi-chapter-book");
+  const scratch = await mkdtemp(join(tmpdir(), "drelwick-search-e2e-"));
+  let application: ElectronApplication | undefined;
+  try {
+    const manifest = JSON.parse(
+      await readFile(join(fixture.projectPath, "project.json"), "utf8"),
+    );
+    const ids: string[] = manifest.manuscript.order;
+    for (const id of ids) {
+      const path = join(fixture.projectPath, "manuscript", `${id}.json`);
+      const chapter = JSON.parse(await readFile(path, "utf8"));
+      chapter.content = {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              { type: "text", text: "silver moon", marks: [{ type: "bold" }] },
+            ],
+          },
+          { type: "sceneBreak" },
+        ],
+      };
+      await writeFile(path, JSON.stringify(chapter));
+    }
+    const launched = await launchApplication(join(scratch, "user-data"));
+    application = launched.application;
+    const page = launched.page;
+    await page.context().setOffline(true);
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, fixture.projectPath);
+    await page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    const editor = page.locator(".ProseMirror");
+    await expect(editor).toBeEditable();
+    await editor.click();
+    await page.keyboard.press("ControlOrMeta+End");
+    await page.keyboard.type(" newer prose");
+    await page.keyboard.press("ControlOrMeta+f");
+    const find = page.getByRole("region", {
+      name: "Manuscript find and replace",
+      exact: true,
+    });
+    await find.getByLabel("Find text", { exact: true }).fill("newer");
+    await expect(find).toContainText("0 of 1 matches");
+    await find.getByLabel("Find text", { exact: true }).fill("silver");
+    await find.getByLabel("Search scope").selectOption("manuscript");
+    await expect(find).toContainText("0 of 3 matches");
+    await find.getByRole("button", { name: "Next match" }).click();
+    await expect(find).toContainText("1 of 3 matches");
+    await find.getByRole("button", { name: "Previous match" }).click();
+    await expect(find).toContainText("3 of 3 matches");
+    await find.getByLabel("Replacement text").fill("金色");
+    await find.getByRole("button", { name: "Review replace all" }).click();
+    await expect(find).toContainText(
+      "whole manuscript: 3 matches in 3 chapters",
+    );
+    await page.screenshot({
+      path: test.info().outputPath("manuscript-search-review.png"),
+    });
+    await find.getByRole("button", { name: "Confirm replace all" }).click();
+    await expect(
+      page.getByText(
+        "Replaced 3 matches in 3 changed chapters. Pre-replacement history retained.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(editor).toContainText("金色 moon");
+    for (const id of ids) {
+      const chapter = JSON.parse(
+        await readFile(
+          join(fixture.projectPath, "manuscript", `${id}.json`),
+          "utf8",
+        ),
+      );
+      expect(chapter.content.content[0].content[0].marks).toEqual([
+        { type: "bold" },
+      ]);
+      expect(JSON.stringify(chapter.content)).not.toContain("silver");
+    }
+    expect(
+      await readFile(
+        join(fixture.projectPath, "manuscript", `${ids[0]}.json`),
+        "utf8",
+      ),
+    ).toContain("newer prose");
+    await application.close();
+    application = undefined;
+    const restarted = await launchApplication(join(scratch, "user-data"));
+    application = restarted.application;
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, fixture.projectPath);
+    await restarted.page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    await expect(restarted.page.locator(".ProseMirror")).toContainText(
+      "金色 moon",
+    );
+    await expect(restarted.page.locator(".ProseMirror")).toContainText(
+      "newer prose",
+    );
+  } finally {
+    await application?.close();
+    await fixture.cleanup();
+    await rm(scratch, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 200,
+    });
+  }
+});
+
 test("imports local images, edits semantics and reopens a portable project offline", async () => {
   const fixture = await copyFixture("minimal-book");
   const scratch = await mkdtemp(join(tmpdir(), "drelwick-image-e2e-"));

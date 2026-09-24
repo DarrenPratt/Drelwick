@@ -1660,3 +1660,22 @@ button svg {
 .import-dialog details li {
   white-space: pre-wrap;
 }
+.manuscript-search {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid currentColor;
+}
+.manuscript-search fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  border: 0;
+}
+.manuscript-search label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.manuscript-search input[type="checkbox"] {
+  width: auto;
+}
