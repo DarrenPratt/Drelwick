@@ -3,6 +3,6 @@
 Application workspaces belong under `apps/*`. The Electron desktop shell lives
 in `apps/desktop`.
 
-The current renderer offers a local manuscript workspace and a separate,
-in-memory sample workspace. See the [workspace walkthrough](../docs/workspace-demo.md)
-for the screenshot and a description of which publishing controls are illustrative.
+The renderer opens local manuscript projects. Create or open a project from the
+welcome screen to use the authoring workspace. Publishing preview controls remain
+illustrative; see the [workspace guide](../docs/workspace-demo.md).

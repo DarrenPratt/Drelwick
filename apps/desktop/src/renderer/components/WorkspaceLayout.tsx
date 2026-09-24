@@ -20,7 +20,6 @@ export interface WorkspaceLayoutProps {
   status: ReactNode;
   library: ReactNode;
   notice?: ReactNode;
-  demo?: boolean;
 }
 
 /** Presentation shell only: mock controls never call persistence or export APIs. */
@@ -32,7 +31,6 @@ export function WorkspaceLayout({
   status,
   library,
   notice,
-  demo = false,
 }: WorkspaceLayoutProps) {
   const [panel, setPanel] = useState<Panel | null>("preview");
   const [navigationOpen, setNavigationOpen] = useState(
@@ -137,7 +135,7 @@ export function WorkspaceLayout({
           </span>
           <div>
             <h1 title={title}>{title}</h1>
-            <span>{demo ? "SAMPLE WORKSPACE" : "LOCAL PROJECT"}</span>
+            <span>LOCAL PROJECT</span>
           </div>
         </div>
         <nav className="workspace-modes" aria-label="Workspace mode">
@@ -183,14 +181,10 @@ export function WorkspaceLayout({
           <Icon name="panel" />
           {navigationOpen ? "Hide" : "Show"} outline
         </button>
-        <span>
-          {demo
-            ? "Explore the future workspace · sample edits are not saved"
-            : "Your manuscript stays on this device"}
-        </span>
+        <span>Your manuscript stays on this device</span>
         <span className="local-indicator">
           <span />
-          {demo ? "Demo session" : "Local workspace"}
+          Local workspace
         </span>
       </div>
       <aside
@@ -235,12 +229,8 @@ export function WorkspaceLayout({
         <div className="outline-bottom">
           <Icon name="book" />
           <span>
-            {demo ? "An original sample book" : author || "Your book"}
-            <small>
-              {demo
-                ? "Nothing is saved to disk"
-                : "A little progress, every day."}
-            </small>
+            {author || "Your book"}
+            <small>A little progress, every day.</small>
           </span>
         </div>
       </aside>
@@ -384,10 +374,9 @@ export function WorkspaceLayout({
                   Chapter history browsing and explicit restore will live here.
                 </p>
                 <p className="mock-explanation">
-                  This panel is a mock.{" "}
-                  {demo
-                    ? "The sample has no saved history."
-                    : "Local snapshots and startup crash recovery already work; this history browser is not available yet."}
+                  This panel is a mock. Local snapshots and startup crash
+                  recovery already work; this history browser is not available
+                  yet.
                 </p>
               </div>
             )}

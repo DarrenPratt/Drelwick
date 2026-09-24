@@ -469,12 +469,7 @@ button svg {
   font-size: 16px;
   margin-bottom: 25px;
 }
-.welcome-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 25px;
-  margin-top: 35px;
-}
+
 .welcome-panel {
   max-width: none;
   border-color: var(--line);
@@ -489,57 +484,7 @@ button svg {
 .welcome-panel p {
   color: var(--muted);
 }
-.welcome-grid .recent-projects {
-  margin: 0;
-}
-.demo-invitation {
-  overflow: hidden;
-}
-.demo-invitation h2 {
-  margin-top: 15px;
-}
-.demo-invitation > button {
-  margin: 24px 0 10px;
-}
-.demo-invitation > small {
-  display: block;
-  color: var(--muted);
-  font-size: 11px;
-}
-.mini-workspace {
-  display: grid;
-  grid-template-columns: 20% 47% 33%;
-  height: 115px;
-  margin: 30px -5px -55px;
-  border: 1px solid var(--line);
-  border-top: 18px solid #243c33;
-  border-radius: 7px;
-  background: #f1f3ee;
-  transform: rotate(-3deg);
-}
-.mini-workspace > div {
-  border-right: 1px solid var(--line);
-  padding: 15px;
-}
-.mini-workspace > div:nth-child(2) {
-  background: white;
-}
-.mini-workspace i {
-  display: block;
-  height: 3px;
-  background: #d7ded6;
-  margin: 8px 0;
-}
-.mini-workspace span {
-  display: block;
-  background: white;
-  text-align: center;
-  font:
-    30px Georgia,
-    serif;
-  color: #738879;
-  padding: 8px;
-}
+
 .workspace-shell {
   height: 100dvh;
   min-height: 520px;
@@ -923,11 +868,7 @@ button svg {
   padding: 8px;
   background: #eef3e9;
 }
-.demo-outline-note {
-  margin: 18px 10px;
-  font-size: 9px;
-  color: #7c8774;
-}
+
 .back-matter {
   border-top: 1px solid var(--line);
   padding-top: 22px;
@@ -1085,10 +1026,7 @@ button svg {
   color: #a52323;
   flex-basis: 100%;
 }
-.demo-status {
-  color: #876a36;
-  margin-right: auto;
-}
+
 .empty-manuscript {
   background: #fffefa;
   flex: 1;
@@ -1598,9 +1536,7 @@ button svg {
   .sample-page {
     padding: 13px;
   }
-  .welcome-grid {
-    grid-template-columns: 1fr;
-  }
+
   .app-shell {
     padding: 35px;
   }
