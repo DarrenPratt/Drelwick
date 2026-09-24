@@ -1,3 +1,8 @@
+import {
+  ChapterStatusSchema,
+  type ChapterOrganisationRequest,
+} from "@drelwick/shared";
+import { splitChapterDocument } from "@drelwick/core/chapter-semantics";
 import "./app.css";
 import {
   createAutosaveCoordinator,
@@ -32,7 +37,18 @@ import {
 } from "./document-state.js";
 
 export function App() {
+  const [organising, setOrganising] = useState(false);
+  const [mergeSelection, setMergeSelection] = useState<string[]>([]);
+  const [splitPosition, setSplitPosition] = useState<number | null>(null);
+  const focusOrganisedChapter = useRef(false);
   const [searchEditor, setSearchEditor] = useState<TipTapEditor | null>(null);
+  const editorReady = useCallback((editor: TipTapEditor | null) => {
+    setSearchEditor(editor);
+    if (editor && focusOrganisedChapter.current) {
+      focusOrganisedChapter.current = false;
+      editor.commands.focus("start");
+    }
+  }, []);
   const [findRequest, setFindRequest] = useState(0);
   const [replacing, setReplacing] = useState(false);
   const [searchRefresh, setSearchRefresh] = useState(0);
@@ -87,6 +103,7 @@ export function App() {
   const autosave = useRef<AutosaveCoordinator | null>(null);
   const saveSource = useRef<"autosave" | "manual">("autosave");
   const changingDocument =
+    organising ||
     replacing ||
     importing ||
     opening ||
@@ -187,7 +204,12 @@ export function App() {
       void coordinator.flush();
     };
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!isDocumentDirty(documentRef.current) && !savePending.current) return;
+      if (
+        !pending.current &&
+        !isDocumentDirty(documentRef.current) &&
+        !savePending.current
+      )
+        return;
       event.preventDefault();
       // Electron requires an explicit returnValue when using addEventListener.
       event.returnValue = "";
@@ -208,6 +230,10 @@ export function App() {
 
   useEffect(() => {
     return window.drelwick.onShutdownRequested(async () => {
+      if (pending.current) {
+        setError("Wait for the current project operation before closing.");
+        return false;
+      }
       const saved = (await autosave.current?.flush()) ?? true;
       if (!saved) {
         setError(
@@ -668,6 +694,99 @@ export function App() {
     restoreProject,
   ]);
 
+  useEffect(() => {
+    if (!searchEditor) return;
+    const update = () => {
+      try {
+        if (!searchEditor.state.selection.empty) throw new Error();
+        const position = searchEditor.state.selection.from;
+        splitChapterDocument(searchEditor.getJSON(), position);
+        setSplitPosition(position);
+      } catch {
+        setSplitPosition(null);
+      }
+    };
+    update();
+    searchEditor.on("selectionUpdate", update);
+    searchEditor.on("update", update);
+    return () => {
+      searchEditor.off("selectionUpdate", update);
+      searchEditor.off("update", update);
+    };
+  }, [searchEditor]);
+
+  async function organise(command: ChapterOrganisationRequest) {
+    if (
+      pending.current ||
+      changingDocument ||
+      reordering ||
+      renamingChapterId ||
+      replacementRecoveryRequired ||
+      !documentReady
+    )
+      return;
+    pending.current = true;
+    setOrganising(true);
+    setError("");
+    try {
+      const saved = await autosave.current?.flush();
+      if (
+        !saved ||
+        savePending.current ||
+        isDocumentDirty(documentRef.current)
+      ) {
+        setError(
+          "Unable to save pending edits. Chapter organisation did not start; your edits remain in the editor.",
+        );
+        return;
+      }
+      const result = await window.drelwick.project.organiseChapter(command);
+      if (!result.ok) {
+        setError(result.error.message);
+        if (result.error.code === "CHAPTER_RECOVERY_REQUIRED")
+          setReplacementRecoveryRequired(true);
+        return;
+      }
+      setProject(result.value.workspace);
+      setMergeSelection([]);
+      if (command.operation !== "status") {
+        focusOrganisedChapter.current = true;
+        setDocumentSession((session) => session + 1);
+        setActiveChapterId(result.value.chapterId);
+        setSearchRefresh((value) => value + 1);
+      }
+    } catch {
+      setReplacementRecoveryRequired(true);
+      setError(
+        "The chapter operation outcome could not be confirmed. Reopen the project before editing.",
+      );
+    } finally {
+      pending.current = false;
+      setOrganising(false);
+    }
+  }
+
+  const organisationBase = project
+    ? {
+        projectId: project.projectId,
+        expectedOrder: project.chapters.map((chapter) => chapter.id),
+      }
+    : null;
+  const selectedForMerge =
+    project?.chapters.filter((chapter) =>
+      mergeSelection.includes(chapter.id),
+    ) ?? [];
+  const mergeAdjacent =
+    selectedForMerge.length === 2 &&
+    project!.chapters.indexOf(selectedForMerge[1]!) ===
+      project!.chapters.indexOf(selectedForMerge[0]!) + 1;
+  const organisationDisabled =
+    changingDocument ||
+    reordering ||
+    Boolean(renamingChapterId) ||
+    !documentReady ||
+    replacementRecoveryRequired;
+
   async function renameSelectedChapter() {
     if (pending.current || replacing) return;
     if (!project || !editingChapterId || !chapterTitle.trim()) return;
@@ -954,6 +1073,36 @@ export function App() {
                 <h3>BODY</h3>
                 <span>{project.chapters.length} chapters</span>
               </div>
+              <div className="chapter-organisation">
+                <p>Select two adjacent chapters to merge.</p>
+                <button
+                  disabled={organisationDisabled || !mergeAdjacent}
+                  onClick={() => {
+                    const first = selectedForMerge[0];
+                    const second = selectedForMerge[1];
+                    if (
+                      !first ||
+                      !second ||
+                      !organisationBase ||
+                      !mergeAdjacent
+                    )
+                      return;
+                    if (
+                      window.confirm(
+                        `Merge “${first.title}” followed by “${second.title}”? Keep the first chapter's title and status. The second chapter will be removed; pre-merge history will be retained.`,
+                      )
+                    )
+                      void organise({
+                        ...organisationBase,
+                        operation: "merge",
+                        chapterIds: [first.id, second.id],
+                        confirmed: true,
+                      });
+                  }}
+                >
+                  Merge selected chapters
+                </button>
+              </div>
               <ol className="chapter-navigator">
                 {project.chapters.map((chapter, index) => (
                   <li
@@ -976,6 +1125,30 @@ export function App() {
                     }}
                     tabIndex={0}
                   >
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${chapter.title} for merge`}
+                      checked={mergeSelection.includes(chapter.id)}
+                      disabled={
+                        organisationDisabled ||
+                        (selectedForMerge.length >= 2 &&
+                          !mergeSelection.includes(chapter.id))
+                      }
+                      onChange={(event) =>
+                        setMergeSelection((current) =>
+                          event.target.checked
+                            ? [
+                                ...current.filter((id) =>
+                                  project.chapters.some(
+                                    (entry) => entry.id === id,
+                                  ),
+                                ),
+                                chapter.id,
+                              ]
+                            : current.filter((id) => id !== chapter.id),
+                        )
+                      }
+                    />
                     <button
                       type="button"
                       className="chapter-select"
@@ -1037,6 +1210,79 @@ export function App() {
                           ⋯
                         </summary>
                         <div className="chapter-menu-actions">
+                          <button
+                            disabled={organisationDisabled}
+                            onClick={() => {
+                              if (organisationBase)
+                                void organise({
+                                  ...organisationBase,
+                                  operation: "duplicate",
+                                  chapterId: chapter.id,
+                                });
+                            }}
+                          >
+                            Duplicate
+                          </button>
+                          <button
+                            title="Place a cursor inside the active chapter, with content on both sides. Text selections and invalid structural boundaries cannot be split."
+                            disabled={
+                              organisationDisabled ||
+                              activeChapterId !== chapter.id ||
+                              splitPosition === null
+                            }
+                            onClick={() => {
+                              if (
+                                !organisationBase ||
+                                !searchEditor ||
+                                splitPosition === null ||
+                                !searchEditor.state.selection.empty ||
+                                searchEditor.state.selection.from !==
+                                  splitPosition
+                              )
+                                return;
+                              const expectedContent = searchEditor.getJSON();
+                              if (
+                                window.confirm(
+                                  `Split “${chapter.title}” at the current cursor? A new chapter will contain everything after the cursor. Both chapters keep the current status.`,
+                                )
+                              )
+                                void organise({
+                                  ...organisationBase,
+                                  operation: "split",
+                                  chapterId: chapter.id,
+                                  position: splitPosition,
+                                  expectedContent,
+                                });
+                            }}
+                          >
+                            Split at cursor
+                          </button>
+                          <label>
+                            Status
+                            <select
+                              aria-label={`Status for ${chapter.title}`}
+                              value={chapter.status}
+                              disabled={organisationDisabled}
+                              onChange={(event) => {
+                                const status = ChapterStatusSchema.safeParse(
+                                  event.target.value,
+                                );
+                                if (organisationBase && status.success)
+                                  void organise({
+                                    ...organisationBase,
+                                    operation: "status",
+                                    chapterId: chapter.id,
+                                    status: status.data,
+                                  });
+                              }}
+                            >
+                              {ChapterStatusSchema.options.map((status) => (
+                                <option key={status} value={status}>
+                                  {status}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
                           <button
                             type="button"
                             disabled={reordering}
@@ -1124,7 +1370,7 @@ export function App() {
               <>
                 {documentReady && documentState ? (
                   <Editor
-                    onReady={setSearchEditor}
+                    onReady={editorReady}
                     projectId={project.projectId}
                     prepareImageImport={async () =>
                       (await autosave.current?.flush()) ?? true

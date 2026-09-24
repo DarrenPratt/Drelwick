@@ -28,6 +28,7 @@ Operational documents:
 - [Portable project backups and restore](project-backups.md)
 - [Recent project tracking](recent-projects.md)
 - [Chapter creation and failure recovery](chapter-creation.md)
+- [Chapter duplicate, split, merge and status](chapter-organisation.md)
 - [Chapter document persistence](chapter-persistence.md)
 - [Manuscript semantic elements](manuscript-semantics.md)
 - [Manuscript Find and Replace](manuscript-search.md)

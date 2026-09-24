@@ -49,6 +49,7 @@ const api: DrelwickApi = {
     cancel: () => ipcRenderer.invoke(IPC.RECOVERY_CANCEL),
   },
   project: {
+    organiseChapter: (input) => ipcRenderer.invoke(IPC.CHAPTER_ORGANISE, input),
     create: (input) => ipcRenderer.invoke(IPC.PROJECT_CREATE, input),
     selectLocation: () => ipcRenderer.invoke(IPC.PROJECT_SELECT_LOCATION),
     open: () => ipcRenderer.invoke(IPC.PROJECT_OPEN),

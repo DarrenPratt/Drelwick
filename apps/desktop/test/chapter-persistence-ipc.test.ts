@@ -389,3 +389,56 @@ it("does not schedule history for a failed chapter write", async () => {
   expect(await invoke(IPC.PROJECT_CLOSE)).toMatchObject({ ok: true });
   expect(history.closeProject).toHaveBeenCalledWith(root);
 });
+
+it("validates and authorizes chapter organisation, persists status, and keeps manuscript out of logs", async () => {
+  const { root, chapterId } = await fixture();
+  const { invoke, event, logger } = setup(root);
+  const opened = await invoke(IPC.PROJECT_OPEN);
+  if (!opened.ok) throw new Error("Open failed");
+  const projectId = (opened.value as { projectId: string }).projectId;
+  const request = {
+    projectId,
+    expectedOrder: [chapterId],
+    operation: "status",
+    chapterId,
+    status: "final",
+  };
+  for (const invalid of [
+    { ...request, status: "invented" },
+    { ...request, projectPath: root },
+    { ...request, chapterId: "../escape" },
+    { ...request, operation: "split", position: -1 },
+    {
+      ...request,
+      operation: "merge",
+      chapterIds: [chapterId, chapterId],
+      confirmed: false,
+    },
+  ])
+    expect((await invoke(IPC.CHAPTER_ORGANISE, invalid)).ok).toBe(false);
+  expect(
+    (
+      await invoke(IPC.CHAPTER_ORGANISE, request, {
+        ...event,
+        senderFrame: null,
+      } as unknown as IpcMainInvokeEvent)
+    ).ok,
+  ).toBe(false);
+  expect(
+    (
+      await invoke(IPC.CHAPTER_ORGANISE, {
+        ...request,
+        projectId: "123e4567-e89b-42d3-a456-426614174000",
+      })
+    ).ok,
+  ).toBe(false);
+  expect((await invoke(IPC.CHAPTER_ORGANISE, request)).ok).toBe(true);
+  const stored = JSON.parse(
+    await readFile(join(root, "manuscript", chapterId + ".json"), "utf8"),
+  );
+  expect(stored.status).toBe("final");
+  expect(stored.id).toBe(chapterId);
+  expect(
+    JSON.stringify([logger.info.mock.calls, logger.error.mock.calls]),
+  ).not.toContain("content");
+});

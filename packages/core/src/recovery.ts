@@ -411,7 +411,8 @@ async function scanHistoryFiles(
         !parsed.success ||
         parsed.data.chapterId !== chapterId ||
         parsed.data.reason === "before-recovery" ||
-        parsed.data.reason === "before-replace"
+        parsed.data.reason === "before-replace" ||
+        parsed.data.reason === "before-restructure"
       )
         continue;
       candidates.push({

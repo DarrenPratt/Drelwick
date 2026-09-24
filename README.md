@@ -45,6 +45,11 @@ warnings before choosing a new empty destination. The source stays unchanged.
 The committed project is validated before opening; failed saves and failed imports
 preserve the current manuscript. See the [import review workflow](docs/import-review-ui.md).
 
+Use chapter **Actions** to duplicate, split at the current cursor or change status.
+Select two adjacent chapters with the merge checkboxes to merge them in reading
+order. Pending edits are saved first; restructuring retains history and uses
+recoverable writes. See [chapter organisation](docs/chapter-organisation.md).
+
 Use **Edit → Find and replace** (**Ctrl+F / Cmd+F**) to search the live chapter or
 whole manuscript. Replace One uses editor undo; Replace All requires an explicit
 scope/count review, flushes pending edits and keeps pre-operation history with

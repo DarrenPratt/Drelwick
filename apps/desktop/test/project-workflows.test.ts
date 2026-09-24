@@ -131,6 +131,7 @@ beforeEach(async () => {
       return () => menuListeners.delete(callback);
     }),
     project: {
+      organiseChapter: vi.fn(),
       replaceManuscript: vi.fn(),
       cancelReplacement: vi.fn(),
       create,
@@ -1836,4 +1837,209 @@ it("allows cancellation to be retried after a transport failure during cancelled
   await click("Cancel import");
   expect(window.drelwick.imports.cancel).toHaveBeenCalledTimes(2);
   expect(container.querySelector("dialog")).toBeNull();
+});
+
+describe("chapter organisation", () => {
+  const first = "123e4567-e89b-42d3-a456-426614174001";
+  const second = "123e4567-e89b-42d3-a456-426614174002";
+  const chapters: ProjectWorkspace["chapters"] = [
+    { id: first, title: "First", status: "draft", wordCount: 0 },
+    { id: second, title: "Second", status: "review", wordCount: 0 },
+  ];
+  const editor = () =>
+    (
+      container.querySelector(".tiptap") as HTMLElement & {
+        editor: import("@tiptap/core").Editor;
+      }
+    ).editor;
+  async function prepare() {
+    open.mockResolvedValue({ ok: true, value: { ...workspace, chapters } });
+    loadChapter.mockImplementation(async ({ chapterId }) => ({
+      ok: true,
+      value: {
+        id: chapterId,
+        content: { type: "doc", content: [{ type: "paragraph" }] },
+      },
+    }));
+    await click("Open project");
+    await act(async () => {
+      editor().commands.insertContent({
+        type: "text",
+        text: "Left Right",
+        marks: [{ type: "italic" }],
+      });
+      editor().commands.setTextSelection(6);
+    });
+  }
+  async function selectMerge() {
+    await act(async () => {
+      container
+        .querySelector<HTMLInputElement>(
+          '[aria-label="Select First for merge"]',
+        )!
+        .click();
+      container
+        .querySelector<HTMLInputElement>(
+          '[aria-label="Select Second for merge"]',
+        )!
+        .click();
+    });
+  }
+  it.each(["split", "merge", "duplicate"])(
+    "aborts %s after failed flush and preserves live formatting",
+    async (operation) => {
+      await prepare();
+      const before = editor().getJSON();
+      saveChapter.mockResolvedValue({
+        ok: false,
+        error: {
+          code: "CHAPTER_SAVE_FAILED",
+          message: "Injected save failure",
+        },
+      });
+      if (operation === "merge") await selectMerge();
+      await click(
+        operation === "merge"
+          ? "Merge selected chapters"
+          : operation === "split"
+            ? "Split at cursor"
+            : "Duplicate",
+      );
+      expect(saveChapter).toHaveBeenCalled();
+      expect(window.drelwick.project.organiseChapter).not.toHaveBeenCalled();
+      expect(editor().getJSON()).toEqual(before);
+      expect(container.textContent).toContain("Unsaved changes");
+      expect(container.querySelectorAll(".chapter-select")).toHaveLength(2);
+    },
+  );
+  it.each(["split", "merge"])(
+    "cancels %s confirmation without saving or changing content",
+    async (operation) => {
+      await prepare();
+      const before = editor().getJSON();
+      vi.mocked(window.confirm).mockReturnValue(false);
+      if (operation === "merge") await selectMerge();
+      await click(
+        operation === "merge" ? "Merge selected chapters" : "Split at cursor",
+      );
+      expect(window.drelwick.project.organiseChapter).not.toHaveBeenCalled();
+      expect(saveChapter).not.toHaveBeenCalled();
+      expect(editor().getJSON()).toEqual(before);
+      if (operation === "merge")
+        expect(window.confirm).toHaveBeenCalledWith(
+          expect.stringContaining("First” followed by “Second"),
+        );
+    },
+  );
+  it("flushes the exact formatted revision before sending the actual cursor position", async () => {
+    await prepare();
+    const content = editor().getJSON();
+    const events: string[] = [];
+    saveChapter.mockImplementation(async () => {
+      events.push("saved");
+      return {
+        ok: true,
+        value: { id: first, modified: "2026-09-24T12:00:00Z" },
+      };
+    });
+    vi.mocked(window.drelwick.project.organiseChapter).mockImplementation(
+      async () => {
+        events.push("split");
+        return {
+          ok: true,
+          value: { workspace: { ...workspace, chapters }, chapterId: first },
+        };
+      },
+    );
+    await click("Split at cursor");
+    expect(events).toEqual(["saved", "split"]);
+    expect(window.drelwick.project.organiseChapter).toHaveBeenCalledWith({
+      projectId: workspace.projectId,
+      expectedOrder: [first, second],
+      operation: "split",
+      chapterId: first,
+      position: 6,
+      expectedContent: content,
+    });
+  });
+  it("disables split at start, end and nonempty selection", async () => {
+    await prepare();
+    for (const selection of [1, 11, { from: 2, to: 4 }]) {
+      await act(async () => {
+        editor().commands.setTextSelection(selection);
+      });
+      expect(button("Split at cursor").disabled).toBe(true);
+    }
+  });
+  it("keeps the editor locked on uncertain recovery and blocks closing during a transaction", async () => {
+    await prepare();
+    let finish!: (
+      value: ProjectOperationResult<{
+        workspace: ProjectWorkspace;
+        chapterId: string;
+      }>,
+    ) => void;
+    vi.mocked(window.drelwick.project.organiseChapter).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await click("Duplicate");
+    expect(editor().isEditable).toBe(false);
+    let allowed: boolean | undefined;
+    await act(async () => {
+      allowed = await [...shutdownListeners][0]!();
+    });
+    expect(allowed).toBe(false);
+    await act(async () =>
+      finish({
+        ok: false,
+        error: {
+          code: "CHAPTER_RECOVERY_REQUIRED",
+          message: "Reopen before editing",
+        },
+      }),
+    );
+    expect(editor().isEditable).toBe(false);
+    expect(button("Duplicate").disabled).toBe(true);
+  });
+  it("exposes every canonical status and sends validated status changes after flushing", async () => {
+    await prepare();
+    const select = container.querySelector<HTMLSelectElement>(
+      '[aria-label="Status for First"]',
+    )!;
+    expect(Array.from(select.options).map((option) => option.value)).toEqual([
+      "draft",
+      "revising",
+      "review",
+      "final",
+    ]);
+    vi.mocked(window.drelwick.project.organiseChapter).mockResolvedValue({
+      ok: true,
+      value: {
+        workspace: {
+          ...workspace,
+          chapters: chapters.map((chapter) =>
+            chapter.id === first ? { ...chapter, status: "final" } : chapter,
+          ),
+        },
+        chapterId: first,
+      },
+    });
+    const before = editor().getJSON();
+    await act(async () => {
+      select.value = "final";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(window.drelwick.project.organiseChapter).toHaveBeenCalledWith({
+      projectId: workspace.projectId,
+      expectedOrder: [first, second],
+      operation: "status",
+      chapterId: first,
+      status: "final",
+    });
+    expect(editor().getJSON()).toEqual(before);
+    expect(select.value).toBe("final");
+  });
 });

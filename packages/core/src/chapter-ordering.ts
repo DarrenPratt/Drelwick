@@ -39,6 +39,24 @@ const defaults: ChapterOrderingFileSystem = {
   writeManifest: writeJsonAtomically,
 };
 
+/** Preserve extension metadata while changing the canonical order, never filenames. */
+export function withChapterOrder(
+  raw: Record<string, unknown>,
+  chapterIds: string[],
+  modified: string,
+): ProjectConfig {
+  ProjectConfigSchema.parse(raw);
+  const result = {
+    ...raw,
+    modified,
+    manuscript: {
+      ...(raw.manuscript as Record<string, unknown>),
+      order: chapterIds,
+    },
+  };
+  return Object.assign(ProjectConfigSchema.parse(result), result);
+}
+
 export async function reorderChapters(
   input: ReorderChaptersInput,
   overrides: Partial<ChapterOrderingFileSystem> = {},
@@ -110,14 +128,11 @@ export async function reorderChapters(
         "PROJECT_CHANGED_DURING_REORDER",
         "The project changed during chapter reordering. Reopen it before retrying.",
       );
-    const project: ProjectConfig = {
-      ...parsed.data,
-      modified: createIsoDate(),
-      manuscript: {
-        ...parsed.data.manuscript,
-        order: normalizedIds,
-      },
-    };
+    const project = withChapterOrder(
+      raw as Record<string, unknown>,
+      normalizedIds,
+      createIsoDate(),
+    );
     await fs.writeManifest(manifestPath, project);
     result = {
       session: {
