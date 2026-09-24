@@ -105,7 +105,9 @@ export async function createHistorySnapshot(
   await ensureHistoryDirectory(root, snapshotsDirectory, fileSystem);
   await ensureHistoryDirectory(root, directory, fileSystem);
   const latest =
-    input.reason === "before-recovery" || input.reason === "before-replace"
+    input.reason === "before-recovery" ||
+    input.reason === "before-replace" ||
+    input.reason === "before-restructure"
       ? null
       : await readLatestSnapshot(directory, fileSystem, root);
   if (

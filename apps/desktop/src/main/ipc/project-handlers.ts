@@ -1,3 +1,4 @@
+import { organiseChapter } from "@drelwick/core";
 import {
   dialog,
   ipcMain,
@@ -1221,6 +1222,67 @@ export function registerProjectHandlers(
       }
     },
   );
+
+  ipcMain.handle(IPC.CHAPTER_ORGANISE, async (event, payload: unknown) => {
+    if (!trusted(event))
+      return failure(
+        "PROJECT_ACCESS_DENIED",
+        "Project access is not permitted.",
+      );
+    const parsed = IpcRequestSchemas[IPC.CHAPTER_ORGANISE].safeParse(payload);
+    if (!parsed.success)
+      return failure("PROJECT_INPUT_INVALID", "Invalid chapter operation.");
+    if (busy || !activeProjectPath)
+      return failure(
+        "PROJECT_BUSY",
+        "Open a project and wait for current operations to finish.",
+      );
+    busy = true;
+    try {
+      await history.settleProject(activeProjectPath);
+      const { session, chapterId } = await organiseChapter({
+        ...parsed.data,
+        projectPath: activeProjectPath,
+      });
+      return {
+        ok: true,
+        value: {
+          chapterId,
+          workspace: {
+            projectId: session.project.projectId,
+            projectPath: session.projectPath,
+            title: session.book.title,
+            author: session.book.author,
+            language: session.book.language,
+            chapters: session.chapters.map(
+              ({ id, title, status, wordCount }) => ({
+                id,
+                title,
+                status,
+                wordCount,
+              }),
+            ),
+          },
+        },
+      };
+    } catch (error) {
+      if (
+        error instanceof ApplicationError &&
+        [
+          "CHAPTER_OPERATION_FAILED",
+          "CHAPTER_OPERATION_INVALID",
+          "CHAPTER_RECOVERY_REQUIRED",
+        ].includes(error.code)
+      )
+        return failure(error.code, error.message);
+      return failure(
+        "CHAPTER_RECOVERY_REQUIRED",
+        "The chapter operation outcome is uncertain. Reopen the project before editing.",
+      );
+    } finally {
+      busy = false;
+    }
+  });
 
   ipcMain.handle(IPC.MANUSCRIPT_CANCEL_REPLACE, (event, payload: unknown) => {
     if (!trusted(event) || payload !== undefined)

@@ -1,4 +1,6 @@
 import {
+  link,
+  open,
   lstat,
   mkdir,
   readFile,
@@ -20,6 +22,7 @@ import {
   CHAPTER_CREATION_LOCK,
   createHistorySnapshot,
   openProject,
+  validateProjectFiles,
   writeJsonAtomicallyAt,
 } from "./index.js";
 import { assertRegularPath, syncDirectory } from "./project-snapshot.js";
@@ -69,20 +72,86 @@ async function publish(
   await syncDirectory(dirname(path));
 }
 
-async function restore(root: string, state: ReplacementJournal): Promise<void> {
-  // Validate every target before the first rollback write. A third revision is
-  // external work: retain the journal and fail closed instead of overwriting it.
-  for (const entry of state.entries) {
-    const path = `manuscript/${entry.before.id}.json`;
+interface Target {
+  path: string;
+  before: unknown;
+  after: unknown;
+}
+function targets(state: ReplacementJournal): Target[] {
+  return [
+    ...state.entries.map((entry) => ({
+      path: `manuscript/${entry.before.id}.json`,
+      before: entry.before,
+      after: entry.after,
+    })),
+    ...(state.structure?.created ?? []).map((after) => ({
+      path: `manuscript/${after.id}.json`,
+      before: null,
+      after,
+    })),
+    ...(state.structure?.removed ?? []).map((before) => ({
+      path: `manuscript/${before.id}.json`,
+      before,
+      after: null,
+    })),
+    ...(state.structure
+      ? [
+          {
+            path: "project.json",
+            before: state.structure.beforeManifest,
+            after: state.structure.afterManifest,
+          },
+        ]
+      : []),
+  ];
+}
+async function readTarget(root: string, path: string): Promise<unknown> {
+  try {
     await assertRegularPath(root, path);
-    const current: unknown = JSON.parse(
-      await readFile(join(root, path), "utf8"),
+    return JSON.parse(await readFile(join(root, path), "utf8"));
+  } catch (error) {
+    if (isMissing(error)) return null;
+    throw error;
+  }
+}
+async function writeTarget(
+  root: string,
+  path: string,
+  value: unknown,
+  exclusive = false,
+): Promise<void> {
+  if (value === null) {
+    if ((await readTarget(root, path)) !== null) await unlink(join(root, path));
+    await syncDirectory(dirname(join(root, path)));
+  } else if (exclusive) {
+    const destination = join(root, path);
+    await writeJsonAtomicallyAt(
+      destination,
+      `${destination}.${createUuid()}.tmp`,
+      value,
+      {
+        open,
+        unlink,
+        rename: async (temporary, target) => {
+          await link(temporary, target);
+          await unlink(temporary);
+        },
+      },
     );
-    if (!equal(current, entry.before) && !equal(current, entry.after))
+    await syncDirectory(dirname(destination));
+  } else await publish(root, path, value);
+}
+async function restore(root: string, state: ReplacementJournal): Promise<void> {
+  const changes = targets(state);
+  // Validate all revisions before rollback; never overwrite unexpected external work.
+  for (const target of changes) {
+    const current = await readTarget(root, target.path);
+    if (!equal(current, target.before) && !equal(current, target.after))
       throw replacementError();
   }
-  for (const entry of state.entries)
-    await publish(root, `manuscript/${entry.before.id}.json`, entry.before);
+  for (const target of changes)
+    await writeTarget(root, target.path, target.before);
+  if (state.structure) await validateProjectFiles(root);
   await publish(root, REPLACEMENT_JOURNAL, { ...state, phase: "complete" });
 }
 
@@ -172,41 +241,26 @@ export interface ReplacementInput {
   expected: { id: string; content: Record<string, unknown> }[];
 }
 
+export interface ChapterTransactionPlan<T> {
+  entries: ReplacementJournal["entries"];
+  structure?: ReplacementJournal["structure"];
+  result: T;
+  reason?: "before-replace" | "before-restructure";
+}
+export interface ChapterTransactionHooks {
+  cancelled?: () => boolean;
+  beforeWrite?: (index: number) => Promise<void>;
+  snapshot?: typeof createHistorySnapshot;
+  writeManifest?: typeof writeJsonAtomicallyAt;
+  afterWrite?: (index: number) => Promise<void>;
+}
 export async function replaceManuscript(
   input: ReplacementInput,
-  hooks: {
-    cancelled?: () => boolean;
-    beforeWrite?: (index: number) => Promise<void>;
-    snapshot?: typeof createHistorySnapshot;
-  } = {},
+  hooks: ChapterTransactionHooks = {},
 ): Promise<{ matches: number; chapters: number }> {
-  const root = await realpath(input.projectPath);
-  await assertReplacementReadable(root);
-  const lock = join(root, CHAPTER_CREATION_LOCK);
-  try {
-    await mkdir(lock);
-  } catch {
-    throw new ApplicationError(
-      "PROJECT_BUSY",
-      "Another project operation holds the lock.",
-    );
-  }
-  const token = createUuid();
-  let state: ReplacementJournal | undefined;
-  let keepLock = false;
-  active.add(root);
-  const cancelled = () => {
-    if (hooks.cancelled?.())
-      throw new ApplicationError(
-        "REPLACEMENT_CANCELLED",
-        "Replacement cancelled. Original content was preserved.",
-      );
-  };
-  const execute = async (): Promise<{ matches: number; chapters: number }> => {
-    try {
-      await publish(root, `${CHAPTER_CREATION_LOCK}/replacement-owner.json`, {
-        token,
-      });
+  return commitChapterTransaction(
+    input.projectPath,
+    async (root, cancelled) => {
       const opened = await openProject(root);
       const ids = input.chapterId
         ? [input.chapterId]
@@ -265,14 +319,63 @@ export async function replaceManuscript(
             }),
         });
       }
-      if (!entries.length) return { matches, chapters: 0 };
-      for (const entry of entries) {
+
+      return { entries, result: { matches, chapters: entries.length } };
+    },
+    hooks,
+  );
+}
+
+/** Shared owned-lock/journal protocol for semantic replacement and chapter organisation. */
+export async function commitChapterTransaction<T>(
+  projectPath: string,
+  prepare: (
+    root: string,
+    cancelled: () => void,
+  ) => Promise<ChapterTransactionPlan<T>>,
+  hooks: ChapterTransactionHooks = {},
+): Promise<T> {
+  const root = await realpath(projectPath);
+  await assertReplacementReadable(root);
+  const lock = join(root, CHAPTER_CREATION_LOCK);
+  try {
+    await mkdir(lock);
+  } catch {
+    throw new ApplicationError(
+      "PROJECT_BUSY",
+      "Another project operation holds the lock.",
+    );
+  }
+  const token = createUuid();
+  let state: ReplacementJournal | undefined;
+  let keepLock = false;
+  active.add(root);
+  const cancelled = () => {
+    if (hooks.cancelled?.())
+      throw new ApplicationError(
+        "REPLACEMENT_CANCELLED",
+        "Replacement cancelled. Original content was preserved.",
+      );
+  };
+  const execute = async (): Promise<T> => {
+    try {
+      await publish(root, `${CHAPTER_CREATION_LOCK}/replacement-owner.json`, {
+        token,
+      });
+      const plan = await prepare(root, cancelled);
+      const { entries, structure } = plan;
+      if (!entries.length && !structure) return plan.result;
+      const snapshots = [
+        ...entries.map((entry) => entry.before),
+        ...(structure?.removed ?? []),
+      ];
+      for (const before of snapshots) {
         cancelled();
         await (hooks.snapshot ?? createHistorySnapshot)({
           projectPath: root,
-          chapterId: entry.before.id,
-          document: entry.before.content,
-          reason: "before-replace",
+          chapterId: before.id,
+          document: before.content,
+          reason: plan.reason ?? "before-replace",
         });
       }
       cancelled();
@@ -283,26 +386,37 @@ export async function replaceManuscript(
         host: hostname(),
         phase: "pending",
         entries,
+        ...(structure ? { structure } : {}),
       };
+      state = ReplacementJournalSchema.parse(state);
       await publish(root, REPLACEMENT_JOURNAL, state);
-      for (const [index, entry] of entries.entries()) {
+      for (const [index, target] of targets(state).entries()) {
         cancelled();
         await hooks.beforeWrite?.(index);
         cancelled();
-        const path = `manuscript/${entry.before.id}.json`;
-        await assertRegularPath(root, path);
-        if (
-          !equal(
-            JSON.parse(await readFile(join(root, path), "utf8")),
-            entry.before,
-          )
-        )
+        if (!equal(await readTarget(root, target.path), target.before))
           throw replacementError();
-        await publish(root, `manuscript/${entry.before.id}.json`, entry.after);
+        if (target.path === "project.json" && hooks.writeManifest) {
+          const path = join(root, target.path);
+          await hooks.writeManifest(
+            path,
+            `${path}.${createUuid()}.tmp`,
+            target.after,
+          );
+          await syncDirectory(root);
+        } else
+          await writeTarget(
+            root,
+            target.path,
+            target.after,
+            target.before === null,
+          );
+        await hooks.afterWrite?.(index);
       }
+      if (structure) await validateProjectFiles(root);
       cancelled();
       await publish(root, REPLACEMENT_JOURNAL, { ...state, phase: "complete" });
-      return { matches, chapters: entries.length };
+      return plan.result;
     } catch (error) {
       if (state) {
         try {
@@ -323,7 +437,7 @@ export async function replaceManuscript(
       );
     }
   };
-  let result: { matches: number; chapters: number } | undefined;
+  let result: T | undefined;
   let failure: unknown;
   try {
     result = await execute();

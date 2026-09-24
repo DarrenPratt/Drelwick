@@ -29,7 +29,53 @@ export const ChapterStatusSchema = z.enum([
 ]);
 export type ChapterStatus = z.infer<typeof ChapterStatusSchema>;
 
+const organisationBase = {
+  projectId: z.string().uuid(),
+  expectedOrder: z.array(z.string().uuid()),
+};
+export const ChapterOrganisationRequestSchema = z.discriminatedUnion(
+  "operation",
+  [
+    z
+      .object({
+        ...organisationBase,
+        operation: z.literal("duplicate"),
+        chapterId: z.string().uuid(),
+      })
+      .strict(),
+    z
+      .object({
+        ...organisationBase,
+        operation: z.literal("split"),
+        chapterId: z.string().uuid(),
+        position: z.number().int().nonnegative(),
+        expectedContent: z.record(z.string(), z.unknown()),
+      })
+      .strict(),
+    z
+      .object({
+        ...organisationBase,
+        operation: z.literal("merge"),
+        chapterIds: z.tuple([z.string().uuid(), z.string().uuid()]),
+        confirmed: z.literal(true),
+      })
+      .strict(),
+    z
+      .object({
+        ...organisationBase,
+        operation: z.literal("status"),
+        chapterId: z.string().uuid(),
+        status: ChapterStatusSchema,
+      })
+      .strict(),
+  ],
+);
+export type ChapterOrganisationRequest = z.infer<
+  typeof ChapterOrganisationRequestSchema
+>;
+
 export const IPC = {
+  CHAPTER_ORGANISE: "chapter:organise",
   MANUSCRIPT_REPLACE: "manuscript:replace",
   MANUSCRIPT_CANCEL_REPLACE: "manuscript:cancel-replace",
   IMPORT_INSPECT: "import:inspect",
@@ -132,6 +178,7 @@ export type ProjectOperationResult<T> =
   | { ok: false; error: { code: string; message: string } };
 
 export const IpcRequestSchemas = {
+  [IPC.CHAPTER_ORGANISE]: ChapterOrganisationRequestSchema,
   [IPC.MANUSCRIPT_REPLACE]: ReplacementRequestSchema,
   [IPC.MANUSCRIPT_CANCEL_REPLACE]: z.undefined(),
   [IPC.IMPORT_INSPECT]: ImportInspectRequestSchema,
@@ -236,6 +283,11 @@ export interface DrelwickApi {
   ): () => void;
   onShutdownRequested(callback: () => Promise<boolean>): () => void;
   project: {
+    organiseChapter(
+      input: ChapterOrganisationRequest,
+    ): Promise<
+      ProjectOperationResult<{ workspace: ProjectWorkspace; chapterId: string }>
+    >;
     replaceManuscript(
       input: ReplacementRequest,
     ): Promise<ProjectOperationResult<{ matches: number; chapters: number }>>;

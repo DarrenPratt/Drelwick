@@ -39,6 +39,25 @@ const defaults: ChapterOrderingFileSystem = {
   writeManifest: writeJsonAtomically,
 };
 
+/** Preserve extension metadata while changing the canonical order, never filenames. */
+export function withChapterOrder(
+  raw: Record<string, unknown>,
+  chapterIds: string[],
+  modified: string,
+): Record<string, unknown> {
+  ProjectConfigSchema.parse(raw);
+  const result = {
+    ...raw,
+    modified,
+    manuscript: {
+      ...(raw.manuscript as Record<string, unknown>),
+      order: chapterIds,
+    },
+  };
+  ProjectConfigSchema.parse(result);
+  return result;
+}
+
 export async function reorderChapters(
   input: ReorderChaptersInput,
   overrides: Partial<ChapterOrderingFileSystem> = {},

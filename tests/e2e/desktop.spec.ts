@@ -844,3 +844,138 @@ test("reviews DOCX warnings and chapter mapping, then imports, edits, saves and 
     });
   }
 });
+
+test("organises formatted chapters offline with duplicate split merge status and restart", async () => {
+  const fixture = await copyFixture("multi-chapter-book");
+  const scratch = await mkdtemp(join(tmpdir(), "drelwick-organisation-e2e-"));
+  let application: ElectronApplication | undefined;
+  try {
+    const manifest = JSON.parse(
+      await readFile(join(fixture.projectPath, "project.json"), "utf8"),
+    );
+    const originalId: string = manifest.manuscript.order[0];
+    const path = join(fixture.projectPath, "manuscript", originalId + ".json");
+    const original = JSON.parse(await readFile(path, "utf8"));
+    original.title = "First";
+    original.content = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "Left Right", marks: [{ type: "italic" }] },
+          ],
+        },
+      ],
+    };
+    await writeFile(path, JSON.stringify(original));
+    const launched = await launchApplication(join(scratch, "user-data"));
+    application = launched.application;
+    const page = launched.page;
+    await page.context().setOffline(true);
+    page.on("dialog", (dialog) => dialog.accept());
+    await application.evaluate(({ dialog }, projectPath) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [projectPath],
+      });
+    }, fixture.projectPath);
+    await page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    await expect(page.locator(".ProseMirror")).toHaveText("Left Right");
+    await page.getByLabel("Actions for First", { exact: true }).click();
+    await page
+      .getByLabel("Status for First", { exact: true })
+      .selectOption("final");
+    await expect(
+      page.getByLabel("Status for First", { exact: true }),
+    ).toHaveValue("final");
+    await page
+      .getByRole("button", { name: "Duplicate", exact: true })
+      .first()
+      .click();
+    await expect(page.locator(".chapter-select")).toHaveCount(4);
+    await expect(page.locator(".chapter-select").nth(1)).toContainText(
+      "First Copy",
+    );
+    await expect(page.locator(".ProseMirror")).toHaveText("Left Right");
+    await page.locator(".chapter-select").first().click();
+    await expect(page.locator(".ProseMirror")).toHaveText("Left Right");
+    await page.locator(".ProseMirror").click();
+    await page.keyboard.press("ControlOrMeta+Home");
+    for (let index = 0; index < 5; index++)
+      await page.keyboard.press("ArrowRight");
+    const menu = page.locator(".chapter-menu").first();
+    if ((await menu.getAttribute("open")) === null)
+      await page.getByLabel("Actions for First", { exact: true }).click();
+    await page
+      .getByRole("button", { name: "Split at cursor", exact: true })
+      .first()
+      .click();
+    await expect(page.locator(".chapter-select")).toHaveCount(5);
+    await expect(page.locator(".chapter-select").nth(1)).toContainText(
+      "First Continued",
+    );
+    await expect(page.locator(".ProseMirror")).toHaveText("Right");
+    await page
+      .getByLabel("Select First Continued for merge", { exact: true })
+      .check();
+    await page.getByLabel("Select First for merge", { exact: true }).check();
+    await page.getByRole("button", { name: "Merge selected chapters" }).click();
+    await expect(page.locator(".chapter-select")).toHaveCount(4);
+    await expect(page.locator(".ProseMirror p")).toHaveCount(2);
+    const merged = JSON.parse(await readFile(path, "utf8"));
+    expect(merged.id).toBe(originalId);
+    expect(merged.status).toBe("final");
+    expect(merged.content).toEqual({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "Left ", marks: [{ type: "italic" }] },
+          ],
+        },
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "Right", marks: [{ type: "italic" }] },
+          ],
+        },
+      ],
+    });
+    await application.close();
+    application = undefined;
+    const restarted = await launchApplication(join(scratch, "user-data"));
+    application = restarted.application;
+    await restarted.page.context().setOffline(true);
+    await application.evaluate(({ dialog }, projectPath) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [projectPath],
+      });
+    }, fixture.projectPath);
+    await restarted.page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    await expect(restarted.page.locator(".chapter-select")).toHaveCount(4);
+    await expect(
+      restarted.page.locator(".chapter-select").first(),
+    ).toContainText("final");
+    await expect(restarted.page.locator(".ProseMirror p")).toHaveCount(2);
+    await expect(
+      restarted.page.locator(".chapter-select").nth(1),
+    ).toContainText("First Copy");
+    expect(JSON.parse(await readFile(path, "utf8"))).toEqual(merged);
+  } finally {
+    await application?.close();
+    await fixture.cleanup();
+    await rm(scratch, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 200,
+    });
+  }
+});

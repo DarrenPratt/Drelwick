@@ -155,6 +155,7 @@ export const HistorySnapshotSchema = z.object({
     "before-import",
     "before-recovery",
     "before-replace",
+    "before-restructure",
     "status-change",
   ]),
   content: ManuscriptDocumentSchema,

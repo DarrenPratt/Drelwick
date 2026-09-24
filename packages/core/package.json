@@ -15,6 +15,10 @@
     "./autosave": {
       "types": "./dist/autosave.d.ts",
       "import": "./dist/autosave.js"
+    },
+    "./chapter-semantics": {
+      "types": "./dist/chapter-semantics.d.ts",
+      "import": "./dist/chapter-semantics.js"
     }
   },
   "scripts": {
