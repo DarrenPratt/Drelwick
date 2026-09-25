@@ -28,6 +28,8 @@ import { SplitChapterDialog } from "./SplitChapterDialog.js";
 import { ChapterHistoryDialog } from "./ChapterHistoryDialog.js";
 import { BookPreviewDialog } from "./BookPreviewDialog.js";
 import { BookThemeSelector } from "./BookThemeSelector.js";
+import { PublicationDialog } from "./PublicationDialog.js";
+import type { PublicationState } from "@drelwick/shared";
 import type { BookThemeSelection, BuiltinThemeId } from "@drelwick/shared";
 import type { BookPreview } from "@drelwick/shared";
 import type {
@@ -48,6 +50,8 @@ import {
 } from "./document-state.js";
 
 export function App() {
+  const [publication, setPublication] = useState<PublicationState | null>(null);
+  const [loadingPublication, setLoadingPublication] = useState(false);
   const [bookPreview, setBookPreview] = useState<BookPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [themeSelection, setThemeSelection] =
@@ -128,6 +132,8 @@ export function App() {
   const autosave = useRef<AutosaveCoordinator | null>(null);
   const saveSource = useRef<"autosave" | "manual">("autosave");
   const changingDocument =
+    publication !== null ||
+    loadingPublication ||
     savingTheme ||
     previewing ||
     restoringHistory ||
@@ -1099,6 +1105,42 @@ export function App() {
     }
   }
 
+  async function editPublication() {
+    if (!project || pending.current || changingDocument) return;
+    pending.current = true;
+    setLoadingPublication(true);
+    setError("");
+    searchEditor?.setEditable(false, false);
+    let opened = false;
+    try {
+      if (
+        !((await autosave.current?.flush()) ?? true) ||
+        savePending.current ||
+        isDocumentDirty(documentRef.current)
+      ) {
+        setError("Save pending edits before editing publication details.");
+        return;
+      }
+      const result = await window.drelwick.project.getPublication({
+        projectId: project.projectId,
+      });
+      if (result.ok) {
+        setPublication(result.value);
+        opened = true;
+      } else setError(result.error.message);
+    } catch {
+      setError(
+        "Unable to open publication details. Your manuscript remains unchanged.",
+      );
+    } finally {
+      setLoadingPublication(false);
+      if (!opened) {
+        pending.current = false;
+        searchEditor?.setEditable(true, false);
+      }
+    }
+  }
+
   async function previewBook() {
     if (
       !project ||
@@ -1241,6 +1283,14 @@ export function App() {
     <>
       {project ? (
         <WorkspaceLayout
+          publicationAction={
+            <button
+              disabled={changingDocument}
+              onClick={() => void editPublication()}
+            >
+              Publication details and pages
+            </button>
+          }
           bookDesign={
             <div className="tool-intro">
               <h3>A style for your story.</h3>
@@ -1761,6 +1811,18 @@ export function App() {
           themeSelector={themeSelector}
           onClose={() => {
             setBookPreview(null);
+            searchEditor?.commands.focus();
+          }}
+        />
+      )}
+      {publication && project && (
+        <PublicationDialog
+          initial={publication}
+          chapters={project.chapters}
+          onClose={() => {
+            setPublication(null);
+            pending.current = false;
+            searchEditor?.setEditable(true, false);
             searchEditor?.commands.focus();
           }}
         />
