@@ -13,6 +13,8 @@ import {
   deleteChapter,
   loadChapter,
   saveChapter,
+  listHistorySnapshots,
+  readHistorySnapshot,
   replaceManuscript,
   organiseChapter,
   openProject,
@@ -251,6 +253,151 @@ export function registerProjectHandlers(
       event.senderFrame?.url === rendererUrl
     );
   };
+
+  for (const channel of [
+    IPC.HISTORY_LIST,
+    IPC.HISTORY_PREVIEW,
+    IPC.HISTORY_RESTORE,
+  ] as const) {
+    ipcMain.handle(channel, async (event, payload: unknown) => {
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      const parsed = IpcRequestSchemas[channel].safeParse(payload);
+      if (!parsed.success)
+        return failure("PROJECT_INPUT_INVALID", "Invalid history request.");
+      if (!activeProjectPath || parsed.data.projectId !== activeProjectId)
+        return failure(
+          "PROJECT_NOT_OPEN",
+          "Reopen the project before accessing Chapter History.",
+        );
+      if (busy)
+        return failure(
+          "PROJECT_BUSY",
+          "Wait for the current project operation and try again.",
+        );
+      busy = true;
+      try {
+        const projectPath = activeProjectPath;
+        // Stop old saved-content timers during restore, otherwise they could publish
+        // pre-restore content after the commit with a newer recovery timestamp.
+        if (channel === IPC.HISTORY_RESTORE)
+          await history.closeProject(projectPath);
+        else await history.settleProject(projectPath);
+        const session = await openProject(projectPath);
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project access is not permitted.",
+          );
+        if (session.project.projectId !== parsed.data.projectId)
+          return failure(
+            "PROJECT_NOT_OPEN",
+            "The project identity changed. Reopen it before continuing.",
+          );
+        const chapter = session.chapters.find(
+          (entry) => entry.id === parsed.data.chapterId,
+        );
+        if (channel === IPC.HISTORY_LIST) {
+          const listed = await listHistorySnapshots(
+            projectPath,
+            parsed.data.chapterId,
+          );
+          if (!trusted(event))
+            return failure(
+              "PROJECT_ACCESS_DENIED",
+              "Project access is not permitted.",
+            );
+          return {
+            ok: true,
+            value: {
+              ...listed,
+              chapterId: parsed.data.chapterId,
+              title: chapter?.title ?? null,
+            },
+          };
+        }
+        if (channel === IPC.HISTORY_PREVIEW) {
+          const selection =
+            IpcRequestSchemas[IPC.HISTORY_PREVIEW].parse(payload);
+          const selected = await readHistorySnapshot(
+            projectPath,
+            parsed.data.chapterId,
+            selection.snapshotId,
+          );
+          if (!trusted(event))
+            return failure(
+              "PROJECT_ACCESS_DENIED",
+              "Project access is not permitted.",
+            );
+          return {
+            ok: true,
+            value: {
+              content: selected.snapshot.content,
+              fingerprint: selected.fingerprint,
+            },
+          };
+        }
+        if (!chapter)
+          return failure(
+            "CHAPTER_NOT_FOUND",
+            "This chapter no longer exists. Its snapshots cannot be restored in place.",
+          );
+        const restore = IpcRequestSchemas[IPC.HISTORY_RESTORE].parse(payload);
+        const saved = await services.saveChapter({
+          projectPath,
+          chapterId: parsed.data.chapterId,
+          document: restore.document,
+          restore: {
+            snapshotId: restore.snapshotId,
+            fingerprint: restore.fingerprint,
+          },
+        });
+        history.scheduleRetention({
+          projectPath,
+          projectId: parsed.data.projectId,
+        });
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project access is not permitted.",
+          );
+        return {
+          ok: true,
+          value: { id: saved.id, content: saved.restoredContent! },
+          ...(saved.warning ? { warning: saved.warning } : {}),
+        };
+      } catch (error) {
+        // Never serialize parser or filesystem errors containing manuscript data.
+        const code =
+          error instanceof ApplicationError ? error.code : "HISTORY_FAILED";
+        const messages: Record<string, string> = {
+          HISTORY_UNAVAILABLE:
+            "This snapshot is missing, changed or unsupported. Refresh history and preview it again before restoring.",
+          HISTORY_CURRENT_CHANGED:
+            "The chapter changed since your edits were saved. Close history and reload the chapter before restoring; your current edits are retained.",
+          HISTORY_SNAPSHOT_WRITE_FAILED:
+            "Unable to preserve the current chapter in a safety snapshot. Restore was cancelled. Check disk space and permissions, then retry.",
+          CHAPTER_NOT_FOUND:
+            "This chapter no longer exists. Its history cannot be restored in place.",
+          CHAPTER_RECOVERY_REQUIRED:
+            "A temporary chapter file needs recovery. Restore was cancelled. Preserve the project and recovery files before retrying.",
+          CHAPTER_SAVE_FAILED:
+            "Unable to persist the restored chapter. Your current edits and safety snapshot remain available. Check disk space and permissions before retrying.",
+        };
+        return failure(
+          code,
+          Object.hasOwn(messages, code)
+            ? messages[code]!
+            : "Chapter History could not complete the operation. Current edits remain available; check project access, refresh history and retry. Preserve any recovery files if saving remains blocked.",
+        );
+      } finally {
+        busy = false;
+      }
+    });
+  }
 
   for (const channel of [IPC.IMAGE_IMPORT, IPC.IMAGE_READ] as const) {
     ipcMain.handle(channel, async (event, payload: unknown) => {

@@ -10,17 +10,20 @@ import {
   loadChapter,
   writeJsonAtomically,
 } from "./index.js";
+import { createHistorySnapshot, readHistorySnapshot } from "./history.js";
 
 export interface SaveChapterInput {
   projectPath: string;
   chapterId: string;
   document: Record<string, unknown>;
+  restore?: { snapshotId: string; fingerprint: string };
 }
 
 export interface SavedChapter {
   id: string;
   modified: string;
   warning?: string;
+  restoredContent?: Record<string, unknown>;
 }
 
 export async function saveChapter(
@@ -28,6 +31,7 @@ export async function saveChapter(
   overrides: {
     writeChapter?: typeof writeJsonAtomically;
     releaseLock?: typeof rmdir;
+    snapshot?: typeof createHistorySnapshot;
   } = {},
 ): Promise<SavedChapter> {
   const document = ManuscriptDocumentSchema.safeParse(input.document);
@@ -90,26 +94,85 @@ export async function saveChapter(
       ))
         throw error;
     }
-    const modified = createIsoDate();
+    let content = document.data;
+    let historicalTimestamp = 0;
+    if (input.restore) {
+      if (JSON.stringify(previous.content) !== JSON.stringify(document.data))
+        throw new ApplicationError(
+          "HISTORY_CURRENT_CHANGED",
+          "The current chapter changed. Save your edits and refresh Chapter History before restoring.",
+        );
+      const selected = await readHistorySnapshot(
+        root,
+        input.chapterId,
+        input.restore.snapshotId,
+      );
+      if (selected.fingerprint !== input.restore.fingerprint)
+        throw new ApplicationError(
+          "HISTORY_UNAVAILABLE",
+          "The selected snapshot changed. Preview it again before restoring.",
+        );
+      const safety = await (overrides.snapshot ?? createHistorySnapshot)({
+        projectPath: root,
+        chapterId: input.chapterId,
+        document: document.data,
+        reason: "before-replace",
+      });
+      if (!safety)
+        throw new ApplicationError(
+          "HISTORY_SNAPSHOT_WRITE_FAILED",
+          "Unable to preserve current content. Restore was cancelled.",
+        );
+      const verified = await readHistorySnapshot(
+        root,
+        input.chapterId,
+        safety.id,
+      );
+      if (
+        JSON.stringify(verified.snapshot.content) !==
+        JSON.stringify(document.data)
+      )
+        throw new ApplicationError(
+          "HISTORY_SNAPSHOT_WRITE_FAILED",
+          "Unable to verify preserved content. Restore was cancelled.",
+        );
+      content = ManuscriptDocumentSchema.parse(selected.snapshot.content);
+      historicalTimestamp = Date.parse(selected.snapshot.created);
+    }
+    const now = createIsoDate();
+    const modified = input.restore
+      ? new Date(
+          Math.max(
+            Date.parse(now),
+            Date.parse(previous.modified),
+            historicalTimestamp,
+          ),
+        ).toISOString()
+      : now;
     const chapter = {
       ...(raw as Record<string, unknown>),
-      content: document.data,
+      content,
       modified,
     };
     ChapterFileSchema.parse(chapter);
     await (overrides.writeChapter ?? writeJsonAtomically)(path, chapter);
     // Rename is the commit point; cache refresh must never turn this into failure.
-    result = { id: previous.id, modified };
+    result = {
+      id: previous.id,
+      modified,
+      ...(input.restore ? { restoredContent: content } : {}),
+    };
     return result;
   } catch (error) {
     if (
-      error instanceof ApplicationError &&
-      [
-        "CHAPTER_NOT_FOUND",
-        "CHAPTER_DOCUMENT_INVALID",
-        "CHAPTER_RECOVERY_REQUIRED",
-        "PROJECT_PATH_INVALID",
-      ].includes(error.code)
+      (error instanceof ApplicationError &&
+        [
+          "CHAPTER_NOT_FOUND",
+          "CHAPTER_DOCUMENT_INVALID",
+          "CHAPTER_RECOVERY_REQUIRED",
+          "PROJECT_PATH_INVALID",
+        ].includes(error.code)) ||
+      (error instanceof ApplicationError && error.code.startsWith("HISTORY_"))
     )
       throw error;
     throw new ApplicationError(

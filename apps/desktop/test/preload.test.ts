@@ -34,6 +34,27 @@ describe("preload API", () => {
     );
 
     const [, api] = exposeInMainWorld.mock.calls[0] as [string, DrelwickApi];
+    const historyRequest = {
+      projectId: "123e4567-e89b-42d3-a456-426614174000",
+      chapterId: "123e4567-e89b-42d3-a456-426614174001",
+    };
+    const selection = {
+      ...historyRequest,
+      snapshotId: "123e4567-e89b-42d3-a456-426614174099",
+    };
+    await api.project.listHistory(historyRequest);
+    expect(invoke).toHaveBeenLastCalledWith("history:list", historyRequest);
+    await api.project.previewHistory(selection);
+    expect(invoke).toHaveBeenLastCalledWith("history:preview", selection);
+    const restore = {
+      ...selection,
+      fingerprint: "a".repeat(64),
+      document: {},
+      confirmed: true as const,
+    };
+    await api.project.restoreHistory(restore);
+    expect(invoke).toHaveBeenLastCalledWith("history:restore", restore);
+    invoke.mockClear();
     const callback = vi.fn();
     const unsubscribe = api.onSaveRequested(callback);
     expect(on).toHaveBeenCalledWith("command:save", expect.any(Function));

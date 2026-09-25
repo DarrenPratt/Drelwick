@@ -75,6 +75,9 @@ export type ChapterOrganisationRequest = z.infer<
 >;
 
 export const IPC = {
+  HISTORY_LIST: "history:list",
+  HISTORY_PREVIEW: "history:preview",
+  HISTORY_RESTORE: "history:restore",
   CHAPTER_ORGANISE: "chapter:organise",
   MANUSCRIPT_REPLACE: "manuscript:replace",
   MANUSCRIPT_CANCEL_REPLACE: "manuscript:cancel-replace",
@@ -178,6 +181,26 @@ export type ProjectOperationResult<T> =
   | { ok: false; error: { code: string; message: string } };
 
 export const IpcRequestSchemas = {
+  [IPC.HISTORY_LIST]: z
+    .object({ projectId: z.string().uuid(), chapterId: z.string().uuid() })
+    .strict(),
+  [IPC.HISTORY_PREVIEW]: z
+    .object({
+      projectId: z.string().uuid(),
+      chapterId: z.string().uuid(),
+      snapshotId: z.string().uuid(),
+    })
+    .strict(),
+  [IPC.HISTORY_RESTORE]: z
+    .object({
+      projectId: z.string().uuid(),
+      chapterId: z.string().uuid(),
+      snapshotId: z.string().uuid(),
+      fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+      document: z.record(z.string(), z.unknown()),
+      confirmed: z.literal(true),
+    })
+    .strict(),
   [IPC.CHAPTER_ORGANISE]: ChapterOrganisationRequestSchema,
   [IPC.MANUSCRIPT_REPLACE]: ReplacementRequestSchema,
   [IPC.MANUSCRIPT_CANCEL_REPLACE]: z.undefined(),
@@ -283,6 +306,19 @@ export interface DrelwickApi {
   ): () => void;
   onShutdownRequested(callback: () => Promise<boolean>): () => void;
   project: {
+    listHistory(
+      input: HistoryRequest,
+    ): Promise<ProjectOperationResult<ChapterHistory>>;
+    previewHistory(
+      input: HistorySelection,
+    ): Promise<ProjectOperationResult<HistoryPreview>>;
+    restoreHistory(
+      input: HistorySelection & {
+        fingerprint: string;
+        document: Record<string, unknown>;
+        confirmed: true;
+      },
+    ): Promise<ProjectOperationResult<ChapterContent>>;
     organiseChapter(
       input: ChapterOrganisationRequest,
     ): Promise<
@@ -343,6 +379,24 @@ export interface DrelwickApi {
 
 export interface RendererErrorReport {
   errorName: RendererErrorName;
+}
+
+export interface HistoryRequest {
+  projectId: string;
+  chapterId: string;
+}
+export interface HistorySelection extends HistoryRequest {
+  snapshotId: string;
+}
+export interface ChapterHistory {
+  chapterId: string;
+  title: string | null;
+  entries: { id: string; chapterId: string; created: string }[];
+  unavailable: number;
+}
+export interface HistoryPreview {
+  content: Record<string, unknown>;
+  fingerprint: string;
 }
 
 export interface RenameChapterRequest {

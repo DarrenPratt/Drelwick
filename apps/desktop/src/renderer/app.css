@@ -1633,3 +1633,40 @@ button svg {
 .manuscript-search input[type="checkbox"] {
   width: auto;
 }
+/* Local snapshot browser uses the same semantic editor vocabulary read-only. */
+.chapter-history {
+  width: min(1000px, 90vw);
+  max-height: 85vh;
+  overflow: auto;
+}
+.history-columns {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(240px, 2fr);
+  gap: 1.5rem;
+}
+.history-columns ol {
+  padding-left: 1.25rem;
+  max-height: 45vh;
+  overflow: auto;
+}
+.history-columns button {
+  text-align: left;
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+.history-columns small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.history-columns section {
+  max-height: 45vh;
+  overflow: auto;
+}
+.history-columns button[aria-pressed="true"] {
+  outline: 2px solid currentColor;
+}
+@media (max-width: 640px) {
+  .history-columns {
+    grid-template-columns: 1fr;
+  }
+}

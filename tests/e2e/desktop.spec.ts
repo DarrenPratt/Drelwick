@@ -1004,3 +1004,180 @@ test("organises formatted chapters offline with duplicate split merge status and
     });
   }
 });
+
+test("Chapter History preserves unsaved B before restoring rich OLD and remains usable after restart", async () => {
+  const fixture = await copyFixture("formatted-book");
+  const scratch = await mkdtemp(join(tmpdir(), "drelwick-history-e2e-"));
+  let application: ElectronApplication | undefined;
+  const chapterId = "00000000-0000-4000-8000-000000000311";
+  const snapshotId = "00000000-0000-4000-8000-000000000399";
+  const chapterPath = join(
+    fixture.projectPath,
+    "manuscript",
+    `${chapterId}.json`,
+  );
+  const historyPath = join(
+    fixture.projectPath,
+    ".history",
+    "snapshots",
+    chapterId,
+  );
+  try {
+    const chapter = JSON.parse(await readFile(chapterPath, "utf8"));
+    const historical = chapter.content;
+    await mkdir(historyPath, { recursive: true });
+    await writeFile(
+      join(historyPath, `${snapshotId}.json`),
+      JSON.stringify({
+        schemaVersion: 1,
+        id: snapshotId,
+        chapterId,
+        created: new Date().toISOString(),
+        reason: "before-replace",
+        content: historical,
+      }),
+    );
+    await writeFile(
+      chapterPath,
+      JSON.stringify({
+        ...chapter,
+        modified: new Date().toISOString(),
+        content: {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "Persisted A" }],
+            },
+          ],
+        },
+      }),
+    );
+    const launched = await launchApplication(join(scratch, "user-data"));
+    application = launched.application;
+    const page = launched.page;
+    await page.context().setOffline(true);
+    const requests: string[] = [];
+    page.on("request", (request) => {
+      if (/^https?:/.test(request.url())) requests.push(request.url());
+    });
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, fixture.projectPath);
+    await page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    const editor = page.locator('.ProseMirror[contenteditable="true"]');
+    await expect(editor).toHaveText("Persisted A");
+    await page.clock.install();
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
+    await editor.fill("Unsaved B ???");
+    await expect(page.getByLabel("Chapter save status")).toHaveText(
+      "Unsaved changes",
+    );
+    expect(
+      JSON.parse(await readFile(chapterPath, "utf8")).content.content[0]
+        .content[0].text,
+    ).toBe("Persisted A");
+    await page.getByLabel("Actions for Current Formatting").click();
+    await page
+      .getByRole("button", { name: "Chapter History", exact: true })
+      .click();
+    const history = page.getByRole("dialog", {
+      name: "Chapter History",
+      exact: true,
+    });
+    await history.getByRole("button", { name: new RegExp(snapshotId) }).click();
+    await expect(history.getByLabel("Snapshot preview")).toContainText(
+      "A semantic heading",
+    );
+    await expect(
+      history.locator("blockquote strong em, blockquote em strong"),
+    ).toHaveCount(1);
+    await expect(page.getByLabel("Chapter save status")).toHaveText(
+      "Unsaved changes",
+    );
+    await history
+      .getByRole("button", { name: "Restore snapshot", exact: true })
+      .click();
+    await expect(
+      history.getByText(/current content, including unsaved edits/),
+    ).toBeVisible();
+    expect(
+      JSON.parse(await readFile(chapterPath, "utf8")).content.content[0]
+        .content[0].text,
+    ).toBe("Persisted A");
+    await history
+      .getByRole("button", { name: "Confirm restore", exact: true })
+      .click();
+    await expect(
+      page.getByText(
+        "Snapshot restored. Previous content is preserved in Chapter History.",
+      ),
+    ).toBeVisible();
+    const stored = JSON.parse(await readFile(chapterPath, "utf8"));
+    expect(stored.content).toEqual(historical);
+    expect(stored.id).toBe(chapterId);
+    const snapshots = await Promise.all(
+      (await readdir(historyPath))
+        .filter((name) => name.endsWith(".json"))
+        .map(async (name) =>
+          JSON.parse(await readFile(join(historyPath, name), "utf8")),
+        ),
+    );
+    const safety = snapshots.find(
+      (snapshot) =>
+        snapshot.id !== snapshotId &&
+        snapshot.reason === "before-replace" &&
+        JSON.stringify(snapshot.content).includes("Unsaved B ???"),
+    );
+    expect(safety).toBeDefined();
+    expect(snapshots.some((snapshot) => snapshot.id === snapshotId)).toBe(true);
+    expect(requests).toEqual([]);
+    await history.getByRole("button", { name: "Close history" }).click();
+    await application.close();
+    application = undefined;
+    const restarted = await launchApplication(join(scratch, "user-data"));
+    application = restarted.application;
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, fixture.projectPath);
+    await restarted.page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    await expect(restarted.page.locator(".ProseMirror")).toContainText(
+      "A semantic heading",
+    );
+    await restarted.page.getByLabel("Actions for Current Formatting").click();
+    await restarted.page
+      .getByRole("button", { name: "Chapter History", exact: true })
+      .click();
+    const reopened = restarted.page.getByRole("dialog", {
+      name: "Chapter History",
+      exact: true,
+    });
+    await reopened.getByRole("button", { name: new RegExp(safety.id) }).click();
+    await expect(reopened.getByLabel("Snapshot preview")).toHaveText(
+      "Unsaved B ???",
+    );
+    await expect(
+      reopened.locator(`time[datetime="${safety.created}"]`).first(),
+    ).toBeVisible();
+    await reopened.getByRole("button", { name: "Close history" }).click();
+  } finally {
+    await application?.close();
+    await fixture.cleanup();
+    await rm(scratch, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 200,
+    });
+  }
+});

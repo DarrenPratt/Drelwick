@@ -1,5 +1,8 @@
 # Manuscript recovery
 
+Normal editing has a separate [Chapter History](chapter-history.md) browser.
+Browsing does not consume candidates or change startup recovery decisions.
+
 Issue #40 (CORE) adds startup decisions to the read-only crash scan from #39.
 After an unclean session, Drelwick scans recent projects and shows a modal
 before mounting the editor. Each candidate shows its chapter, project folder,

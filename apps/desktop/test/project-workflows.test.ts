@@ -131,6 +131,9 @@ beforeEach(async () => {
       return () => menuListeners.delete(callback);
     }),
     project: {
+      listHistory: vi.fn(),
+      previewHistory: vi.fn(),
+      restoreHistory: vi.fn(),
       organiseChapter: vi.fn(),
       replaceManuscript: vi.fn(),
       cancelReplacement: vi.fn(),
@@ -829,6 +832,152 @@ describe("chapter editor persistence", () => {
       container.querySelector('[aria-current="page"]')?.textContent,
     ).toContain("First");
     expect(saveStatus()).toBe("Unsaved changes");
+  });
+  async function showHistory() {
+    const chapterId = "123e4567-e89b-42d3-a456-426614174001";
+    const snapshotId = "123e4567-e89b-42d3-a456-426614174099";
+    vi.mocked(window.drelwick.project.listHistory).mockResolvedValue({
+      ok: true,
+      value: {
+        chapterId,
+        title: "First",
+        entries: [
+          { id: snapshotId, chapterId, created: "2026-09-01T12:00:00.000Z" },
+        ],
+        unavailable: 0,
+      },
+    });
+    vi.mocked(window.drelwick.project.previewHistory).mockResolvedValue({
+      ok: true,
+      value: {
+        fingerprint: "a".repeat(64),
+        content: {
+          type: "doc",
+          content: [
+            { type: "paragraph", content: [{ type: "text", text: "OLD" }] },
+          ],
+        },
+      },
+    });
+    await click("Chapter History");
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('ol[aria-label="Snapshots"] button')!
+        .click(),
+    );
+  }
+  it("history preview is read-only, does not save or dirty, and requires separate confirmation", async () => {
+    vi.useFakeTimers();
+    await openChapter();
+    const before = editor().getJSON();
+    await showHistory();
+    expect(
+      container
+        .querySelector('[aria-label="Snapshot preview"]')
+        ?.getAttribute("contenteditable"),
+    ).toBe("false");
+    expect(editor().getJSON()).toEqual(before);
+    expect(saveStatus()).toBe("All changes saved");
+    expect(saveChapter).not.toHaveBeenCalled();
+    await click("Restore snapshot");
+    expect(window.drelwick.project.restoreHistory).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("including unsaved edits");
+    await click("Cancel restore");
+    expect(window.drelwick.project.restoreHistory).not.toHaveBeenCalled();
+  });
+  it.each(["flush", "snapshot", "commit"])(
+    "history %s failure retains B and never reports success",
+    async (stage) => {
+      vi.useFakeTimers();
+      await openChapter();
+      await editText("B unsaved");
+      await showHistory();
+      if (stage === "flush")
+        saveChapter.mockResolvedValue({
+          ok: false,
+          error: { code: "CHAPTER_SAVE_FAILED", message: "save failed" },
+        });
+      vi.mocked(window.drelwick.project.restoreHistory).mockResolvedValue({
+        ok: false,
+        error: { code: "HISTORY_FAILED", message: "Restore failed safely" },
+      });
+      await click("Restore snapshot");
+      await click("Confirm restore");
+      expect(editor().getText()).toBe("B unsaved");
+      expect(container.textContent).not.toContain("Snapshot restored.");
+      if (stage === "flush") {
+        expect(window.drelwick.project.restoreHistory).not.toHaveBeenCalled();
+        expect(saveStatus()).toBe("Unsaved changes");
+      } else {
+        expect(window.drelwick.project.restoreHistory).toHaveBeenCalledWith(
+          expect.objectContaining({
+            document: editor().getJSON(),
+            confirmed: true,
+          }),
+        );
+        expect(container.textContent).toContain("Restore failed safely");
+      }
+    },
+  );
+  it("flushes unsaved B before history restore and replaces editor only after success", async () => {
+    vi.useFakeTimers();
+    await openChapter();
+    await editText("B unsaved");
+    const b = editor().getJSON();
+    await showHistory();
+    let finish!: (
+      value: Awaited<ReturnType<DrelwickApi["project"]["restoreHistory"]>>,
+    ) => void;
+    vi.mocked(window.drelwick.project.restoreHistory).mockImplementation(
+      async (input) => {
+        expect(saveChapter).toHaveBeenCalledOnce();
+        expect(input.document).toEqual(b);
+        expect(editor().getJSON()).toEqual(b);
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      },
+    );
+    await click("Restore snapshot");
+    await click("Confirm restore");
+    expect(editor().getJSON()).toEqual(b);
+    expect(editor().isEditable).toBe(false);
+    const content = {
+      type: "doc",
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: "OLD" }] },
+      ],
+    };
+    loadChapter.mockResolvedValue({
+      ok: true,
+      value: { id: "123e4567-e89b-42d3-a456-426614174001", content },
+    });
+    await act(async () =>
+      finish({
+        ok: true,
+        value: { id: "123e4567-e89b-42d3-a456-426614174001", content },
+      }),
+    );
+    expect(editor().getText()).toBe("OLD");
+    expect(saveStatus()).toBe("All changes saved");
+  });
+  it("refresh removes pruned selections and disables restore for deleted chapters", async () => {
+    vi.useFakeTimers();
+    await openChapter();
+    await showHistory();
+    const list = vi.mocked(window.drelwick.project.listHistory);
+    const old = await list.mock.results[0]!.value;
+    if (!old.ok) throw new Error("fixture");
+    list.mockResolvedValue({ ok: true, value: { ...old.value, title: null } });
+    await click("Refresh history");
+    expect(button("Restore snapshot").disabled).toBe(true);
+    expect(container.textContent).toContain("no longer exists");
+    list.mockResolvedValue({ ok: true, value: { ...old.value, entries: [] } });
+    await click("Refresh history");
+    expect(
+      container.querySelector('[aria-label="Snapshot preview"]'),
+    ).toBeNull();
+    expect(button("Restore snapshot").disabled).toBe(true);
   });
   async function searchInput(label: string, value: string) {
     await act(async () => {
