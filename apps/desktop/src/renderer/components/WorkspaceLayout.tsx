@@ -21,6 +21,7 @@ export interface WorkspaceLayoutProps {
   library: ReactNode;
   notice?: ReactNode;
   bookPreviewAction?: ReactNode;
+  bookDesign?: ReactNode;
 }
 
 /** Presentation shell only: mock controls never call persistence or export APIs. */
@@ -33,6 +34,7 @@ export function WorkspaceLayout({
   library,
   notice,
   bookPreviewAction,
+  bookDesign,
 }: WorkspaceLayoutProps) {
   const [panel, setPanel] = useState<Panel | null>("preview");
   const [navigationOpen, setNavigationOpen] = useState(
@@ -251,7 +253,9 @@ export function WorkspaceLayout({
                   ? bookPreviewAction
                     ? "Manuscript"
                     : "Layout mock"
-                  : "Feature mock"}
+                  : panel === "format" && bookDesign
+                    ? "Presentation"
+                    : "Feature mock"}
               </span>
             </div>
             <button
@@ -269,49 +273,50 @@ export function WorkspaceLayout({
           </header>
           <div className="inspector-scroll">
             {panel === "preview" && (bookPreviewAction ?? samplePreview)}
-            {panel === "format" && (
-              <>
-                <div className="tool-intro">
-                  <span className="section-label">MAKE IT YOURS</span>
-                  <h3>A style for your story.</h3>
-                  <p>
-                    Try a direction for the sample page. These settings are
-                    temporary and do not change your book.
-                  </p>
-                </div>
-                <div className="theme-choices">
-                  {["Literary", "Classic", "Modern"].map((name) => (
-                    <button
-                      key={name}
-                      className={`theme-choice theme-${name.toLowerCase()}`}
-                      aria-pressed={theme === name}
-                      onClick={() => setTheme(name)}
-                    >
-                      <span>Aa</span>
-                      <strong>{name}</strong>
-                      <small>
-                        {name === "Literary"
-                          ? "Quiet & considered"
-                          : name === "Classic"
-                            ? "Timeless & familiar"
-                            : "Clean & contemporary"}
-                      </small>
-                    </button>
-                  ))}
-                </div>
-                <label className="sample-size">
-                  Sample type size <span>{size}px</span>
-                  <input
-                    type="range"
-                    min="13"
-                    max="20"
-                    value={size}
-                    onChange={(event) => setSize(Number(event.target.value))}
-                  />
-                </label>
-                {samplePreview}
-              </>
-            )}
+            {panel === "format" &&
+              (bookDesign ?? (
+                <>
+                  <div className="tool-intro">
+                    <span className="section-label">MAKE IT YOURS</span>
+                    <h3>A style for your story.</h3>
+                    <p>
+                      Try a direction for the sample page. These settings are
+                      temporary and do not change your book.
+                    </p>
+                  </div>
+                  <div className="theme-choices">
+                    {["Literary", "Classic", "Modern"].map((name) => (
+                      <button
+                        key={name}
+                        className={`theme-choice theme-${name.toLowerCase()}`}
+                        aria-pressed={theme === name}
+                        onClick={() => setTheme(name)}
+                      >
+                        <span>Aa</span>
+                        <strong>{name}</strong>
+                        <small>
+                          {name === "Literary"
+                            ? "Quiet & considered"
+                            : name === "Classic"
+                              ? "Timeless & familiar"
+                              : "Clean & contemporary"}
+                        </small>
+                      </button>
+                    ))}
+                  </div>
+                  <label className="sample-size">
+                    Sample type size <span>{size}px</span>
+                    <input
+                      type="range"
+                      min="13"
+                      max="20"
+                      value={size}
+                      onChange={(event) => setSize(Number(event.target.value))}
+                    />
+                  </label>
+                  {samplePreview}
+                </>
+              ))}
             {panel === "details" && (
               <div className="tool-intro">
                 <span className="section-label">YOUR BOOK</span>
@@ -410,8 +415,20 @@ export function WorkspaceLayout({
             key={name}
             data-panel={name}
             className="rail-button"
-            aria-label={`${panelNames[name]} (mock)`}
-            title={`${panelNames[name]} · mock`}
+            aria-label={
+              name === "format" && bookDesign
+                ? "Book design"
+                : name === "preview" && bookPreviewAction
+                  ? "Open book preview panel"
+                  : `${panelNames[name]} (mock)`
+            }
+            title={
+              name === "format" && bookDesign
+                ? "Book design"
+                : name === "preview" && bookPreviewAction
+                  ? "Book preview"
+                  : `${panelNames[name]} · mock`
+            }
             aria-pressed={panel === name}
             onClick={() => setPanel(panel === name ? null : name)}
           >

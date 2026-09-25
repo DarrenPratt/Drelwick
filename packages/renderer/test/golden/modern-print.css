@@ -1,0 +1,21 @@
+.chapter { color: #111; background-color: #fff; font-family: "Segoe UI", "Helvetica Neue", Arial, "Liberation Sans", sans-serif; font-size: 10.5pt; line-height: 1.5; text-align: left; }
+.chapter p { margin: 0 0 0.5em; text-indent: 0em; }
+.chapter-title { font-family: "Segoe UI", "Helvetica Neue", Arial, "Liberation Sans", sans-serif; font-size: 2.25em; font-weight: 600; line-height: 1.2; text-align: left; margin: 1.5em 0 1.5em; }
+.chapter-title::after { content: none; }
+.chapter-body h1, .chapter-body h2, .chapter-body h3, .chapter-body h4, .chapter-body h5, .chapter-body h6 { font-family: "Segoe UI", "Helvetica Neue", Arial, "Liberation Sans", sans-serif; font-weight: 600; line-height: 1.25; margin: 1.75em 0 0.5em; text-align: left; }
+.chapter-body > p:first-child, .chapter-body > h1 + p, .chapter-body > h2 + p, .chapter-body > h3 + p, .chapter-body > h4 + p, .chapter-body > h5 + p, .chapter-body > h6 + p, .scene-break + p { text-indent: 0; }
+.chapter blockquote { margin: 1.25em 1em; font-style: normal; }
+.chapter blockquote p, .chapter li p { text-indent: 0; }
+.chapter .epigraph { width: 90%; margin: 1.25em auto; text-align: left; font-style: normal; }
+.chapter .epigraph blockquote { margin: 0; font-style: inherit; }
+.chapter .epigraph figcaption { margin-top: 0.75em; font-style: normal; }
+.chapter .scene-break { display: block; height: 0; width: 30%; margin: 2.5em auto; padding: 0; border: 0; overflow: visible; }
+.chapter .scene-break::after { content: none; }
+.chapter .manuscript-image { display: block; height: auto; max-width: 100%; margin: 1em auto; }
+.chapter .image-small { width: 25%; }
+.chapter .image-medium { width: 50%; }
+.chapter .image-large { width: 75%; }
+.chapter .image-full { width: 100%; }
+.chapter a, .chapter .manuscript-link { color: inherit; text-decoration: underline; }
+.chapter pre { white-space: pre-wrap; text-align: left; }
+.chapter ul, .chapter ol { text-align: left; }

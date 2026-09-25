@@ -11,8 +11,14 @@ import { ApplicationError } from "@drelwick/shared";
 import type { BookRevision, BookAsset } from "@drelwick/renderer";
 import { CHAPTER_CREATION_LOCK, openProject } from "./index.js";
 import { readImageAsset, regularPath, boundedRead } from "./image-assets.js";
+import {
+  readBookPresentation,
+  BOOK_PRESENTATION_FILE,
+} from "./book-presentation.js";
+import type { BookPresentation } from "@drelwick/project-model";
 
 export interface AssembledBook {
+  presentation: BookPresentation;
   book: BookRevision;
   /** Captured validated originals, not paths to files that could change later. */
   assets: ReadonlyMap<string, Uint8Array>;
@@ -55,6 +61,15 @@ export async function assembleBook(
     );
     if (session.project.schemaVersion === 2)
       await capture(join(projectPath, "format.json"));
+    const presentation = await readBookPresentation(
+      projectPath,
+      session.project.projectId,
+    );
+    if (presentation.bytes)
+      captured.set(
+        join(projectPath, BOOK_PRESENTATION_FILE),
+        presentation.bytes,
+      );
     const chapters: BookRevision["chapters"][number][] = [];
     const ids = new Set<string>();
     for (const id of session.project.manuscript.order) {
@@ -150,7 +165,20 @@ export async function assembleBook(
     const revision = createHash("sha256")
       .update(JSON.stringify(value))
       .digest("hex");
-    return { book: { ...value, revision }, assets };
+    const latestPresentation = await readBookPresentation(
+      projectPath,
+      session.project.projectId,
+    );
+    if (
+      JSON.stringify(presentation.settings) !==
+      JSON.stringify(latestPresentation.settings)
+    )
+      throw failure("BOOK_REVISION_CHANGED");
+    return {
+      book: { ...value, revision },
+      assets,
+      presentation: presentation.settings,
+    };
   } catch (error) {
     if (error instanceof ApplicationError) throw error;
     throw failure("BOOK_ASSEMBLY_FAILED");

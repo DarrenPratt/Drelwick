@@ -16,7 +16,7 @@ The manifest is separate from the authoritative project format. Both V1 projects
 and V2 projects with their `format.json` descriptor are supported. ZIP CRC checks and the manifest checksums are
 verified before a restored project is activated.
 
-The archive includes `project.json`, `book.json`, `format.json` when present, the project `cover.jpg` when
+The archive includes `project.json`, `book.json`, `format.json` and `presentation.json` when present, the project `cover.jpg` when
 present, and regular files under `manuscript/`, `frontmatter/`, `backmatter/`,
 `assets/`, `reference/` and `styles/`. The **Include saved version history**
 prompt controls whether `.history/` is included. History is included by default.

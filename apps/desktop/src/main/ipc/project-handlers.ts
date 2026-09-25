@@ -6,6 +6,8 @@ import {
 } from "electron";
 import {
   createProjectArchive,
+  loadBookTheme,
+  saveBookTheme,
   importImageAsset,
   readImageAsset,
   createProject,
@@ -42,7 +44,11 @@ import {
 } from "@drelwick/shared";
 import type { RecentProjects } from "../recent-projects.js";
 import { HistoryRuntime } from "../history-runtime.js";
-import { createBookPreview } from "../book-preview.js";
+import {
+  prepareBookPreview,
+  presentBookPreview,
+  type PreparedBookPreview,
+} from "../book-preview.js";
 import { basename, dirname, join } from "node:path";
 
 interface HistoryTasks {
@@ -243,6 +249,7 @@ export function registerProjectHandlers(
   let replacementCancellation: { cancelled: boolean } | undefined;
   let activeProjectPath: string | undefined;
   let activeProjectId: string | undefined;
+  let preparedPreview: PreparedBookPreview | undefined;
   const trusted = (event: IpcMainInvokeEvent) => {
     const window = getWindow();
     return (
@@ -277,10 +284,11 @@ export function registerProjectHandlers(
     busy = true;
     try {
       await history.settleProject(activeProjectPath);
-      const value = await createBookPreview(
+      preparedPreview = await prepareBookPreview(
         activeProjectPath,
         parsed.data.projectId,
       );
+      const value = presentBookPreview(preparedPreview);
       if (!trusted(event))
         return failure(
           "PROJECT_ACCESS_DENIED",
@@ -297,6 +305,84 @@ export function registerProjectHandlers(
       busy = false;
     }
   });
+
+  for (const channel of [IPC.BOOK_THEME_GET, IPC.BOOK_THEME_SET] as const) {
+    ipcMain.handle(channel, async (event, payload: unknown) => {
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      const parsed = IpcRequestSchemas[channel].safeParse(payload);
+      if (!parsed.success)
+        return failure("PROJECT_INPUT_INVALID", "Invalid theme request.");
+      if (!activeProjectPath || parsed.data.projectId !== activeProjectId)
+        return failure(
+          "PROJECT_NOT_OPEN",
+          "Reopen the project before changing its theme.",
+        );
+      if (busy)
+        return failure(
+          "PROJECT_BUSY",
+          "Wait for the current project operation and retry.",
+        );
+      busy = true;
+      try {
+        if (channel === IPC.BOOK_THEME_GET) {
+          const value = await loadBookTheme(
+            activeProjectPath,
+            parsed.data.projectId,
+          );
+          if (!trusted(event))
+            return failure(
+              "PROJECT_ACCESS_DENIED",
+              "Project access is not permitted.",
+            );
+          return { ok: true, value };
+        }
+        const request = IpcRequestSchemas[IPC.BOOK_THEME_SET].parse(payload);
+        if (
+          request.previewRevision &&
+          (preparedPreview?.projectId !== request.projectId ||
+            preparedPreview.revision !== request.previewRevision)
+        )
+          return failure(
+            "BOOK_PREVIEW_EXPIRED",
+            "Close and reopen the preview before changing its theme.",
+          );
+        await history.settleProject(activeProjectPath);
+        const saved = await saveBookTheme({
+          projectPath: activeProjectPath,
+          projectId: request.projectId,
+          themeId: request.themeId,
+        });
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project access is not permitted.",
+          );
+        return {
+          ok: true,
+          value: {
+            selection: saved.selection,
+            ...(request.previewRevision && preparedPreview
+              ? {
+                  preview: presentBookPreview(preparedPreview, saved.selection),
+                }
+              : {}),
+          },
+          ...(saved.warning ? { warning: saved.warning } : {}),
+        };
+      } catch {
+        return failure(
+          "BOOK_THEME_FAILED",
+          "Unable to access book presentation settings. Existing settings and manuscript files were preserved. Check project access or recovery files before retrying.",
+        );
+      } finally {
+        busy = false;
+      }
+    });
+  }
 
   for (const channel of [
     IPC.HISTORY_LIST,
@@ -618,6 +704,7 @@ export function registerProjectHandlers(
           location = undefined;
           activeProjectPath = opened.projectPath;
           activeProjectId = opened.project.projectId;
+          preparedPreview = undefined;
           history.scheduleRetention({
             projectPath: opened.projectPath,
             projectId: opened.project.projectId,
@@ -823,6 +910,7 @@ export function registerProjectHandlers(
         if (activeProjectPath) await history.closeProject(activeProjectPath);
         activeProjectPath = opened.projectPath;
         activeProjectId = opened.project.projectId;
+        preparedPreview = undefined;
         history.scheduleRetention({
           projectPath: opened.projectPath,
           projectId: opened.project.projectId,
@@ -889,6 +977,7 @@ export function registerProjectHandlers(
         if (activeProjectPath) await history.closeProject(activeProjectPath);
         activeProjectPath = undefined;
         activeProjectId = undefined;
+        preparedPreview = undefined;
         return { ok: true, value: null };
       } finally {
         busy = false;
@@ -1045,6 +1134,7 @@ export function registerProjectHandlers(
         location = undefined;
         activeProjectPath = created.projectPath;
         activeProjectId = created.project.projectId;
+        preparedPreview = undefined;
         history.scheduleRetention({
           projectPath: created.projectPath,
           projectId: created.project.projectId,

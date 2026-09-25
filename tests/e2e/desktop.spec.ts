@@ -19,11 +19,227 @@ import {
   type ElectronApplication,
 } from "@playwright/test";
 import { copyFixture } from "../helpers/fixture-projects.js";
+import {
+  generateThemeStyles,
+  getBookTheme,
+} from "../../packages/renderer/src/themes.js";
 import { docx, p, unicode } from "../../packages/core/test/fixtures/docx.js";
 import {
   fixture as semanticBook,
   assetId as semanticAssetId,
 } from "../../packages/renderer/test/fixture.js";
+
+test("Community themes switch offline without rewriting prose and survive restart", async () => {
+  const fixture = await copyFixture("minimal-book");
+  const scratch = await mkdtemp(join(tmpdir(), "drelwick-themes-"));
+  let application: ElectronApplication | undefined;
+  try {
+    const chapterPath = join(
+      fixture.projectPath,
+      "manuscript",
+      "00000000-0000-4000-8000-000000000111.json",
+    );
+    const chapter = JSON.parse(await readFile(chapterPath, "utf8"));
+    const paragraph = (text: string) => ({
+      type: "paragraph",
+      content: [{ type: "text", text }],
+    });
+    chapter.content = {
+      type: "doc",
+      content: [
+        paragraph(
+          "The lamps along the harbour were still burning when Mara opened the book. Beyond the window, the first ferry crossed a silver line of dawn.",
+        ),
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "One more page,",
+              marks: [{ type: "italic" }],
+            },
+            { type: "text", text: " she thought. " },
+            {
+              type: "text",
+              text: "One more beginning.",
+              marks: [{ type: "bold" }],
+            },
+          ],
+        },
+        {
+          type: "blockquote",
+          content: [paragraph("Every journey begins with a question.")],
+        },
+        {
+          type: "epigraph",
+          attrs: { attribution: "A traveller’s notebook" },
+          content: [paragraph("The sea remembers every shore.")],
+        },
+        { type: "sceneBreak" },
+        {
+          type: "heading",
+          attrs: { level: 2 },
+          content: [{ type: "text", text: "The letter" }],
+        },
+        paragraph(
+          "Café — 日本語 — Ελληνικά. The words on the envelope had travelled farther than she had.",
+        ),
+        {
+          type: "bulletList",
+          content: [
+            { type: "listItem", content: [paragraph("A map")] },
+            { type: "listItem", content: [paragraph("A promise")] },
+          ],
+        },
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "A distant destination",
+              marks: [
+                { type: "link", attrs: { href: "https://example.invalid" } },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    await writeFile(chapterPath, JSON.stringify(chapter));
+    const before = await readFile(chapterPath);
+    let launched = await launchApplication(join(scratch, "user-data"));
+    application = launched.application;
+    const page = launched.page;
+    await page.context().setOffline(true);
+    const requests: string[] = [];
+    await page.route(/^https?:/, async (route) => {
+      requests.push(route.request().url());
+      await route.abort();
+    });
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, fixture.projectPath);
+    await page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    await expect(page.locator(".ProseMirror")).toBeEditable();
+    // Opening preview must not manufacture an editor change or rewrite chapters.
+    await page
+      .getByRole("button", { name: "Book preview", exact: true })
+      .click();
+    await expect(
+      page.getByRole("dialog", { name: "Book preview", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Close preview" }).click();
+    expect(await readFile(chapterPath)).toEqual(before);
+    await page
+      .getByRole("button", { name: "Book design", exact: true })
+      .click();
+    await expect(page.getByLabel("Book theme", { exact: true })).toHaveValue(
+      "classic",
+    );
+    await page.getByLabel("Book theme", { exact: true }).selectOption("modern");
+    await expect(
+      page.getByRole("status").filter({ hasText: "Theme saved" }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Open book preview panel", exact: true })
+      .click();
+    // The rail opens the preview panel; its action opens the manuscript dialog.
+    const action = page
+      .locator(".workspace-inspector")
+      .getByRole("button", { name: "Book preview", exact: true });
+    await action.click();
+    const dialog = page.getByRole("dialog", {
+      name: "Book preview",
+      exact: true,
+    });
+    const iframe = dialog.locator("iframe");
+    const frame = iframe.contentFrame();
+    await expect(frame.locator(".chapter")).toHaveCSS("text-align", "left");
+    const markup = await frame.locator("body").innerHTML();
+    const prose = await frame.locator("body").textContent();
+    for (const id of ["classic", "modern", "literary"] as const) {
+      await dialog.getByLabel("Book theme", { exact: true }).selectOption(id);
+      await expect(
+        dialog.getByRole("status").filter({ hasText: "Theme saved" }),
+      ).toBeVisible();
+      await expect
+        .poll(async () =>
+          (await iframe.getAttribute("srcdoc"))?.includes(
+            generateThemeStyles(getBookTheme(id), "ebook").css,
+          ),
+        )
+        .toBe(true);
+      await expect(frame.locator(".chapter")).toHaveCSS(
+        "text-align",
+        id === "classic" ? "justify" : "left",
+      );
+      expect(await frame.locator("body").innerHTML()).toBe(markup);
+      expect(await frame.locator("body").textContent()).toBe(prose);
+      expect(await readFile(chapterPath)).toEqual(before);
+      await dialog.screenshot({
+        path: test.info().outputPath(`theme-${id}.png`),
+      });
+    }
+    // Simulate no preferred font: the same generator's generic-only adapter remains readable offline.
+    const css = generateThemeStyles(getBookTheme("literary"), "ebook", {
+      fontPolicy: "generic-only",
+    }).css;
+    const original = (await iframe.getAttribute("srcdoc"))!;
+    const fallback = original
+      .replace(/<style>[\s\S]*?<\/style>/, `<style>${css}</style>`)
+      .replace(
+        /sha256-[A-Za-z0-9+/=]+/,
+        `sha256-${createHash("sha256").update(css).digest("base64")}`,
+      );
+    await iframe.evaluate((element, html) => {
+      (element as HTMLIFrameElement).srcdoc = html;
+    }, fallback);
+    await expect(frame.locator(".chapter")).toHaveCSS("font-family", "serif");
+    await expect(frame.locator(".chapter-title")).toBeVisible();
+    expect(await frame.locator("body").textContent()).toBe(prose);
+    expect(requests).toEqual([]);
+    await dialog.getByRole("button", { name: "Close preview" }).click();
+    await application.close();
+    application = undefined;
+    launched = await launchApplication(join(scratch, "user-data"));
+    application = launched.application;
+    await launched.page.context().setOffline(true);
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, fixture.projectPath);
+    await launched.page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    await expect(launched.page.locator(".ProseMirror")).toBeEditable();
+    await launched.page
+      .getByRole("button", { name: "Book preview", exact: true })
+      .click();
+    await expect(
+      launched.page
+        .getByRole("dialog")
+        .getByLabel("Book theme", { exact: true }),
+    ).toHaveValue("literary");
+    expect(await readFile(chapterPath)).toEqual(before);
+    await launched.page.getByRole("button", { name: "Close preview" }).click();
+  } finally {
+    await application?.close();
+    await fixture.cleanup();
+    await rm(scratch, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 200,
+    });
+  }
+});
 
 test("shared book preview saves pending prose and isolates active content, assets and privileges", async () => {
   const fixture = await copyFixture("minimal-book");
@@ -148,12 +364,13 @@ test("shared book preview saves pending prose and isolates active content, asset
       const frame = element as HTMLIFrameElement;
       frame.srcdoc = frame.srcdoc.replace(
         "</body>",
-        '<p id="isolation-probe">Isolation probe</p><script>globalThis.executed = true; parent.drelwick.project.open()</script><img src="https://remote.invalid/image" onerror="globalThis.executed = true" /><iframe src="https://remote.invalid/frame"></iframe><object data="file:///secret"></object></body>',
+        '<p id="isolation-probe" style="display:none">Isolation probe</p><style>@import url("https://remote.invalid/style.css"); #isolation-probe { display:none }</style><script>globalThis.executed = true; parent.drelwick.project.open()</script><img src="https://remote.invalid/image" onerror="globalThis.executed = true" /><iframe src="https://remote.invalid/frame"></iframe><object data="file:///secret"></object></body>',
       );
     });
     await expect(frame.locator("#isolation-probe")).toHaveText(
       "Isolation probe",
     );
+    await expect(frame.locator("#isolation-probe")).toBeVisible();
     expect(
       await frame
         .locator("body")

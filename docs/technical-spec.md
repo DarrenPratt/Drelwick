@@ -1359,7 +1359,9 @@ semantics into deterministic XHTML-compatible chapter fragments. Preview, EPUB
 and print consume this single traversal through asset/link resolvers and separate
 wrappers/styles. See [the rendering contract and support matrix](book-rendering.md).
 The older conceptual interfaces below describe future orchestration, not separate
-semantic renderers or current theme implementation.
+semantic renderers. The implemented version-1 Community theme model, deterministic
+ebook/print CSS and project-side selection are described in [book themes](book-themes.md);
+the later conceptual theme interfaces are future design, not a custom-CSS API.
 
 ```typescript
 interface BookRenderer {

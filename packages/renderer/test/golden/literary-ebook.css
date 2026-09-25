@@ -1,0 +1,21 @@
+.chapter { color: #111; background-color: #fff; font-family: Palatino, "Palatino Linotype", "Book Antiqua", Georgia, "Liberation Serif", serif; font-size: 1rem; line-height: 1.6; text-align: left; }
+.chapter p { margin: 0 0 0.125em; text-indent: 1.5em; }
+.chapter-title { font-family: Georgia, "Times New Roman", "Liberation Serif", serif; font-size: 1.75em; font-weight: 400; line-height: 1.2; text-align: center; margin: 4.5em 0 2.5em; }
+.chapter-title::after { content: none; }
+.chapter-body h1, .chapter-body h2, .chapter-body h3, .chapter-body h4, .chapter-body h5, .chapter-body h6 { font-family: Georgia, "Times New Roman", "Liberation Serif", serif; font-weight: 400; line-height: 1.25; margin: 2em 0 0.75em; text-align: left; }
+.chapter-body > p:first-child, .chapter-body > h1 + p, .chapter-body > h2 + p, .chapter-body > h3 + p, .chapter-body > h4 + p, .chapter-body > h5 + p, .chapter-body > h6 + p, .scene-break + p { text-indent: 0; }
+.chapter blockquote { margin: 1.5em 2em; font-style: italic; }
+.chapter blockquote p, .chapter li p { text-indent: 0; }
+.chapter .epigraph { width: 65%; margin: 2em auto; text-align: right; font-style: italic; }
+.chapter .epigraph blockquote { margin: 0; font-style: inherit; }
+.chapter .epigraph figcaption { margin-top: 0.75em; font-style: normal; }
+.chapter .scene-break { display: block; height: 0.6em; width: 15%; margin: 2em auto; padding: 0; border: 0; overflow: visible; }
+.chapter .scene-break::after { content: ""; display: block; width: 0.4em; height: 0.4em; margin: auto; border: 1px solid currentColor; transform: rotate(45deg); }
+.chapter .manuscript-image { display: block; height: auto; max-width: 100%; margin: 1em auto; }
+.chapter .image-small { width: 25%; }
+.chapter .image-medium { width: 50%; }
+.chapter .image-large { width: 75%; }
+.chapter .image-full { width: 100%; }
+.chapter a, .chapter .manuscript-link { color: inherit; text-decoration: underline; }
+.chapter pre { white-space: pre-wrap; text-align: left; }
+.chapter ul, .chapter ol { text-align: left; }

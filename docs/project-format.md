@@ -36,6 +36,14 @@ package is needed to read, migrate, back up or recover a project.
 
 ## Version 1
 
+Issue #122 adds optional `presentation.json`, an independently versioned component
+containing `schemaVersion: 1`, the project UUID and a safe stable `themeId` slug.
+It does not change manifest/book/chapter schema versions. Missing settings default
+to Classic without rewriting chapters; unavailable IDs preserve their saved value
+and display Classic with a notice. See [theme persistence and recovery](book-themes.md#persistence-and-recovery).
+Portable backups include this component. Malformed/future presentation configuration
+blocks publishing/theme changes, while authoring remains available.
+
 Historical schemas are retained in `packages/project-model/src/versions/v1.ts`.
 They are not replaced by the current format definition.
 

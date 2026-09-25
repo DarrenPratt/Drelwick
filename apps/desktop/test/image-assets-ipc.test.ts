@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { writeFile } from "node:fs/promises";
+import { writeFile, readFile } from "node:fs/promises";
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { afterEach, expect, it, vi } from "vitest";
 import {
@@ -72,6 +72,7 @@ async function setup() {
     picker,
     event,
     source,
+    projectPath: copy.projectPath,
     projectId: opened.value.projectId,
     chapterId: opened.value.chapters[0]!.id,
   };
@@ -104,6 +105,95 @@ it("imports through the native picker and exposes only managed bytes and identit
       chapterId: f.chapterId,
     }),
   ).toEqual({ ok: true, value: null });
+});
+
+it("authorizes theme requests and restyles a cached revision without reading or rewriting chapters", async () => {
+  const f = await setup();
+  const input = { projectId: f.projectId, themeId: "modern" };
+  for (const channel of [IPC.BOOK_THEME_GET, IPC.BOOK_THEME_SET]) {
+    expect(
+      await f.invoke(channel, input, {
+        ...f.event,
+        senderFrame: { url: "about:srcdoc" },
+      } as unknown as IpcMainInvokeEvent),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_ACCESS_DENIED" } });
+    expect(
+      await f.invoke(channel, {
+        projectId: "00000000-0000-4000-8000-000000000999",
+        ...(channel === IPC.BOOK_THEME_SET ? { themeId: "classic" } : {}),
+      }),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_NOT_OPEN" } });
+  }
+  for (const themeId of [
+    "../secret",
+    "file:///secret",
+    "url(https://example.invalid)",
+    "unknown-theme",
+  ])
+    expect(
+      await f.invoke(IPC.BOOK_THEME_SET, { ...input, themeId }),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_INPUT_INVALID" } });
+  expect(
+    await f.invoke(IPC.BOOK_THEME_SET, { ...input, css: "body{}" }),
+  ).toMatchObject({ ok: false, error: { code: "PROJECT_INPUT_INVALID" } });
+  expect(
+    await f.invoke(IPC.BOOK_THEME_SET, {
+      ...input,
+      previewRevision: "a".repeat(64),
+    }),
+  ).toMatchObject({ ok: false, error: { code: "BOOK_PREVIEW_EXPIRED" } });
+  const preview = await f.invoke(IPC.BOOK_PREVIEW, { projectId: f.projectId });
+  if (!preview.ok) throw new Error("Preview failed");
+  const first = preview.value as { revision: string; document: string };
+  const path = join(f.projectPath, "manuscript", `${f.chapterId}.json`);
+  const bytes = await readFile(path, "utf8");
+  // A different valid persisted revision cannot change the already-open snapshot.
+  const chapter = JSON.parse(bytes);
+  chapter.content = {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [{ type: "text", text: "Later revision" }],
+      },
+    ],
+  };
+  const later = JSON.stringify(chapter);
+  await writeFile(path, later);
+  const switched = await f.invoke(IPC.BOOK_THEME_SET, {
+    ...input,
+    previewRevision: first.revision,
+  });
+  expect(switched).toMatchObject({
+    ok: true,
+    value: {
+      selection: { themeId: "modern" },
+      preview: { revision: first.revision },
+    },
+  });
+  if (!switched.ok) throw new Error("Switch failed");
+  const next = (switched.value as { preview: { document: string } }).preview;
+  expect(next.document).not.toBe(first.document);
+  expect(next.document.split("<body>")[1]).toBe(
+    first.document.split("<body>")[1],
+  );
+  expect(next.document).not.toContain("Later revision");
+  expect(await readFile(path, "utf8")).toBe(later);
+  expect(
+    await f.invoke(IPC.BOOK_THEME_GET, { projectId: f.projectId }),
+  ).toMatchObject({ ok: true, value: { themeId: "modern" } });
+  await f.invoke(IPC.PROJECT_CLOSE);
+  expect(await f.invoke(IPC.BOOK_THEME_SET, input)).toMatchObject({
+    ok: false,
+    error: { code: "PROJECT_NOT_OPEN" },
+  });
+  await f.invoke(IPC.PROJECT_OPEN);
+  expect(
+    await f.invoke(IPC.BOOK_THEME_SET, {
+      ...input,
+      previewRevision: first.revision,
+    }),
+  ).toMatchObject({ ok: false, error: { code: "BOOK_PREVIEW_EXPIRED" } });
 });
 
 it("authorizes book preview by main frame and active identity and rejects arbitrary paths", async () => {

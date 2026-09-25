@@ -25,6 +25,8 @@ const create = vi.fn<DrelwickApi["project"]["create"]>();
 const closeProject = vi.fn<DrelwickApi["project"]["close"]>();
 const backupProject = vi.fn<DrelwickApi["project"]["backup"]>();
 const previewBook = vi.fn<DrelwickApi["project"]["previewBook"]>();
+const getBookTheme = vi.fn<DrelwickApi["project"]["getBookTheme"]>();
+const setBookTheme = vi.fn<DrelwickApi["project"]["setBookTheme"]>();
 const restoreProject = vi.fn<DrelwickApi["project"]["restore"]>();
 const selectLocation = vi.fn<DrelwickApi["project"]["selectLocation"]>();
 const open = vi.fn<DrelwickApi["project"]["open"]>();
@@ -71,10 +73,19 @@ beforeEach(async () => {
   selectLocation.mockReset().mockResolvedValue({ ok: true, value: selected });
   open.mockReset().mockResolvedValue({ ok: true, value: workspace });
   closeProject.mockReset().mockResolvedValue({ ok: true, value: null });
+  getBookTheme.mockReset().mockResolvedValue({
+    ok: true,
+    value: { savedThemeId: "classic", themeId: "classic" },
+  });
+  setBookTheme.mockReset().mockImplementation(async ({ themeId }) => ({
+    ok: true,
+    value: { selection: { savedThemeId: themeId, themeId } },
+  }));
   previewBook.mockReset().mockResolvedValue({
     ok: true,
     value: {
       revision: "saved",
+      theme: { savedThemeId: "classic", themeId: "classic" },
       document: "<p>Saved preview</p>",
       complete: true,
       diagnostics: [],
@@ -141,6 +152,8 @@ beforeEach(async () => {
       return () => menuListeners.delete(callback);
     }),
     project: {
+      getBookTheme,
+      setBookTheme,
       previewBook,
       listHistory: vi.fn(),
       previewHistory: vi.fn(),
@@ -1214,6 +1227,81 @@ describe("chapter editor persistence", () => {
     expect(container.querySelector("iframe")).toBeNull();
   });
 
+  it("switches preview presentation without saving prose, keeps prior selection on failure, and shows unavailable theme fallback", async () => {
+    previewBook.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        revision: "saved",
+        document: "<p>Saved preview</p>",
+        complete: true,
+        diagnostics: [],
+        theme: {
+          savedThemeId: "future",
+          themeId: "classic",
+          warning: "unavailable-theme",
+        },
+      },
+    });
+    getBookTheme.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        savedThemeId: "future",
+        themeId: "classic",
+        warning: "unavailable-theme",
+      },
+    });
+    await openChapter();
+    await click("Book preview");
+    expect(container.textContent).toContain("The saved theme is unavailable");
+    const savesBeforeSwitch = saveChapter.mock.calls.length;
+    const before = JSON.stringify(editor().getJSON());
+    const select = container.querySelector(
+      "dialog select",
+    ) as HTMLSelectElement;
+    const label = container.querySelector(`label[for="${select.id}"]`);
+    expect(label?.textContent).toBe("Book theme");
+    setBookTheme.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        selection: { savedThemeId: "modern", themeId: "modern" },
+        preview: {
+          revision: "saved",
+          theme: { savedThemeId: "modern", themeId: "modern" },
+          document: "<style>p{margin:0}</style><p>Saved preview</p>",
+          complete: true,
+          diagnostics: [],
+        },
+      },
+    });
+    await act(async () => {
+      select.value = "modern";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(setBookTheme).toHaveBeenCalledWith({
+      projectId: workspace.projectId,
+      themeId: "modern",
+      previewRevision: "saved",
+    });
+    expect(select.value).toBe("modern");
+    expect(container.querySelector("iframe")?.srcdoc).toContain("<style>");
+    expect(previewBook).toHaveBeenCalledOnce();
+    expect(saveChapter).toHaveBeenCalledTimes(savesBeforeSwitch);
+    expect(JSON.stringify(editor().getJSON())).toBe(before);
+    setBookTheme.mockResolvedValueOnce({
+      ok: false,
+      error: { code: "FAILED", message: "Theme save failed" },
+    });
+    await act(async () => {
+      select.value = "literary";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(select.value).toBe("modern");
+    expect(container.textContent).toContain("Theme save failed");
+    expect(container.querySelector("iframe")?.srcdoc).toContain("<style>");
+    expect(JSON.stringify(editor().getJSON())).toBe(before);
+    expect(saveChapter).toHaveBeenCalledTimes(savesBeforeSwitch);
+  });
+
   it("cancels preview on failed save while preserving dirty prose", async () => {
     await openChapter();
     await editText("Latest unsaved prose");
@@ -1235,6 +1323,7 @@ describe("chapter editor persistence", () => {
       ok: true,
       value: {
         revision: "partial",
+        theme: { savedThemeId: "classic", themeId: "classic" },
         document: '<span role="img" aria-label="Missing alternative"></span>',
         complete: false,
         diagnostics: [
