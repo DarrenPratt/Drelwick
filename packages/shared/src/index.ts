@@ -1,5 +1,11 @@
 import { z } from "zod";
 import {
+  PublicationSaveRequestSchema,
+  PublicationCoverRequestSchema,
+  type PublicationState,
+} from "./publication-contracts.js";
+export * from "./publication-contracts.js";
+import {
   BuiltinThemeIdSchema,
   type BuiltinThemeId,
   type BookThemeSelection,
@@ -81,6 +87,9 @@ export type ChapterOrganisationRequest = z.infer<
 >;
 
 export const IPC = {
+  PUBLICATION_GET: "publication:get",
+  PUBLICATION_SAVE: "publication:save",
+  PUBLICATION_COVER: "publication:cover",
   BOOK_THEME_GET: "book:theme-get",
   BOOK_THEME_SET: "book:theme-set",
   BOOK_PREVIEW: "book:preview",
@@ -204,6 +213,9 @@ export type ProjectOperationResult<T> =
   | { ok: false; error: { code: string; message: string } };
 
 export const IpcRequestSchemas = {
+  [IPC.PUBLICATION_GET]: z.object({ projectId: z.string().uuid() }).strict(),
+  [IPC.PUBLICATION_SAVE]: PublicationSaveRequestSchema,
+  [IPC.PUBLICATION_COVER]: PublicationCoverRequestSchema,
   [IPC.BOOK_THEME_GET]: z.object({ projectId: z.string().uuid() }).strict(),
   [IPC.BOOK_THEME_SET]: z
     .object({
@@ -341,6 +353,15 @@ export interface DrelwickApi {
   ): () => void;
   onShutdownRequested(callback: () => Promise<boolean>): () => void;
   project: {
+    getPublication(input: {
+      projectId: string;
+    }): Promise<ProjectOperationResult<PublicationState>>;
+    savePublication(
+      input: z.infer<typeof PublicationSaveRequestSchema>,
+    ): Promise<ProjectOperationResult<PublicationState>>;
+    selectPublicationCover(
+      input: z.infer<typeof PublicationCoverRequestSchema>,
+    ): Promise<ProjectOperationResult<PublicationState | null>>;
     getBookTheme(input: {
       projectId: string;
     }): Promise<ProjectOperationResult<BookThemeSelection>>;

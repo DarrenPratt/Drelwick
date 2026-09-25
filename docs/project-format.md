@@ -26,6 +26,12 @@ the [tracking register](planning/github-tracking.md#pre-release-product-identity
 
 ## Implemented format
 
+Issue #123 adds optional version-1 `publication.json` for publication metadata,
+semantic matter pages, independent inclusion flags and the managed cover UUID.
+Existing chapter/manifest/book versions and bytes are preserved. Its additive
+initialization uses verified recovery snapshots and one atomic component commit;
+see [publication compatibility and recovery](publication-matter.md).
+
 The [staged manuscript import pipeline](manuscript-import.md) translates validated
 imports into this existing format. Its temporary intermediate envelope is internal
 version 1; it does not change authoritative project or component versions.

@@ -16,6 +16,8 @@ import {
   BOOK_PRESENTATION_FILE,
 } from "./book-presentation.js";
 import type { BookPresentation } from "@drelwick/project-model";
+import { PUBLICATION_INCLUSION } from "@drelwick/shared";
+import { readPublication, PUBLICATION_FILE } from "./publication.js";
 
 export interface AssembledBook {
   presentation: BookPresentation;
@@ -71,6 +73,9 @@ export async function assembleBook(
         presentation.bytes,
       );
     const chapters: BookRevision["chapters"][number][] = [];
+    const publication = await readPublication(projectPath, session);
+    if (publication.bytes)
+      captured.set(join(projectPath, PUBLICATION_FILE), publication.bytes);
     const ids = new Set<string>();
     for (const id of session.project.manuscript.order) {
       const path = join(projectPath, "manuscript", `${id}.json`);
@@ -93,6 +98,11 @@ export async function assembleBook(
       const document = ManuscriptDocumentSchema.safeParse(chapter.data.content);
       if (!document.success) throw failure("CHAPTER_DOCUMENT_INVALID");
       chapters.push({
+        publication: {
+          section: "body",
+          inclusion: publication.data.body.find((entry) => entry.id === id)
+            ?.inclusion ?? { ...PUBLICATION_INCLUSION },
+        },
         id,
         title: chapter.data.title,
         type: chapter.data.type,
@@ -100,6 +110,56 @@ export async function assembleBook(
       });
       manuscriptImageReferences(document.data).forEach((id) => ids.add(id));
       await options.checkpoint?.(id);
+    }
+    const matter = (placement: "front" | "back") =>
+      publication.data.pages
+        .filter((page) => page.placement === placement)
+        .map((page) => {
+          const document = ManuscriptDocumentSchema.parse(page.document);
+          manuscriptImageReferences(document).forEach((id) => ids.add(id));
+          return {
+            id: page.id,
+            title: page.title,
+            type:
+              placement === "front"
+                ? ("frontmatter" as const)
+                : ("backmatter" as const),
+            document,
+            publication: {
+              section: placement,
+              kind: page.type,
+              inclusion: page.inclusion,
+            },
+          };
+        });
+    chapters.unshift(...matter("front"));
+    chapters.push(...matter("back"));
+    if (publication.data.coverAssetId) {
+      const id = publication.data.coverAssetId;
+      ids.add(id);
+      chapters.unshift({
+        id,
+        title: "Ebook cover",
+        type: "frontmatter",
+        publication: {
+          section: "front",
+          kind: "cover",
+          inclusion: { navigation: false, ebook: true, print: false },
+        },
+        document: ManuscriptDocumentSchema.parse({
+          type: "doc",
+          content: [
+            {
+              type: "image",
+              attrs: {
+                assetId: id,
+                alt: `${publication.data.metadata.title} cover`,
+                size: "full",
+              },
+            },
+          ],
+        }),
+      });
     }
     const descriptors: BookAsset[] = [];
     const assets = new Map<string, Uint8Array>();
@@ -157,8 +217,12 @@ export async function assembleBook(
     }
     const value = {
       projectId: session.project.projectId,
-      title: session.book.title,
-      language: session.book.language,
+      title: publication.data.metadata.title,
+      language: publication.data.metadata.language,
+      metadata: publication.data.metadata,
+      ...(publication.data.coverAssetId
+        ? { coverAssetId: publication.data.coverAssetId }
+        : {}),
       chapters,
       assets: descriptors,
     };
@@ -169,6 +233,11 @@ export async function assembleBook(
       projectPath,
       session.project.projectId,
     );
+    if (
+      (await readPublication(projectPath, session)).revision !==
+      publication.revision
+    )
+      throw failure("BOOK_REVISION_CHANGED");
     if (
       JSON.stringify(presentation.settings) !==
       JSON.stringify(latestPresentation.settings)

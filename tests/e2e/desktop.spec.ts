@@ -19,6 +19,217 @@ import {
   type ElectronApplication,
 } from "@playwright/test";
 import { copyFixture } from "../helpers/fixture-projects.js";
+
+test("Publication pages preserve prose and identity through editing, cover import and restart", async () => {
+  const fixture = await copyFixture("minimal-book");
+  const scratch = await mkdtemp(join(tmpdir(), "drelwick-publication-"));
+  let application: ElectronApplication | undefined;
+  try {
+    const chapterPath = join(
+      fixture.projectPath,
+      "manuscript",
+      "00000000-0000-4000-8000-000000000111.json",
+    );
+    const before = await readFile(chapterPath);
+    const source = join(scratch, "cover.png");
+    const sourceBytes = await syntheticImage();
+    await writeFile(source, sourceBytes);
+    let launched = await launchApplication(join(scratch, "user-data"));
+    application = launched.application;
+    let page = launched.page;
+    const openProject = async () => {
+      await application!.evaluate(({ dialog }, path) => {
+        dialog.showOpenDialog = async () => ({
+          canceled: false,
+          filePaths: [path],
+        });
+      }, fixture.projectPath);
+      await page
+        .getByRole("button", { name: "Open project", exact: true })
+        .click();
+      await expect(page.locator(".ProseMirror")).toBeEditable();
+      await page
+        .getByRole("button", {
+          name: "Publication details and pages",
+          exact: true,
+        })
+        .first()
+        .click();
+    };
+    await openProject();
+    let dialog = page.getByRole("dialog", {
+      name: "Publication details and pages",
+      exact: true,
+    });
+    await dialog
+      .getByLabel("Publication title", { exact: true })
+      .fill("A <script> & book");
+    await dialog
+      .getByLabel("Publication author", { exact: true })
+      .fill("An Author");
+    await dialog.getByLabel("Publication language", { exact: true }).fill("fr");
+    await dialog
+      .getByLabel("Description", { exact: true })
+      .fill("A description — 日本語");
+    await dialog
+      .getByRole("button", { name: "Add identifier", exact: true })
+      .click();
+    await dialog
+      .getByLabel("Identifier 1 scheme", { exact: true })
+      .selectOption("other");
+    await dialog.getByLabel("Identifier 1", { exact: true }).fill("LOCAL-123");
+    await dialog
+      .getByRole("button", { name: "Add dedication page", exact: true })
+      .click();
+    const editor = dialog.locator(".ProseMirror");
+    await editor.fill("For everyone — preserved prose.");
+    await dialog
+      .getByRole("button", { name: "Save publication", exact: true })
+      .click();
+    await expect(
+      dialog.getByRole("status").filter({ hasText: "Publication saved." }),
+    ).toBeVisible();
+    const first = JSON.parse(
+      await readFile(join(fixture.projectPath, "publication.json"), "utf8"),
+    );
+    await dialog
+      .getByLabel("Page type", { exact: true })
+      .selectOption("copyright");
+    await expect(editor).toHaveText("For everyone — preserved prose.");
+    const matter = dialog.getByRole("region", { name: "Matter page editor" });
+    await matter.getByLabel("Include in navigation", { exact: true }).check();
+    await matter.getByLabel("Include in print", { exact: true }).uncheck();
+    const recoveryPath = join(fixture.projectPath, "publication.json.tmp");
+    await writeFile(recoveryPath, "Synthetic retained recovery evidence");
+    await dialog
+      .getByRole("button", { name: "Save publication", exact: true })
+      .click();
+    await expect(
+      dialog
+        .getByRole("status")
+        .filter({ hasText: "Publication changes could not finish" }),
+    ).toBeVisible();
+    expect(
+      JSON.parse(
+        await readFile(join(fixture.projectPath, "publication.json"), "utf8"),
+      ),
+    ).toEqual(first);
+    await expect(editor).toHaveText("For everyone — preserved prose.");
+    await expect(dialog.getByLabel("Page type", { exact: true })).toHaveValue(
+      "copyright",
+    );
+    // Remove only the exact synthetic recovery file this test created.
+    await rm(recoveryPath);
+    await dialog
+      .getByRole("button", { name: "Save publication", exact: true })
+      .click();
+    await expect(
+      dialog.getByRole("status").filter({ hasText: "Publication saved." }),
+    ).toBeVisible();
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, source);
+    await dialog
+      .getByRole("button", { name: "Select ebook cover", exact: true })
+      .click();
+    await expect(dialog.getByAltText("Selected ebook cover")).toBeVisible();
+    await dialog.screenshot({
+      path: test.info().outputPath("publication-matter.png"),
+    });
+    await dialog
+      .getByRole("button", { name: "Add title page", exact: true })
+      .click();
+    await dialog
+      .getByRole("button", { name: "Move page earlier", exact: true })
+      .click();
+    await dialog
+      .getByRole("button", { name: "Save publication", exact: true })
+      .click();
+    await expect(
+      dialog.getByRole("status").filter({ hasText: "Publication saved." }),
+    ).toBeVisible();
+    await expect(
+      dialog
+        .getByRole("region", { name: "front reading order" })
+        .getByRole("button")
+        .first(),
+    ).toHaveText("Title page");
+    await dialog
+      .getByRole("button", { name: "Close publication", exact: true })
+      .click();
+    await application.close();
+    application = undefined;
+    launched = await launchApplication(join(scratch, "user-data"));
+    application = launched.application;
+    page = launched.page;
+    await openProject();
+    dialog = page.getByRole("dialog", {
+      name: "Publication details and pages",
+      exact: true,
+    });
+    await expect(
+      dialog.getByLabel("Publication title", { exact: true }),
+    ).toHaveValue("A <script> & book");
+    await expect(
+      dialog.getByLabel("Publication language", { exact: true }),
+    ).toHaveValue("fr");
+    await expect(
+      dialog.getByLabel("Identifier 1", { exact: true }),
+    ).toHaveValue("LOCAL-123");
+    await dialog
+      .getByRole("button", { name: "Dedication", exact: true })
+      .click();
+    await expect(dialog.getByLabel("Page type", { exact: true })).toHaveValue(
+      "copyright",
+    );
+    await expect(dialog.locator(".ProseMirror")).toHaveText(
+      "For everyone — preserved prose.",
+    );
+    const saved = JSON.parse(
+      await readFile(join(fixture.projectPath, "publication.json"), "utf8"),
+    );
+    expect(saved.pages[1].id).toBe(first.pages[0].id);
+    expect(saved.pages[1].document).toEqual(first.pages[0].document);
+    expect(saved.pages[1].inclusion).toEqual({
+      navigation: true,
+      ebook: true,
+      print: false,
+    });
+    expect(await readFile(chapterPath)).toEqual(before);
+    expect(await readFile(source)).toEqual(sourceBytes);
+    await dialog
+      .getByRole("button", { name: "Close publication", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Book preview", exact: true })
+      .click();
+    const frame = page
+      .getByRole("dialog", { name: "Book preview", exact: true })
+      .frameLocator("iframe");
+    await expect(frame.locator("body")).toContainText(
+      "For everyone — preserved prose.",
+    );
+    await expect(frame.locator("script")).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "Close preview", exact: true })
+      .click();
+    await application.close();
+    application = undefined;
+  } finally {
+    // A failed assertion may leave the dirty-state modal open and veto normal close.
+    application?.process().kill();
+    await fixture.cleanup();
+    await rm(scratch, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 100,
+    });
+  }
+});
 import {
   generateThemeStyles,
   getBookTheme,

@@ -10,6 +10,7 @@ import {
   ApplicationError,
   type BookPreview,
   type BookThemeSelection,
+  type PublicationMetadata,
 } from "@drelwick/shared";
 import { createHash } from "node:crypto";
 
@@ -18,6 +19,7 @@ export const BOOK_PREVIEW_CSP =
   "default-src 'none'; script-src 'none'; style-src 'none'; img-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
 
 export interface PreparedBookPreview {
+  metadata?: PublicationMetadata;
   projectId: string;
   language: string;
   markup: string;
@@ -38,6 +40,7 @@ export async function prepareBookPreview(
       "The project changed. Reopen it before previewing.",
     );
   const rendered = renderBook(snapshot.book, {
+    target: "ebook",
     links: "inert",
     resolveAsset: (asset) => {
       const bytes = snapshot.assets.get(asset.id);
@@ -50,6 +53,7 @@ export async function prepareBookPreview(
     },
   });
   return {
+    ...(snapshot.book.metadata ? { metadata: snapshot.book.metadata } : {}),
     projectId,
     language: snapshot.book.language,
     markup: rendered.chapters.map((chapter) => chapter.xhtml).join(""),
@@ -76,6 +80,6 @@ export function presentBookPreview(
     complete: prepared.complete,
     diagnostics: prepared.diagnostics,
     theme: selection,
-    document: `<!doctype html><html lang="${escapeXml(prepared.language)}"><head><meta charset="utf-8" /><meta http-equiv="Content-Security-Policy" content="${escapeXml(policy)}" /><title>Book preview</title><style>${css}</style></head><body>${prepared.markup}</body></html>`,
+    document: `<!doctype html><html lang="${escapeXml(prepared.language)}"><head><meta charset="utf-8" /><meta http-equiv="Content-Security-Policy" content="${escapeXml(policy)}" /><title>${escapeXml(prepared.metadata?.title ?? "Book preview")}</title>${prepared.metadata ? `<meta name="author" content="${escapeXml(prepared.metadata.author)}" /><meta name="description" content="${escapeXml(prepared.metadata.description)}" />` : ""}<style>${css}</style></head><body>${prepared.markup}</body></html>`,
   };
 }

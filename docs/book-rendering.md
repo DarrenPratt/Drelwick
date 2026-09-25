@@ -34,7 +34,10 @@ document against `ManuscriptDocumentSchema`. Recoverable chapter `.tmp` files
 block assembly without deletion. No authoritative files are written; normal asset
 validation can refresh the disposable summary cache.
 
-The manifest's `manuscript.order` is the only reading order. All documents and
+The manifest's `manuscript.order` is the canonical body order. Issue #123 adds
+ordered front/back matter around that body and an ebook-only cover, using the
+same serializer. See [publication assembly and inclusion](publication-matter.md).
+All documents and
 validated original image bytes are captured while holding the lock. Captured
 source files are compared again before release to detect external modifications.
 The result owns its in-memory data; consumers must use these captured bytes, not

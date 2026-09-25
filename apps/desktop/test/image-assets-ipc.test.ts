@@ -6,6 +6,7 @@ import {
   IPC,
   type ProjectOperationResult,
   type ProjectWorkspace,
+  type PublicationState,
 } from "@drelwick/shared";
 import {
   copyFixture,
@@ -223,6 +224,91 @@ it("authorizes book preview by main frame and active identity and rejects arbitr
     },
   });
   expect(JSON.stringify(result)).not.toContain(f.source);
+});
+
+it("restricts publication operations to the active main frame and validates metadata, semantic pages and cover selection", async () => {
+  const f = await setup();
+  const input = { projectId: f.projectId };
+  for (const channel of [
+    IPC.PUBLICATION_GET,
+    IPC.PUBLICATION_SAVE,
+    IPC.PUBLICATION_COVER,
+  ]) {
+    expect(
+      await f.invoke(channel, input, {
+        ...f.event,
+        senderFrame: { url: "about:srcdoc" },
+      } as unknown as IpcMainInvokeEvent),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_ACCESS_DENIED" } });
+  }
+  expect(
+    await f.invoke(IPC.PUBLICATION_GET, { ...input, path: "file:///secret" }),
+  ).toMatchObject({ ok: false });
+  expect(
+    await f.invoke(IPC.PUBLICATION_GET, {
+      projectId: "00000000-0000-4000-8000-000000000999",
+    }),
+  ).toMatchObject({ ok: false, error: { code: "PROJECT_NOT_OPEN" } });
+  const loaded = await f.invoke(IPC.PUBLICATION_GET, input);
+  if (!loaded.ok) throw new Error("Publication unavailable");
+  const state = loaded.value as PublicationState;
+  const unsafe = {
+    ...state.data,
+    metadata: { ...state.data.metadata, language: "javascript:alert(1)" },
+  };
+  expect(
+    await f.invoke(IPC.PUBLICATION_SAVE, {
+      ...input,
+      expectedRevision: state.revision,
+      data: unsafe,
+    }),
+  ).toMatchObject({ ok: false, error: { code: "PROJECT_INPUT_INVALID" } });
+  const metadata = {
+    ...state.data.metadata,
+    title: '<script>alert("metadata")</script>',
+    author: "Tom & Jane",
+    description: '" < > & 日本語',
+  };
+  const saved = await f.invoke(IPC.PUBLICATION_SAVE, {
+    ...input,
+    expectedRevision: state.revision,
+    data: { ...state.data, metadata },
+  });
+  expect(saved).toMatchObject({ ok: true, value: { data: { metadata } } });
+  if (!saved.ok) throw new Error("Save failed");
+  const current = saved.value as PublicationState;
+  expect(
+    await f.invoke(IPC.PUBLICATION_COVER, {
+      ...input,
+      expectedRevision: current.revision,
+      sourcePath: f.source,
+    }),
+  ).toMatchObject({ ok: false, error: { code: "PROJECT_INPUT_INVALID" } });
+  expect(f.picker).not.toHaveBeenCalled();
+  f.picker.mockResolvedValueOnce(null);
+  expect(
+    await f.invoke(IPC.PUBLICATION_COVER, {
+      ...input,
+      expectedRevision: current.revision,
+    }),
+  ).toEqual({ ok: true, value: null });
+  const cover = await f.invoke(IPC.PUBLICATION_COVER, {
+    ...input,
+    expectedRevision: current.revision,
+  });
+  expect(cover).toMatchObject({
+    ok: true,
+    value: { data: { coverAssetId: expect.any(String) } },
+  });
+  expect(JSON.stringify(cover)).not.toContain(f.source);
+  const preview = await f.invoke(IPC.BOOK_PREVIEW, input);
+  if (!preview.ok) throw new Error("Preview failed");
+  const document = (preview.value as { document: string }).document;
+  expect(document).toContain(
+    "&lt;script&gt;alert(&quot;metadata&quot;)&lt;/script&gt;",
+  );
+  expect(document).toContain("Tom &amp; Jane");
+  expect(document).not.toContain("<script>");
 });
 it("rejects untrusted frames, paths, crafted IDs, foreign projects and unknown chapters before selection", async () => {
   const f = await setup();

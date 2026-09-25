@@ -52,6 +52,7 @@ const knownProjectRoots = new Set([
   "book.json",
   "format.json",
   "presentation.json",
+  "publication.json",
   "cover.jpg",
 ]);
 const excludedDirectoryNames = new Set([

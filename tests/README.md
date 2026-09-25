@@ -44,6 +44,14 @@ Node.js types match the supported Node 24 runtime. Tests explicitly import
 
 ## Workspace conventions
 
+Issue #123 uses `packages/core/test/publication.test.ts` for migration, exact
+chapter preservation, matter editing/order/type changes, all inclusion combinations,
+atomic failures, managed covers and portable backup/restore. Desktop IPC tests
+exercise trusted-frame/project authorization and escaped metadata. The Electron
+publication scenario edits and reorders matter, retains drafts after a failed save,
+imports a cover and restarts without changing chapter or source-cover bytes.
+See [the publication acceptance evidence](../docs/publication-matter.md#acceptance-evidence).
+
 Issue #122's Community theme tests live in `packages/renderer/test/themes.test.ts`
 (strict configuration, six preset/target CSS goldens, exact semantic preservation,
 offline/generic fonts) and `packages/core/test/book-presentation.test.ts`
