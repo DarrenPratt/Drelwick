@@ -7,6 +7,7 @@ import type {
   HistorySelection,
 } from "@drelwick/shared";
 import { createManuscriptExtensions } from "./components/manuscript-extensions.js";
+import { ManuscriptImage } from "./components/ManuscriptImage.js";
 
 export function HistoryPreviewContent({
   content,
@@ -14,7 +15,14 @@ export function HistoryPreviewContent({
   content: Record<string, unknown>;
 }) {
   const editor = useEditor({
-    extensions: createManuscriptExtensions(),
+    extensions: [
+      ...createManuscriptExtensions().filter(
+        (extension) => extension.name !== "image",
+      ),
+      // Use the existing semantic figure/alt-text renderer, without the live
+      // editor's image loader and retry controls in this read-only preview.
+      ManuscriptImage.extend({ addNodeView: () => null }),
+    ],
     content,
     editable: false,
     editorProps: {

@@ -52,7 +52,7 @@ and Unicode retain their structure. It never loads content into the live editor,
 changes revision counters, or initiates a save. Normal autosave may independently
 finish while the dialog is open.
 
-Links cannot navigate. Image references are shown as unavailable placeholders;
+Links cannot navigate. Image references are shown as semantic alt-text placeholders;
 preview makes no image or remote requests. The dialog explains that references
 are preserved and missing assets remain unavailable. Restore uses normal asset
 semantics: missing references are retained, never silently removed; existing
@@ -134,3 +134,5 @@ revalidates at execution time. Old snapshots may naturally expire after restart.
 
 See [the acceptance audit](planning/120-history-acceptance.md) for executable
 evidence and [startup recovery](manuscript-recovery.md) for the separate workflow.
+
+![Chapter History preview of the synthetic formatted fixture](screenshots/chapter-history.png)

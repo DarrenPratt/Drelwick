@@ -70,7 +70,10 @@ it("renders semantic formatting read-only, treats prose as text, and fetches no 
         ?.getAttribute("contenteditable"),
     ).toBe("false");
     expect(container.querySelector("img[src]")).toBeNull();
-    expect(container.textContent).toContain("Image unavailable");
+    expect(container.querySelector("figure")?.textContent).toBe(
+      "Missing image",
+    );
+    expect(container.querySelector("button")).toBeNull();
     const click = new MouseEvent("click", { bubbles: true, cancelable: true });
     container.querySelector("a")!.dispatchEvent(click);
     expect(click.defaultPrevented).toBe(true);

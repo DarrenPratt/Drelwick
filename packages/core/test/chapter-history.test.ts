@@ -9,6 +9,7 @@ import {
 import {
   applyHistoryRetention,
   createHistorySnapshot,
+  createChapter,
   deleteChapter,
   listHistorySnapshots,
   loadChapter,
@@ -141,14 +142,22 @@ it("lists validated metadata deterministically, previews without writes and pres
     reason: "before-replace",
     now: f.old.created,
   }))!;
+  const earlier = (await createHistorySnapshot({
+    ...f,
+    document: prose("earlier"),
+    reason: "before-replace",
+    now: new Date(Date.parse(f.old.created) - 3600000).toISOString(),
+  }))!;
   const listed = await listHistorySnapshots(f.projectPath, f.chapterId);
-  expect(listed.entries.map((entry) => entry.id)).toEqual(
-    [f.old.id, second.id].sort(),
-  );
+  expect(listed.entries.map((entry) => entry.id)).toEqual([
+    ...[f.old.id, second.id].sort(),
+    earlier.id,
+  ]);
   expect(
     listed.entries.every(
       (entry) =>
-        entry.chapterId === f.chapterId && entry.created === f.old.created,
+        entry.chapterId === f.chapterId &&
+        !Number.isNaN(Date.parse(entry.created)),
     ),
   ).toBe(true);
   expect(listed.entries.every((entry) => !("content" in entry))).toBe(true);
@@ -277,12 +286,26 @@ it("rejects stale current content, changed/pruned selection, wrong chapter and d
   ).rejects.toMatchObject({ code: "HISTORY_UNAVAILABLE" });
   await writeFile(snapshotPath, JSON.stringify(f.old));
   await deleteChapter(f);
+  const replacement = await createChapter({
+    projectPath: f.projectPath,
+    title: "Current Formatting",
+  });
+  const unrelated = await loadChapter({
+    projectPath: f.projectPath,
+    chapterId: replacement.chapter.id,
+  });
   expect(
     (await listHistorySnapshots(f.projectPath, f.chapterId)).entries,
   ).toHaveLength(1);
   await expect(
     saveChapter({ ...f, document: prose("B") }),
   ).rejects.toMatchObject({ code: "CHAPTER_NOT_FOUND" });
+  expect(
+    await loadChapter({
+      projectPath: f.projectPath,
+      chapterId: replacement.chapter.id,
+    }),
+  ).toEqual(unrelated);
   expect(
     (await openProject(f.projectPath)).project.manuscript.order,
   ).not.toContain(f.chapterId);
@@ -320,6 +343,13 @@ it.each([
   });
   await expect(
     readHistorySnapshot(f.projectPath, f.chapterId, id),
+  ).rejects.toMatchObject({ code: "HISTORY_UNAVAILABLE" });
+  await expect(
+    saveChapter({
+      ...f,
+      document: f.original.content,
+      restore: { snapshotId: id, fingerprint: "a".repeat(64) },
+    }),
   ).rejects.toMatchObject({ code: "HISTORY_UNAVAILABLE" });
 });
 

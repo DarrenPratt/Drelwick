@@ -93,7 +93,9 @@ restore; synchronously freezing editing before flush; keeping editing disabled
 on uncertain IPC outcomes; validating preview fingerprints at execution; advancing
 modified time through clock skew; rechecking trusted frame after asynchronous
 reads; avoiding overlapping poll reads; and resetting preview when selection or
-refresh changes. The preview test was renamed to `.test.ts` to match actual Vitest
+refresh changes. Preview uses the existing static semantic image representation,
+without the live editor's image loader or misleading retry controls. The preview
+test was renamed to `.test.ts` to match actual Vitest
 discovery, then executed successfully rather than relying on an undiscovered test.
 
 No direct snapshot-to-chapter copy, new history schema, recovery decisions on
@@ -112,5 +114,31 @@ no macOS/Linux physical power-loss validation is claimed.
 
 ## Repository checks
 
-Final command results are recorded in the PR and delivery response. Any failed
-development checks were corrected before the final full verification.
+Executed on Windows with Node 24.20.0 and pnpm 10.34.5:
+
+| Command                                          | Result                                                          |
+| ------------------------------------------------ | --------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`                 | PASS; unchanged lockfile                                        |
+| `pnpm lint`                                      | PASS                                                            |
+| `pnpm format:check`                              | PASS                                                            |
+| `pnpm typecheck`                                 | PASS                                                            |
+| `pnpm test`                                      | PASS; 66 files, 821 tests                                       |
+| `pnpm build`                                     | PASS; also executed by typecheck/test/workspace scripts         |
+| `pnpm check:workspace`                           | PASS                                                            |
+| `pnpm test:coverage`                             | PASS; 821 tests; 67.8% statements, 70.14% lines repository-wide |
+| `pnpm test:e2e`                                  | PASS; 10 native Electron tests                                  |
+| `pnpm exec playwright test -g 'Chapter History'` | PASS; rerun after final preview correction                      |
+| `git diff --check`                               | PASS                                                            |
+
+Targeted Vitest development runs covered core history, existing history/recovery,
+editor workflows, preview, IPC and preload; the final full suite includes all of
+them. Initial typecheck failures (request narrowing/test API mock), a lint failure
+(preview effect state reset), and development-test failures (recovery test method
+name/preload call indexing) were corrected and rerun successfully. No failing
+checks remain. Build output retains the existing non-fatal bundle-size warning;
+frozen install reports the repository's ignored esbuild build scripts.
+
+Coverage preceded the final static-image preview correction; the complete unit
+suite and native history scenario were rerun successfully afterward. The screenshot
+in `docs/screenshots/chapter-history.png` was captured from Electron using the
+synthetic formatted fixture and visually inspected.
