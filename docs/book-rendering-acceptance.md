@@ -87,3 +87,40 @@ must prevent successful export. Memory use scales with the captured manuscript a
 images. Native UI/security tests were executed on Windows; macOS/Linux native
 execution is not claimed. Themes, publication matter, EPUB packaging and print
 pagination remain their own issues.
+
+## Executed checks
+
+Validation completed on Windows with repository-pinned Node/pnpm tooling.
+
+| Exact command                                        | Final result                                                                      |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`                     | PASS, including the updated workspace lockfile                                    |
+| `pnpm lint`                                          | PASS                                                                              |
+| `pnpm format:check`                                  | PASS                                                                              |
+| `pnpm typecheck`                                     | PASS                                                                              |
+| `pnpm exec tsc -p tsconfig.test.json`                | PASS, including the final added tests                                             |
+| `pnpm test`                                          | PASS: 875 tests, 68 files                                                         |
+| `pnpm build`                                         | PASS: all Community packages and desktop                                          |
+| `pnpm check:workspace`                               | PASS: built renderer executes in plain Node                                       |
+| `pnpm test:coverage`                                 | PASS: 875 tests; semantic renderer 100% lines, 98.54% statements, 93.45% branches |
+| `pnpm test:e2e`                                      | PASS: all 11 native Electron scenarios                                            |
+| `pnpm exec playwright test -g 'shared book preview'` | PASS: final preview/security scenario and screenshot                              |
+| `git diff 73fd419 --check`                           | PASS                                                                              |
+
+Focused runs also passed:
+
+```sh
+pnpm exec vitest run packages/renderer/test/render.test.ts packages/core/test/book-assembly.test.ts apps/desktop/test/project-workflows.test.ts apps/desktop/test/image-assets-ipc.test.ts apps/desktop/test/preload.test.ts --update
+pnpm exec vitest run packages/renderer/test/render.test.ts --update
+pnpm exec vitest run packages/core/test/book-assembly.test.ts packages/renderer/test/render.test.ts apps/desktop/test/project-workflows.test.ts
+pnpm exec vitest run packages/renderer/test/render.test.ts apps/desktop/test/project-workflows.test.ts
+```
+
+The `--update` runs created/revised the reviewed golden; later full runs compared it
+without updating. Initial typecheck failures identified a missing preload mock and
+non-iterable DOM typing; lint identified a control-character validation regex;
+format checks caught newly edited files; the initial native preview run found the
+hidden command. All were corrected and the corresponding commands passed again.
+No check was weakened. Existing nonblocking Vite chunk-size and ignored esbuild
+install-script warnings remain. Hosted CI status belongs to the PR, not these
+local results.
