@@ -26,6 +26,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@drelwick/renderer": "workspace:*",
     "@drelwick/project-model": "workspace:*",
     "@drelwick/shared": "workspace:*",
     "fflate": "0.8.3",

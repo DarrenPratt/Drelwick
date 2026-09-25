@@ -20,6 +20,7 @@ export interface WorkspaceLayoutProps {
   status: ReactNode;
   library: ReactNode;
   notice?: ReactNode;
+  bookPreviewAction?: ReactNode;
 }
 
 /** Presentation shell only: mock controls never call persistence or export APIs. */
@@ -31,6 +32,7 @@ export function WorkspaceLayout({
   status,
   library,
   notice,
+  bookPreviewAction,
 }: WorkspaceLayoutProps) {
   const [panel, setPanel] = useState<Panel | null>("preview");
   const [navigationOpen, setNavigationOpen] = useState(
@@ -245,7 +247,11 @@ export function WorkspaceLayout({
             <div>
               <h2>{panelNames[panel]}</h2>
               <span className="mock-tag">
-                {panel === "preview" ? "Layout mock" : "Feature mock"}
+                {panel === "preview"
+                  ? bookPreviewAction
+                    ? "Manuscript"
+                    : "Layout mock"
+                  : "Feature mock"}
               </span>
             </div>
             <button
@@ -262,7 +268,7 @@ export function WorkspaceLayout({
             </button>
           </header>
           <div className="inspector-scroll">
-            {panel === "preview" && samplePreview}
+            {panel === "preview" && (bookPreviewAction ?? samplePreview)}
             {panel === "format" && (
               <>
                 <div className="tool-intro">

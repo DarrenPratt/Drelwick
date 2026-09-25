@@ -174,6 +174,18 @@ Issue #49's failure tests cover the renderer and main-process boundaries:
 | Dirty and on-disk content is preserved | The boundary test keeps synthetic dirty state above the failed subtree, restores it on retry and verifies that a copied fixture chapter remains byte-for-byte unchanged.                                  |
 | Renderer reports remain sanitized      | The boundary sends only the error name; `renderer-error-ipc.test.ts` verifies sender authorization and rejects raw messages, extra payload fields, oversized values and untrusted frames without logging. |
 
+## Shared book rendering (#121)
+
+`packages/renderer/test/render.test.ts` validates every current node/mark against
+an exact XHTML golden, strict XML parsing and independent exact reading-text
+extraction. `packages/core/test/book-assembly.test.ts` checks canonical ordering,
+writer-lock exclusion, changed-source detection, recovery refusal and validated
+captured image bytes. Desktop workflow/IPC tests exercise save-before-preview,
+failed-save cancellation and authorization. The `shared book preview` Electron
+scenario verifies sandbox/CSP behavior, absent privileged globals, inaccessible
+parent document, inert links, controlled images and no remote requests. See
+[rendering evidence](../docs/book-rendering-acceptance.md).
+
 ## Coverage
 
 Open `coverage/index.html` for the HTML report or use `coverage/lcov.info` with CI

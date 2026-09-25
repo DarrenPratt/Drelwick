@@ -49,6 +49,7 @@ const api: DrelwickApi = {
     cancel: () => ipcRenderer.invoke(IPC.RECOVERY_CANCEL),
   },
   project: {
+    previewBook: (input) => ipcRenderer.invoke(IPC.BOOK_PREVIEW, input),
     listHistory: (input) => ipcRenderer.invoke(IPC.HISTORY_LIST, input),
     previewHistory: (input) => ipcRenderer.invoke(IPC.HISTORY_PREVIEW, input),
     restoreHistory: (input) => ipcRenderer.invoke(IPC.HISTORY_RESTORE, input),

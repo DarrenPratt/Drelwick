@@ -9,3 +9,5 @@
 **/test-results/
 # Managed by pnpm, not by the formatter.
 pnpm-lock.yaml
+# Exact serializer golden bytes; formatting would change the expected output.
+packages/renderer/test/golden/*.xhtml

@@ -1353,7 +1353,13 @@ all use the same algorithm.
 
 # 42. Book Renderer
 
-Create a generic rendering pipeline.
+Implemented by #121: `packages/core` assembles a consistent saved `BookRevision`
+under the existing project lock. `packages/renderer` serializes all supported
+semantics into deterministic XHTML-compatible chapter fragments. Preview, EPUB
+and print consume this single traversal through asset/link resolvers and separate
+wrappers/styles. See [the rendering contract and support matrix](book-rendering.md).
+The older conceptual interfaces below describe future orchestration, not separate
+semantic renderers or current theme implementation.
 
 ```typescript
 interface BookRenderer {

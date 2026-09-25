@@ -42,6 +42,7 @@ import {
 } from "@drelwick/shared";
 import type { RecentProjects } from "../recent-projects.js";
 import { HistoryRuntime } from "../history-runtime.js";
+import { createBookPreview } from "../book-preview.js";
 import { basename, dirname, join } from "node:path";
 
 interface HistoryTasks {
@@ -253,6 +254,49 @@ export function registerProjectHandlers(
       event.senderFrame?.url === rendererUrl
     );
   };
+
+  ipcMain.handle(IPC.BOOK_PREVIEW, async (event, payload: unknown) => {
+    if (!trusted(event))
+      return failure(
+        "PROJECT_ACCESS_DENIED",
+        "Project access is not permitted.",
+      );
+    const parsed = IpcRequestSchemas[IPC.BOOK_PREVIEW].safeParse(payload);
+    if (!parsed.success)
+      return failure("PROJECT_INPUT_INVALID", "Invalid preview request.");
+    if (!activeProjectPath || parsed.data.projectId !== activeProjectId)
+      return failure(
+        "PROJECT_NOT_OPEN",
+        "Reopen the project before previewing.",
+      );
+    if (busy)
+      return failure(
+        "PROJECT_BUSY",
+        "Wait for the current project operation and retry.",
+      );
+    busy = true;
+    try {
+      await history.settleProject(activeProjectPath);
+      const value = await createBookPreview(
+        activeProjectPath,
+        parsed.data.projectId,
+      );
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      return { ok: true, value };
+    } catch {
+      // Do not forward filesystem errors, schema payloads or rendered prose.
+      return failure(
+        "BOOK_PREVIEW_FAILED",
+        "Unable to preview the book. Save pending edits and resolve any project recovery or access problems before retrying.",
+      );
+    } finally {
+      busy = false;
+    }
+  });
 
   for (const channel of [
     IPC.HISTORY_LIST,

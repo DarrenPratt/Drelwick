@@ -24,6 +24,7 @@ const workspace = {
 const create = vi.fn<DrelwickApi["project"]["create"]>();
 const closeProject = vi.fn<DrelwickApi["project"]["close"]>();
 const backupProject = vi.fn<DrelwickApi["project"]["backup"]>();
+const previewBook = vi.fn<DrelwickApi["project"]["previewBook"]>();
 const restoreProject = vi.fn<DrelwickApi["project"]["restore"]>();
 const selectLocation = vi.fn<DrelwickApi["project"]["selectLocation"]>();
 const open = vi.fn<DrelwickApi["project"]["open"]>();
@@ -70,6 +71,15 @@ beforeEach(async () => {
   selectLocation.mockReset().mockResolvedValue({ ok: true, value: selected });
   open.mockReset().mockResolvedValue({ ok: true, value: workspace });
   closeProject.mockReset().mockResolvedValue({ ok: true, value: null });
+  previewBook.mockReset().mockResolvedValue({
+    ok: true,
+    value: {
+      revision: "saved",
+      document: "<p>Saved preview</p>",
+      complete: true,
+      diagnostics: [],
+    },
+  });
   backupProject.mockReset().mockResolvedValue({
     ok: true,
     value: { created: true },
@@ -131,6 +141,7 @@ beforeEach(async () => {
       return () => menuListeners.delete(callback);
     }),
     project: {
+      previewBook,
       listHistory: vi.fn(),
       previewHistory: vi.fn(),
       restoreHistory: vi.fn(),
@@ -1184,6 +1195,67 @@ describe("chapter editor persistence", () => {
     expect(saveChapter.mock.invocationCallOrder[0]).toBeLessThan(
       backupProject.mock.invocationCallOrder[0]!,
     );
+  });
+
+  it("flushes current prose before preview and uses a sandbox with no capabilities", async () => {
+    await openChapter();
+    await editText();
+    await click("Book preview");
+    await vi.waitFor(() => expect(previewBook).toHaveBeenCalledOnce());
+    expect(saveChapter.mock.invocationCallOrder[0]).toBeLessThan(
+      previewBook.mock.invocationCallOrder[0]!,
+    );
+    expect(saveChapter.mock.calls[0]?.[0].document).toEqual(editor().getJSON());
+    const frame = container.querySelector("iframe")!;
+    expect(frame.getAttribute("sandbox")).toBe("");
+    expect(frame.getAttribute("referrerpolicy")).toBe("no-referrer");
+    expect(frame.srcdoc).toBe("<p>Saved preview</p>");
+    await click("Close preview");
+    expect(container.querySelector("iframe")).toBeNull();
+  });
+
+  it("cancels preview on failed save while preserving dirty prose", async () => {
+    await openChapter();
+    await editText("Latest unsaved prose");
+    saveChapter.mockResolvedValueOnce({
+      ok: false,
+      error: { code: "FAILED", message: "Save failed" },
+    });
+    await click("Book preview");
+    expect(previewBook).not.toHaveBeenCalled();
+    expect(editor().getText()).toBe("Latest unsaved prose");
+    expect(editor().isEditable).toBe(true);
+    expect(saveStatus()).toBe("Unsaved changes");
+    expect(container.textContent).toContain("Preview was cancelled");
+  });
+
+  it("labels incomplete preview and explains missing assets without hiding the diagnostic", async () => {
+    await openChapter();
+    previewBook.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        revision: "partial",
+        document: '<span role="img" aria-label="Missing alternative"></span>',
+        complete: false,
+        diagnostics: [
+          {
+            code: "missing-asset",
+            severity: "error",
+            chapterId: "123e4567-e89b-42d3-a456-426614174001",
+            path: [0],
+          },
+        ],
+      },
+    });
+    await click("Book preview");
+    expect(container.textContent).toContain("This preview is incomplete");
+    expect(container.textContent).toContain(
+      "A local image is missing. Restore or replace the image.",
+    );
+    expect(container.querySelector("iframe")?.srcdoc).toContain(
+      "Missing alternative",
+    );
+    await click("Close preview");
   });
 
   async function openChapter() {

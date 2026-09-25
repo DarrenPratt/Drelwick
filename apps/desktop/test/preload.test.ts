@@ -34,6 +34,12 @@ describe("preload API", () => {
     );
 
     const [, api] = exposeInMainWorld.mock.calls[0] as [string, DrelwickApi];
+    await api.project.previewBook({
+      projectId: "123e4567-e89b-42d3-a456-426614174000",
+    });
+    expect(invoke).toHaveBeenLastCalledWith("book:preview", {
+      projectId: "123e4567-e89b-42d3-a456-426614174000",
+    });
     const historyRequest = {
       projectId: "123e4567-e89b-42d3-a456-426614174000",
       chapterId: "123e4567-e89b-42d3-a456-426614174001",

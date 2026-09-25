@@ -5,8 +5,9 @@ A cross-platform, local-first, open-core desktop editor in private development f
 The repository implements local project/chapter management, manuscript editing,
 autosave, retained history snapshots and crash recovery. v0.1 testing, hardening
 and release validation remain open. Community DOCX, TXT, Markdown and HTML parsers,
-staged import API and author-facing review workflow are implemented; presentation,
-EPUB and print PDF remain planned work. See the [DOCX support matrix](docs/docx-import.md),
+staged import API and author-facing review workflow are implemented. A shared semantic
+renderer and isolated saved-book preview are available; themes, EPUB and print PDF
+remain planned work. See the [DOCX support matrix](docs/docx-import.md),
 [TXT/Markdown/HTML support matrix](docs/text-import.md) and
 [local publishing delivery plan](docs/planning/local-publishing-plan.md).
 
@@ -44,6 +45,11 @@ inspect DOCX, TXT, Markdown or HTML, adjust chapter boundaries and explicitly ap
 warnings before choosing a new empty destination. The source stays unchanged.
 The committed project is validated before opening; failed saves and failed imports
 preserve the current manuscript. See the [import review workflow](docs/import-review-ui.md).
+
+The **Book preview** panel opens a plain semantic manuscript preview. Pending edits
+are saved first; failed saves cancel preview. Local images stay within the isolated
+preview, and incomplete content is reported. Close and reopen to refresh. See the
+[shared rendering architecture](docs/book-rendering.md).
 
 Use chapter **Actions** to duplicate, split at the current cursor or change status.
 For the selected chapter, **Actions → Chapter History** lists validated local
