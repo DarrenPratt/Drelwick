@@ -6,8 +6,8 @@ The repository implements local project/chapter management, manuscript editing,
 autosave, retained history snapshots and crash recovery. v0.1 testing, hardening
 and release validation remain open. Community DOCX, TXT, Markdown and HTML parsers,
 staged import API and author-facing review workflow are implemented. A shared semantic
-renderer and isolated saved-book preview are available; themes, EPUB and print PDF
-remain planned work. See the [DOCX support matrix](docs/docx-import.md),
+renderer, isolated saved-book preview and three persisted [Community book themes](docs/book-themes.md)
+are available; EPUB and print PDF remain planned work. See the [DOCX support matrix](docs/docx-import.md),
 [TXT/Markdown/HTML support matrix](docs/text-import.md) and
 [local publishing delivery plan](docs/planning/local-publishing-plan.md).
 

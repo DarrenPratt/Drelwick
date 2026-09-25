@@ -169,6 +169,9 @@ importers:
       '@drelwick/project-model':
         specifier: workspace:*
         version: link:../project-model
+      '@drelwick/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       jsdom:
         specifier: 27.0.1

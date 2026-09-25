@@ -27,6 +27,8 @@ import { NewProjectDialog } from "./NewProjectDialog.js";
 import { SplitChapterDialog } from "./SplitChapterDialog.js";
 import { ChapterHistoryDialog } from "./ChapterHistoryDialog.js";
 import { BookPreviewDialog } from "./BookPreviewDialog.js";
+import { BookThemeSelector } from "./BookThemeSelector.js";
+import type { BookThemeSelection, BuiltinThemeId } from "@drelwick/shared";
 import type { BookPreview } from "@drelwick/shared";
 import type {
   HistoryRequest,
@@ -48,6 +50,10 @@ import {
 export function App() {
   const [bookPreview, setBookPreview] = useState<BookPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [themeSelection, setThemeSelection] =
+    useState<BookThemeSelection | null>(null);
+  const [themeMessage, setThemeMessage] = useState("");
+  const [savingTheme, setSavingTheme] = useState(false);
   const [historyRequest, setHistoryRequest] = useState<HistoryRequest | null>(
     null,
   );
@@ -122,6 +128,7 @@ export function App() {
   const autosave = useRef<AutosaveCoordinator | null>(null);
   const saveSource = useRef<"autosave" | "manual">("autosave");
   const changingDocument =
+    savingTheme ||
     previewing ||
     restoringHistory ||
     organising ||
@@ -132,6 +139,92 @@ export function App() {
     deletingChapter ||
     switchingChapter ||
     projectTask !== null;
+
+  const themeProjectId = project?.projectId;
+  const themeProjectKey = JSON.stringify([themeProjectId, projectPath]);
+  const [previousThemeProject, setPreviousThemeProject] =
+    useState(themeProjectKey);
+  if (previousThemeProject !== themeProjectKey) {
+    setPreviousThemeProject(themeProjectKey);
+    setThemeSelection(null);
+    setThemeMessage("");
+    setBookPreview(null);
+  }
+  useEffect(() => {
+    let active = true;
+    if (themeProjectId)
+      void window.drelwick.project
+        .getBookTheme({ projectId: themeProjectId })
+        .then((result) => {
+          if (!active) return;
+          if (result.ok) setThemeSelection(result.value);
+          else setThemeMessage(result.error.message);
+        })
+        .catch(() => {
+          if (active)
+            setThemeMessage(
+              "Unable to load the book theme. Reopen the project to retry.",
+            );
+        });
+    return () => {
+      active = false;
+    };
+  }, [themeProjectId, projectPath]);
+
+  async function changeBookTheme(themeId: BuiltinThemeId) {
+    if (
+      !project ||
+      pending.current ||
+      changingDocument ||
+      savePending.current ||
+      isDocumentDirty(documentRef.current)
+    )
+      return;
+    pending.current = true;
+    setSavingTheme(true);
+    setThemeMessage("");
+    try {
+      const result = await window.drelwick.project.setBookTheme({
+        projectId: project.projectId,
+        themeId,
+        ...(bookPreview ? { previewRevision: bookPreview.revision } : {}),
+      });
+      if (result.ok) {
+        setThemeSelection(result.value.selection);
+        if (result.value.preview) setBookPreview(result.value.preview);
+        setThemeMessage(result.warning ?? "Theme saved for this book.");
+      } else setThemeMessage(result.error.message);
+    } catch {
+      setThemeMessage(
+        "Unable to save the theme. Your previous selection and manuscript remain unchanged.",
+      );
+    } finally {
+      pending.current = false;
+      setSavingTheme(false);
+    }
+  }
+
+  const themeSelector = (
+    <BookThemeSelector
+      selection={themeSelection}
+      disabled={
+        changingDocument ||
+        dirty ||
+        saving ||
+        reordering ||
+        renamingChapterId !== null ||
+        replacementRecoveryRequired
+      }
+      message={
+        dirty
+          ? "Save pending edits before changing the book theme."
+          : themeMessage
+      }
+      onChange={(id) => {
+        void changeBookTheme(id);
+      }}
+    />
+  );
 
   useEffect(() => {
     if (!projectPath || !activeChapterId) return;
@@ -1022,7 +1115,7 @@ export function App() {
     }
     pending.current = true;
     setPreviewing(true);
-    searchEditor?.setEditable(false);
+    searchEditor?.setEditable(false, false);
     setError("");
     try {
       const saved = (await autosave.current?.flush()) ?? true;
@@ -1039,8 +1132,10 @@ export function App() {
       const result = await window.drelwick.project.previewBook({
         projectId: project.projectId,
       });
-      if (result.ok) setBookPreview(result.value);
-      else setError(result.error.message);
+      if (result.ok) {
+        setBookPreview(result.value);
+        setThemeSelection(result.value.theme);
+      } else setError(result.error.message);
     } catch {
       setError(
         "Unable to preview the book. Your edits remain available; retry after saving.",
@@ -1048,7 +1143,7 @@ export function App() {
     } finally {
       pending.current = false;
       setPreviewing(false);
-      searchEditor?.setEditable(true);
+      searchEditor?.setEditable(true, false);
     }
   }
 
@@ -1146,6 +1241,15 @@ export function App() {
     <>
       {project ? (
         <WorkspaceLayout
+          bookDesign={
+            <div className="tool-intro">
+              <h3>A style for your story.</h3>
+              <p>
+                Choose a preset for this book, then open Book preview to see it.
+              </p>
+              {themeSelector}
+            </div>
+          }
           key={project.projectId}
           title={project.title}
           author={project.author}
@@ -1654,6 +1758,7 @@ export function App() {
       {bookPreview && (
         <BookPreviewDialog
           preview={bookPreview}
+          themeSelector={themeSelector}
           onClose={() => {
             setBookPreview(null);
             searchEditor?.commands.focus();

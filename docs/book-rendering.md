@@ -62,7 +62,9 @@ editor dirty state. Future export callers must use this same flush boundary.
 chapter IDs/titles/types/documents and validated asset descriptors or unavailable
 asset states. It contains no paths, Electron handles, HTML input or Pro imports.
 `AssembledBook.assets` holds captured original bytes separately for target adapters.
-No persistent metadata fields or schema versions were added.
+Issue #121 added no persistent metadata fields or schema versions. Issue #122 adds
+independently versioned presentation settings, captured separately by assembly;
+they do not change the semantic revision or renderer input.
 
 `renderBook` returns ordered `RenderedChapter` objects, semantic targets, referenced
 asset IDs, located diagnostics and an `ok` flag. Each chapter is an XHTML-compatible
@@ -152,8 +154,10 @@ The restricted `book:preview` request accepts only the active project UUID.
 Main-process handlers validate it, authorize the current main frame, serialize
 project operations, settle history and recheck sender/project identity. The result
 is a passive `BookPreview` DTO, not a project API. The preview document uses inert
-links and a restrictive CSP: no script, style, connect, frames, objects, base or
-forms; only embedded raster image sources are permitted. There are no remote
+links and a restrictive CSP: no script, connect, frames, objects, base or
+forms; only embedded raster image sources are permitted. Issue #122 authorizes
+only the generated preset stylesheet by its SHA-256 hash, with style attributes
+and font resources still blocked. There are no remote
 fonts, images, CSS or scripts. Text and attributes escape XML metacharacters and
 encode CR/LF/tab to prevent attribute normalization from altering alternatives.
 
@@ -168,13 +172,14 @@ the semantic renderer. Main-frame authorization separately rejects preview frame
 ## Styling and extension seams
 
 The semantic package owns element meaning, escaping, stable hooks and deterministic
-serialization only. It emits no CSS. The dialog shell controls its own dimensions;
-the manuscript uses browser defaults. The real Book preview panel opens this
-saved-revision view. Existing illustrative Book design controls remain mocks.
+serialization only. `renderBook` emits no CSS. The dialog shell controls its own
+dimensions; the separate [theme generator](book-themes.md) supplies presentation.
+The real Book preview panel opens this saved-revision view; Book design selects
+a persisted Community preset.
 
 - #122 supplies validated themes/styles targeting the documented hooks, outside
-  the semantic traversal. It must explicitly authorize any required preview CSS
-  while retaining isolation and no remote resources.
+  the semantic traversal. Preview authorizes the generated CSS by hash while
+  retaining isolation and no remote resources.
 - #123 extends assembly/project structure with publication matter and metadata,
   then feeds ordered semantic documents into this pipeline. This change implements
   no matter workflows, cover selection or schema migration.

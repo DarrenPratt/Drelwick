@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import type { BookPreview } from "@drelwick/shared";
 
 const diagnosticMessages: Record<string, string> = {
@@ -19,9 +19,11 @@ const diagnosticMessages: Record<string, string> = {
 export function BookPreviewDialog({
   preview,
   onClose,
+  themeSelector,
 }: {
   preview: BookPreview;
   onClose(): void;
+  themeSelector?: ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -41,6 +43,7 @@ export function BookPreviewDialog({
     >
       <h2 id="book-preview-title">Book preview</h2>
       <p>Saved manuscript preview. Close and reopen to include later edits.</p>
+      {themeSelector}
       {!preview.complete && (
         <p role="alert">
           This preview is incomplete. Resolve the reported content or asset

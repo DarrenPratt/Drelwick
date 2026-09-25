@@ -11,3 +11,4 @@
 pnpm-lock.yaml
 # Exact serializer golden bytes; formatting would change the expected output.
 packages/renderer/test/golden/*.xhtml
+packages/renderer/test/golden/*.css

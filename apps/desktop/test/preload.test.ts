@@ -34,6 +34,20 @@ describe("preload API", () => {
     );
 
     const [, api] = exposeInMainWorld.mock.calls[0] as [string, DrelwickApi];
+    await api.project.getBookTheme({
+      projectId: "123e4567-e89b-42d3-a456-426614174000",
+    });
+    expect(invoke).toHaveBeenLastCalledWith("book:theme-get", {
+      projectId: "123e4567-e89b-42d3-a456-426614174000",
+    });
+    await api.project.setBookTheme({
+      projectId: "123e4567-e89b-42d3-a456-426614174000",
+      themeId: "modern",
+    });
+    expect(invoke).toHaveBeenLastCalledWith("book:theme-set", {
+      projectId: "123e4567-e89b-42d3-a456-426614174000",
+      themeId: "modern",
+    });
     await api.project.previewBook({
       projectId: "123e4567-e89b-42d3-a456-426614174000",
     });

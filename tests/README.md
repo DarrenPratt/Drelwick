@@ -44,6 +44,15 @@ Node.js types match the supported Node 24 runtime. Tests explicitly import
 
 ## Workspace conventions
 
+Issue #122's Community theme tests live in `packages/renderer/test/themes.test.ts`
+(strict configuration, six preset/target CSS goldens, exact semantic preservation,
+offline/generic fonts) and `packages/core/test/book-presentation.test.ts`
+(defaults, migration, portable persistence, failure/recovery and path boundaries).
+Desktop unit tests exercise selection failure, cached restyling, restricted IPC
+and stylesheet-hash CSP. The native Electron theme scenario switches every preset
+offline, compares manuscript bytes and markup, renders generic fallback fonts and
+restarts with the saved selection. See [the theme acceptance audit](../docs/book-themes-acceptance.md).
+
 The root config discovers `packages/*/vitest.config.ts`,
 `apps/*/vitest.config.ts` and the workspace-smoke config. New workspaces opt in by
 adding a config using `defineProject` from `vitest/config`, a unique package name,

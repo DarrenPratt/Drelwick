@@ -1,5 +1,11 @@
 import { z } from "zod";
 import {
+  BuiltinThemeIdSchema,
+  type BuiltinThemeId,
+  type BookThemeSelection,
+} from "./theme-contracts.js";
+export * from "./theme-contracts.js";
+import {
   ReplacementRequestSchema,
   type ReplacementRequest,
 } from "./search-contracts.js";
@@ -75,6 +81,8 @@ export type ChapterOrganisationRequest = z.infer<
 >;
 
 export const IPC = {
+  BOOK_THEME_GET: "book:theme-get",
+  BOOK_THEME_SET: "book:theme-set",
   BOOK_PREVIEW: "book:preview",
   HISTORY_LIST: "history:list",
   HISTORY_PREVIEW: "history:preview",
@@ -174,6 +182,7 @@ export interface ProjectWorkspace {
 }
 /** Passive preview data only. No project paths or callable capabilities. */
 export interface BookPreview {
+  theme: BookThemeSelection;
   revision: string;
   document: string;
   complete: boolean;
@@ -195,6 +204,17 @@ export type ProjectOperationResult<T> =
   | { ok: false; error: { code: string; message: string } };
 
 export const IpcRequestSchemas = {
+  [IPC.BOOK_THEME_GET]: z.object({ projectId: z.string().uuid() }).strict(),
+  [IPC.BOOK_THEME_SET]: z
+    .object({
+      projectId: z.string().uuid(),
+      themeId: BuiltinThemeIdSchema,
+      previewRevision: z
+        .string()
+        .regex(/^[0-9a-f]{64}$/)
+        .optional(),
+    })
+    .strict(),
   [IPC.BOOK_PREVIEW]: z.object({ projectId: z.string().uuid() }).strict(),
   [IPC.HISTORY_LIST]: z
     .object({ projectId: z.string().uuid(), chapterId: z.string().uuid() })
@@ -321,6 +341,19 @@ export interface DrelwickApi {
   ): () => void;
   onShutdownRequested(callback: () => Promise<boolean>): () => void;
   project: {
+    getBookTheme(input: {
+      projectId: string;
+    }): Promise<ProjectOperationResult<BookThemeSelection>>;
+    setBookTheme(input: {
+      projectId: string;
+      themeId: BuiltinThemeId;
+      previewRevision?: string;
+    }): Promise<
+      ProjectOperationResult<{
+        selection: BookThemeSelection;
+        preview?: BookPreview;
+      }>
+    >;
     previewBook(input: {
       projectId: string;
     }): Promise<ProjectOperationResult<BookPreview>>;
