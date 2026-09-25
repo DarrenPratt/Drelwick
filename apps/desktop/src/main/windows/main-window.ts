@@ -1,4 +1,4 @@
-import { BrowserWindow } from "electron";
+import { app, BrowserWindow } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -30,7 +30,12 @@ export function createMainWindow(): BrowserWindow {
     "preload",
     "preload.cjs",
   );
-  const window = new BrowserWindow(getMainWindowOptions(preloadPath));
+  const icons = join(app.getAppPath(), "assets", "icons");
+  const window = new BrowserWindow({
+    ...getMainWindowOptions(preloadPath),
+    icon: join(icons, process.platform === "win32" ? "app.ico" : "app.png"),
+  });
+  app.dock?.setIcon(join(icons, "app.png"));
 
   const rendererUrl = getRendererUrl();
   window.webContents.on("will-navigate", (event, url) => {
