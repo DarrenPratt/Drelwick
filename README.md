@@ -46,6 +46,10 @@ The committed project is validated before opening; failed saves and failed impor
 preserve the current manuscript. See the [import review workflow](docs/import-review-ui.md).
 
 Use chapter **Actions** to duplicate, split at the current cursor or change status.
+For the selected chapter, **Actions → Chapter History** lists validated local
+snapshots and offers read-only preview and explicitly confirmed restore. Current
+edits are saved and preserved in a new snapshot before replacement. See
+[Chapter History](docs/chapter-history.md); this is separate from startup recovery.
 Select two adjacent chapters with the merge checkboxes to merge them in reading
 order. Pending edits are saved first; restructuring retains history and uses
 recoverable writes. See [chapter organisation](docs/chapter-organisation.md).

@@ -8,6 +8,11 @@ import {
   createChapter,
   createHistorySnapshot,
   saveChapter,
+  readHistorySnapshot,
+  listHistorySnapshots,
+  loadChapter,
+  openProject,
+  deleteChapter,
 } from "@drelwick/core";
 import { createAutosaveCoordinator } from "@drelwick/core/autosave";
 import {
@@ -441,4 +446,93 @@ it("validates and authorizes chapter organisation, persists status, and keeps ma
   expect(
     JSON.stringify([logger.info.mock.calls, logger.error.mock.calls]),
   ).not.toContain("content");
+});
+
+it("history IPC validates authorization, IDs, confirmation and uses current-content safety snapshot through shared save", async () => {
+  const { root, chapterId } = await fixture();
+  const old = (await createHistorySnapshot({
+    projectPath: root,
+    chapterId,
+    document,
+    reason: "before-replace",
+  }))!;
+  const { invoke, event, logger, settleHistory } = setup(root);
+  await invoke(IPC.PROJECT_OPEN);
+  await settleHistory();
+  const { project } = await openProject(root);
+  const request = { projectId: project.projectId, chapterId };
+  for (const channel of [
+    IPC.HISTORY_LIST,
+    IPC.HISTORY_PREVIEW,
+    IPC.HISTORY_RESTORE,
+  ]) {
+    expect(
+      (await invoke(channel, request, { ...event, senderFrame: null })).ok,
+    ).toBe(false);
+    expect((await invoke(channel, { ...request, path: root })).ok).toBe(false);
+    expect(
+      (await invoke(channel, { ...request, chapterId: "../outside" })).ok,
+    ).toBe(false);
+  }
+  expect(
+    (await invoke(IPC.HISTORY_LIST, { ...request, projectId: chapterId })).ok,
+  ).toBe(false);
+  const listing = await invoke(IPC.HISTORY_LIST, request);
+  expect(listing).toMatchObject({
+    ok: true,
+    value: {
+      chapterId,
+      title: "Chapter",
+      entries: [{ id: old.id, created: old.created }],
+    },
+  });
+  expect(JSON.stringify(listing)).not.toContain("Formatted prose");
+  const selection = { ...request, snapshotId: old.id };
+  const preview = await invoke(IPC.HISTORY_PREVIEW, selection);
+  expect(preview).toMatchObject({ ok: true, value: { content: document } });
+  const { fingerprint } = await readHistorySnapshot(root, chapterId, old.id);
+  const current = {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [{ type: "text", text: "B newly flushed" }],
+      },
+    ],
+  };
+  await invoke(IPC.PROJECT_SAVE_CHAPTER, { chapterId, document: current });
+  const restore = { ...selection, fingerprint, document: current };
+  expect((await invoke(IPC.HISTORY_RESTORE, restore)).ok).toBe(false);
+  expect(
+    (await invoke(IPC.HISTORY_RESTORE, { ...restore, confirmed: false })).ok,
+  ).toBe(false);
+  expect(
+    await invoke(IPC.HISTORY_RESTORE, { ...restore, confirmed: true }),
+  ).toMatchObject({ ok: true, value: { id: chapterId, content: document } });
+  await settleHistory();
+  expect((await loadChapter({ projectPath: root, chapterId })).content).toEqual(
+    document,
+  );
+  const entries = (await listHistorySnapshots(root, chapterId)).entries;
+  const contents = await Promise.all(
+    entries.map((entry) => readHistorySnapshot(root, chapterId, entry.id)),
+  );
+  expect(
+    contents.some(
+      ({ snapshot }) =>
+        snapshot.reason === "before-replace" &&
+        JSON.stringify(snapshot.content) === JSON.stringify(current),
+    ),
+  ).toBe(true);
+  expect(
+    JSON.stringify([logger.info.mock.calls, logger.error.mock.calls]),
+  ).not.toMatch(/Formatted prose|B newly flushed/);
+  await deleteChapter({ projectPath: root, chapterId });
+  expect(await invoke(IPC.HISTORY_LIST, request)).toMatchObject({
+    ok: true,
+    value: { title: null },
+  });
+  expect(
+    await invoke(IPC.HISTORY_RESTORE, { ...restore, confirmed: true }),
+  ).toMatchObject({ ok: false, error: { code: "CHAPTER_NOT_FOUND" } });
 });

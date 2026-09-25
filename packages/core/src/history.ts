@@ -19,6 +19,7 @@ import {
 } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import type { Stats } from "node:fs";
+import { createHash } from "node:crypto";
 import { writeJsonAtomically } from "./index.js";
 import { assertMigrationReadable } from "./migration-state.js";
 
@@ -73,6 +74,7 @@ export async function createHistorySnapshot(
   input: HistorySnapshotInput,
   fileSystem: HistoryFileSystem = defaultFileSystem,
 ): Promise<HistorySnapshot | null> {
+  if (!isUuid(input.chapterId)) throw unavailableSnapshot();
   if (!isAbsolute(input.projectPath)) {
     throw new ApplicationError(
       "PROJECT_PATH_INVALID",
@@ -128,6 +130,8 @@ export async function createHistorySnapshot(
     reason: input.reason ?? "interval",
     content: document.data,
   };
+  if (!HistorySnapshotSchema.safeParse(snapshot).success)
+    throw unavailableSnapshot();
   try {
     await fileSystem.writeJson(
       join(directory, `${snapshot.id}.json`),
@@ -140,6 +144,92 @@ export async function createHistorySnapshot(
       "Unable to create a manuscript history snapshot.",
     );
   }
+}
+
+/** Read one bounded, versioned snapshot; never accept renderer filesystem paths. */
+export async function readHistorySnapshot(
+  projectPath: string,
+  chapterId: string,
+  snapshotId: string,
+  fileSystem: HistoryFileSystem = defaultFileSystem,
+): Promise<{ snapshot: HistorySnapshot; fingerprint: string }> {
+  if (!isAbsolute(projectPath) || !isUuid(chapterId) || !isUuid(snapshotId))
+    throw unavailableSnapshot();
+  try {
+    const root = await fileSystem.realpath(projectPath);
+    await assertMigrationReadable(root, fileSystem);
+    let directory = root;
+    for (const part of [".history", "snapshots", chapterId]) {
+      directory = join(directory, part);
+      if (!(await isSafeDirectory(root, directory, fileSystem)))
+        throw unavailableSnapshot();
+    }
+    const path = join(directory, `${snapshotId}.json`);
+    if (!(await isSafeFile(root, path, fileSystem)))
+      throw unavailableSnapshot();
+    const source = await fileSystem.readFile(path, "utf8");
+    const parsed = HistorySnapshotSchema.safeParse(JSON.parse(source));
+    if (
+      !parsed.success ||
+      parsed.data.id !== snapshotId ||
+      parsed.data.chapterId !== chapterId
+    )
+      throw unavailableSnapshot();
+    return {
+      snapshot: parsed.data,
+      fingerprint: createHash("sha256").update(source).digest("hex"),
+    };
+  } catch {
+    throw unavailableSnapshot();
+  }
+}
+
+/** Full validation requires reading each existing envelope; only metadata is returned. */
+export async function listHistorySnapshots(
+  projectPath: string,
+  chapterId: string,
+) {
+  if (!isAbsolute(projectPath) || !isUuid(chapterId))
+    throw unavailableSnapshot();
+  const root = await realpath(projectPath);
+  await assertMigrationReadable(root, defaultFileSystem);
+  let directory = root;
+  for (const part of [".history", "snapshots", chapterId]) {
+    directory = join(directory, part);
+    if (!(await isSafeDirectory(root, directory, defaultFileSystem)))
+      return { entries: [], unavailable: 0 };
+  }
+  const entries: { id: string; chapterId: string; created: string }[] = [];
+  let unavailable = 0;
+  for (const name of await readdir(directory)) {
+    if (!name.endsWith(".json")) continue;
+    try {
+      const { snapshot } = await readHistorySnapshot(
+        root,
+        chapterId,
+        name.slice(0, -5),
+      );
+      entries.push({
+        id: snapshot.id,
+        chapterId: snapshot.chapterId,
+        created: snapshot.created,
+      });
+    } catch {
+      unavailable++;
+    }
+  }
+  entries.sort(
+    (a, b) =>
+      Date.parse(b.created) - Date.parse(a.created) || a.id.localeCompare(b.id),
+  );
+  return { entries, unavailable };
+}
+
+function unavailableSnapshot(): ApplicationError {
+  return new ApplicationError(
+    "HISTORY_UNAVAILABLE",
+    "This snapshot is missing, changed, unsafe or unsupported. Refresh Chapter History.",
+  );
 }
 
 export async function applyHistoryRetention(

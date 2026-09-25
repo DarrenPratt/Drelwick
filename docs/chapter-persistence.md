@@ -1,5 +1,8 @@
 # Chapter document persistence
 
+[Chapter History](chapter-history.md) uses this same save path for explicit
+restore, with a verified current-content snapshot before atomic replacement.
+
 Image references participate in this same validated atomic save and revision
 workflow. Asset import commits first; failed chapter updates preserve the previous
 file and retain both old/new assets. Missing references remain valid semantic

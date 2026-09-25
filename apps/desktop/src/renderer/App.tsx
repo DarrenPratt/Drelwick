@@ -25,6 +25,12 @@ import type { ReplacementRequest } from "@drelwick/shared";
 import type { Editor as TipTapEditor } from "@tiptap/core";
 import { NewProjectDialog } from "./NewProjectDialog.js";
 import { SplitChapterDialog } from "./SplitChapterDialog.js";
+import { ChapterHistoryDialog } from "./ChapterHistoryDialog.js";
+import type {
+  HistoryRequest,
+  HistorySelection,
+  HistoryPreview,
+} from "@drelwick/shared";
 import { Editor } from "./components/Editor.js";
 import { WorkspaceLayout } from "./components/WorkspaceLayout.js";
 import { WorkspaceIcon } from "./components/WorkspaceIcon.js";
@@ -38,6 +44,10 @@ import {
 } from "./document-state.js";
 
 export function App() {
+  const [historyRequest, setHistoryRequest] = useState<HistoryRequest | null>(
+    null,
+  );
+  const [restoringHistory, setRestoringHistory] = useState(false);
   const [organising, setOrganising] = useState(false);
   const [mergeSelection, setMergeSelection] = useState<string[]>([]);
   const [splitPosition, setSplitPosition] = useState<number | null>(null);
@@ -108,6 +118,7 @@ export function App() {
   const autosave = useRef<AutosaveCoordinator | null>(null);
   const saveSource = useRef<"autosave" | "manual">("autosave");
   const changingDocument =
+    restoringHistory ||
     organising ||
     replacing ||
     importing ||
@@ -720,6 +731,69 @@ export function App() {
     };
   }, [searchEditor]);
 
+  async function restoreHistory(
+    selection: HistorySelection,
+    preview: HistoryPreview,
+  ): Promise<string | null> {
+    if (
+      pending.current ||
+      changingDocument ||
+      !documentReady ||
+      replacementRecoveryRequired ||
+      selection.chapterId !== activeChapterId ||
+      selection.projectId !== project?.projectId
+    )
+      return "The chapter is unavailable or busy. Close history and retry.";
+    pending.current = true;
+    setRestoringHistory(true);
+    // Freeze synchronously, before awaiting the flush or React's next render.
+    searchEditor?.setEditable(false);
+    let outcomeCertain = true;
+    try {
+      const saved = await autosave.current?.flush();
+      const current = documentRef.current;
+      if (!saved || savePending.current || !current || isDocumentDirty(current))
+        return "Unable to save pending edits. Restore was cancelled; your edits remain in the editor.";
+      const result = await window.drelwick.project.restoreHistory({
+        ...selection,
+        fingerprint: preview.fingerprint,
+        document: current.content,
+        confirmed: true,
+      });
+      if (!result.ok) return result.error.message;
+      setDocumentSession((session) => session + 1);
+      setSearchRefresh((value) => value + 1);
+      setProject((value) =>
+        value
+          ? {
+              ...value,
+              chapters: value.chapters.map((chapter) =>
+                chapter.id === result.value.id
+                  ? {
+                      ...chapter,
+                      wordCount: countDocumentWords(result.value.content),
+                    }
+                  : chapter,
+              ),
+            }
+          : value,
+      );
+      setProjectMessage(
+        result.warning ??
+          "Snapshot restored. Previous content is preserved in Chapter History.",
+      );
+      return null;
+    } catch {
+      outcomeCertain = false;
+      setReplacementRecoveryRequired(true);
+      return "The restore outcome could not be confirmed. Your editor content is retained. Reopen the project before editing.";
+    } finally {
+      pending.current = false;
+      setRestoringHistory(false);
+      if (outcomeCertain) searchEditor?.setEditable(true);
+    }
+  }
+
   async function organise(command: ChapterOrganisationRequest) {
     if (
       pending.current ||
@@ -1216,6 +1290,23 @@ export function App() {
                         </summary>
                         <div className="chapter-menu-actions">
                           <button
+                            disabled={
+                              organisationDisabled ||
+                              chapter.id !== activeChapterId
+                            }
+                            onClick={(event) => {
+                              event.currentTarget
+                                .closest("details")
+                                ?.removeAttribute("open");
+                              setHistoryRequest({
+                                projectId: project.projectId,
+                                chapterId: chapter.id,
+                              });
+                            }}
+                          >
+                            Chapter History
+                          </button>
+                          <button
                             disabled={organisationDisabled}
                             onClick={() => {
                               if (organisationBase)
@@ -1489,6 +1580,17 @@ export function App() {
           )}
           {recentProjects}
         </main>
+      )}
+      {historyRequest && project?.projectId === historyRequest.projectId && (
+        <ChapterHistoryDialog
+          request={historyRequest}
+          revision={documentState?.savedRevision ?? 0}
+          onClose={() => {
+            setHistoryRequest(null);
+            searchEditor?.commands.focus();
+          }}
+          onRestore={restoreHistory}
+        />
       )}
       {splitConfirmation && (
         <SplitChapterDialog

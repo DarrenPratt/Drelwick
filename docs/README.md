@@ -30,6 +30,7 @@ Operational documents:
 - [Chapter creation and failure recovery](chapter-creation.md)
 - [Chapter duplicate, split, merge and status](chapter-organisation.md)
 - [Chapter document persistence](chapter-persistence.md)
+- [Local Chapter History preview and restore](chapter-history.md)
 - [Manuscript semantic elements](manuscript-semantics.md)
 - [Manuscript Find and Replace](manuscript-search.md)
 - [Local image assets and recovery](local-image-assets.md)
