@@ -75,6 +75,7 @@ export type ChapterOrganisationRequest = z.infer<
 >;
 
 export const IPC = {
+  BOOK_PREVIEW: "book:preview",
   HISTORY_LIST: "history:list",
   HISTORY_PREVIEW: "history:preview",
   HISTORY_RESTORE: "history:restore",
@@ -171,6 +172,19 @@ export interface ProjectWorkspace {
     wordCount: number;
   }[];
 }
+/** Passive preview data only. No project paths or callable capabilities. */
+export interface BookPreview {
+  revision: string;
+  document: string;
+  complete: boolean;
+  diagnostics: readonly {
+    code: string;
+    severity: "error" | "warning";
+    chapterId: string;
+    path: readonly number[];
+    assetId?: string;
+  }[];
+}
 export interface RecentProject {
   id: string;
   path: string;
@@ -181,6 +195,7 @@ export type ProjectOperationResult<T> =
   | { ok: false; error: { code: string; message: string } };
 
 export const IpcRequestSchemas = {
+  [IPC.BOOK_PREVIEW]: z.object({ projectId: z.string().uuid() }).strict(),
   [IPC.HISTORY_LIST]: z
     .object({ projectId: z.string().uuid(), chapterId: z.string().uuid() })
     .strict(),
@@ -306,6 +321,9 @@ export interface DrelwickApi {
   ): () => void;
   onShutdownRequested(callback: () => Promise<boolean>): () => void;
   project: {
+    previewBook(input: {
+      projectId: string;
+    }): Promise<ProjectOperationResult<BookPreview>>;
     listHistory(
       input: HistoryRequest,
     ): Promise<ProjectOperationResult<ChapterHistory>>;

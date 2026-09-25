@@ -26,6 +26,8 @@ import type { Editor as TipTapEditor } from "@tiptap/core";
 import { NewProjectDialog } from "./NewProjectDialog.js";
 import { SplitChapterDialog } from "./SplitChapterDialog.js";
 import { ChapterHistoryDialog } from "./ChapterHistoryDialog.js";
+import { BookPreviewDialog } from "./BookPreviewDialog.js";
+import type { BookPreview } from "@drelwick/shared";
 import type {
   HistoryRequest,
   HistorySelection,
@@ -44,6 +46,8 @@ import {
 } from "./document-state.js";
 
 export function App() {
+  const [bookPreview, setBookPreview] = useState<BookPreview | null>(null);
+  const [previewing, setPreviewing] = useState(false);
   const [historyRequest, setHistoryRequest] = useState<HistoryRequest | null>(
     null,
   );
@@ -118,6 +122,7 @@ export function App() {
   const autosave = useRef<AutosaveCoordinator | null>(null);
   const saveSource = useRef<"autosave" | "manual">("autosave");
   const changingDocument =
+    previewing ||
     restoringHistory ||
     organising ||
     replacing ||
@@ -1001,6 +1006,52 @@ export function App() {
     }
   }
 
+  async function previewBook() {
+    if (
+      !project ||
+      pending.current ||
+      changingDocument ||
+      reordering ||
+      renamingChapterId ||
+      replacementRecoveryRequired
+    )
+      return;
+    if (activeChapterId && !documentReady) {
+      setError("Wait for the chapter to finish loading before previewing.");
+      return;
+    }
+    pending.current = true;
+    setPreviewing(true);
+    searchEditor?.setEditable(false);
+    setError("");
+    try {
+      const saved = (await autosave.current?.flush()) ?? true;
+      if (
+        !saved ||
+        savePending.current ||
+        isDocumentDirty(documentRef.current)
+      ) {
+        setError(
+          "Unable to save pending edits. Preview was cancelled; your edits remain in the editor.",
+        );
+        return;
+      }
+      const result = await window.drelwick.project.previewBook({
+        projectId: project.projectId,
+      });
+      if (result.ok) setBookPreview(result.value);
+      else setError(result.error.message);
+    } catch {
+      setError(
+        "Unable to preview the book. Your edits remain available; retry after saving.",
+      );
+    } finally {
+      pending.current = false;
+      setPreviewing(false);
+      searchEditor?.setEditable(true);
+    }
+  }
+
   const projectActions = (
     <div className="project-actions" aria-label="Project actions">
       {!project && (
@@ -1098,6 +1149,25 @@ export function App() {
           key={project.projectId}
           title={project.title}
           author={project.author}
+          bookPreviewAction={
+            <div className="tool-intro">
+              <p>
+                Preview the saved manuscript, including local images. Pending
+                edits are saved first.
+              </p>
+              <button
+                disabled={
+                  changingDocument ||
+                  reordering ||
+                  !!renamingChapterId ||
+                  replacementRecoveryRequired
+                }
+                onClick={() => void previewBook()}
+              >
+                {previewing ? "Preparing preview…" : "Book preview"}
+              </button>
+            </div>
+          }
           library={
             <>
               {projectActions}
@@ -1580,6 +1650,15 @@ export function App() {
           )}
           {recentProjects}
         </main>
+      )}
+      {bookPreview && (
+        <BookPreviewDialog
+          preview={bookPreview}
+          onClose={() => {
+            setBookPreview(null);
+            searchEditor?.commands.focus();
+          }}
+        />
       )}
       {historyRequest && project?.projectId === historyRequest.projectId && (
         <ChapterHistoryDialog

@@ -1670,3 +1670,13 @@ button svg {
     grid-template-columns: 1fr;
   }
 }
+.book-preview {
+  width: min(900px, 90vw);
+}
+
+.book-preview iframe {
+  width: 100%;
+  height: 60vh;
+  border: 1px solid currentColor;
+  background: white;
+}

@@ -9,6 +9,7 @@
     "smoke": "node dist/index.js"
   },
   "dependencies": {
+    "@drelwick/renderer": "workspace:*",
     "@drelwick/shared": "workspace:*"
   }
 }

@@ -56,6 +56,9 @@ importers:
       '@drelwick/project-model':
         specifier: workspace:*
         version: link:../../packages/project-model
+      '@drelwick/renderer':
+        specifier: workspace:*
+        version: link:../../packages/renderer
       '@drelwick/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -111,6 +114,9 @@ importers:
       '@drelwick/project-model':
         specifier: workspace:*
         version: link:../project-model
+      '@drelwick/renderer':
+        specifier: workspace:*
+        version: link:../renderer
       '@drelwick/shared':
         specifier: workspace:*
         version: link:../shared
@@ -158,6 +164,16 @@ importers:
         specifier: 4.1.12
         version: 4.1.12
 
+  packages/renderer:
+    dependencies:
+      '@drelwick/project-model':
+        specifier: workspace:*
+        version: link:../project-model
+    devDependencies:
+      jsdom:
+        specifier: 27.0.1
+        version: 27.0.1
+
   packages/shared:
     dependencies:
       zod:
@@ -166,6 +182,9 @@ importers:
 
   tests/workspace-smoke:
     dependencies:
+      '@drelwick/renderer':
+        specifier: workspace:*
+        version: link:../../packages/renderer
       '@drelwick/shared':
         specifier: workspace:*
         version: link:../../packages/shared

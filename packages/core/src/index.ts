@@ -7,6 +7,7 @@ import {
   countDocumentWords,
 } from "@drelwick/shared";
 export * from "./chapter-creation.js";
+export * from "./book-assembly.js";
 export * from "./chapter-deletion.js";
 export * from "./chapter-ordering.js";
 export * from "./chapter-loading.js";

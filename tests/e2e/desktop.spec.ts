@@ -8,6 +8,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +20,161 @@ import {
 } from "@playwright/test";
 import { copyFixture } from "../helpers/fixture-projects.js";
 import { docx, p, unicode } from "../../packages/core/test/fixtures/docx.js";
+import {
+  fixture as semanticBook,
+  assetId as semanticAssetId,
+} from "../../packages/renderer/test/fixture.js";
+
+test("shared book preview saves pending prose and isolates active content, assets and privileges", async () => {
+  const fixture = await copyFixture("minimal-book");
+  const scratch = await mkdtemp(join(tmpdir(), "drelwick-book-preview-"));
+  let application: ElectronApplication | undefined;
+  try {
+    const chapterPath = join(
+      fixture.projectPath,
+      "manuscript",
+      "00000000-0000-4000-8000-000000000111.json",
+    );
+    const chapter = JSON.parse(await readFile(chapterPath, "utf8"));
+    chapter.content = semanticBook().chapters[0]!.document;
+    await writeFile(chapterPath, JSON.stringify(chapter));
+    const bytes = await syntheticImage();
+    const assetDirectory = join(
+      fixture.projectPath,
+      "assets",
+      "images",
+      semanticAssetId,
+    );
+    await mkdir(assetDirectory, { recursive: true });
+    await writeFile(join(assetDirectory, "original.png"), bytes);
+    await writeFile(
+      join(assetDirectory, "asset.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        id: semanticAssetId,
+        mediaType: "image/png",
+        originalFilename: "synthetic.png",
+        width: 2,
+        height: 3,
+        byteSize: bytes.length,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+      }),
+    );
+    const launched = await launchApplication(join(scratch, "user-data"));
+    application = launched.application;
+    const page = launched.page;
+    const requests: string[] = [];
+    await page.route(/^https?:/, async (route) => {
+      requests.push(route.request().url());
+      await route.abort();
+    });
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, fixture.projectPath);
+    await page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    const editor = page.locator(".ProseMirror");
+    await expect(editor).toBeEditable();
+    await editor.click();
+    await page.keyboard.press("ControlOrMeta+End");
+    await page.keyboard.insertText("Fresh pending prose");
+    await page
+      .getByRole("button", { name: "Book preview", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog", {
+      name: "Book preview",
+      exact: true,
+    });
+    await expect(dialog).toBeVisible();
+    const iframe = dialog.locator("iframe");
+    await expect(iframe).toHaveAttribute("sandbox", "");
+    const frame = iframe.contentFrame();
+    await expect(frame.locator("body")).toContainText("Fresh pending prose");
+    await expect(frame.locator("body")).toContainText(
+      '<script>alert("x")</script>',
+    );
+    expect(await readFile(chapterPath, "utf8")).toContain(
+      "Fresh pending prose",
+    );
+    expect(await iframe.getAttribute("srcdoc")).not.toContain(
+      fixture.projectPath,
+    );
+    await expect(frame.locator("img")).toHaveCount(4);
+    expect(
+      await frame
+        .locator("img")
+        .first()
+        .evaluate((image) => (image as HTMLImageElement).naturalWidth),
+    ).toBe(2);
+    await expect(frame.locator("a,script,iframe,object,[onclick]")).toHaveCount(
+      0,
+    );
+    const privileges = await frame.locator("body").evaluate(() => {
+      const globals = globalThis as unknown as Record<string, unknown>;
+      let parentBlocked = false;
+      try {
+        void parent.document;
+      } catch {
+        parentBlocked = true;
+      }
+      return {
+        node: typeof globals.require,
+        process: typeof globals.process,
+        preload: typeof globals.drelwick,
+        ipc: typeof globals.ipcRenderer,
+        parentBlocked,
+      };
+    });
+    expect(privileges).toEqual({
+      node: "undefined",
+      process: "undefined",
+      preload: "undefined",
+      ipc: "undefined",
+      parentBlocked: true,
+    });
+    await dialog.screenshot({
+      path: test.info().outputPath("book-preview.png"),
+    });
+    const mainUrl = page.url();
+    await frame.getByText("linked emphasis", { exact: true }).click();
+    expect(page.url()).toBe(mainUrl);
+    // Defense in depth: deliberately bypass the semantic renderer in this test.
+    // Even injected active markup remains blocked by the real iframe/CSP boundary.
+    await iframe.evaluate((element) => {
+      const frame = element as HTMLIFrameElement;
+      frame.srcdoc = frame.srcdoc.replace(
+        "</body>",
+        '<p id="isolation-probe">Isolation probe</p><script>globalThis.executed = true; parent.drelwick.project.open()</script><img src="https://remote.invalid/image" onerror="globalThis.executed = true" /><iframe src="https://remote.invalid/frame"></iframe><object data="file:///secret"></object></body>',
+      );
+    });
+    await expect(frame.locator("#isolation-probe")).toHaveText(
+      "Isolation probe",
+    );
+    expect(
+      await frame
+        .locator("body")
+        .evaluate(
+          () => (globalThis as unknown as Record<string, unknown>).executed,
+        ),
+    ).toBeUndefined();
+    expect(requests).toEqual([]);
+    expect(page.url()).toBe(mainUrl);
+    await dialog.getByRole("button", { name: "Close preview" }).click();
+  } finally {
+    await application?.close();
+    await fixture.cleanup();
+    await rm(scratch, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 200,
+    });
+  }
+});
 
 for (const format of ["txt", "md", "html"]) {
   test(`imports ${format} offline through shared preview, edits, saves and reopens`, async () => {

@@ -105,6 +105,35 @@ it("imports through the native picker and exposes only managed bytes and identit
     }),
   ).toEqual({ ok: true, value: null });
 });
+
+it("authorizes book preview by main frame and active identity and rejects arbitrary paths", async () => {
+  const f = await setup();
+  const input = { projectId: f.projectId };
+  expect(
+    await f.invoke(IPC.BOOK_PREVIEW, input, {
+      ...f.event,
+      senderFrame: { url: "about:srcdoc" },
+    } as unknown as IpcMainInvokeEvent),
+  ).toMatchObject({ ok: false, error: { code: "PROJECT_ACCESS_DENIED" } });
+  expect(
+    await f.invoke(IPC.BOOK_PREVIEW, { ...input, path: "file:///secret" }),
+  ).toMatchObject({ ok: false, error: { code: "PROJECT_INPUT_INVALID" } });
+  expect(
+    await f.invoke(IPC.BOOK_PREVIEW, {
+      projectId: "00000000-0000-4000-8000-000000000999",
+    }),
+  ).toMatchObject({ ok: false, error: { code: "PROJECT_NOT_OPEN" } });
+  const result = await f.invoke(IPC.BOOK_PREVIEW, input);
+  expect(result).toMatchObject({
+    ok: true,
+    value: {
+      complete: true,
+      revision: expect.any(String),
+      document: expect.stringContaining("default-src &apos;none&apos;"),
+    },
+  });
+  expect(JSON.stringify(result)).not.toContain(f.source);
+});
 it("rejects untrusted frames, paths, crafted IDs, foreign projects and unknown chapters before selection", async () => {
   const f = await setup();
   const input = { projectId: f.projectId, chapterId: f.chapterId };
