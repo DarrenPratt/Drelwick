@@ -25,16 +25,22 @@ export async function inspectSnapshot(
       if (
         !relative &&
         omitRuntime &&
-        [MIGRATION_DIRECTORY, ".chapter-create.lock"].includes(
-          name.toLowerCase(),
-        ) &&
+        [
+          MIGRATION_DIRECTORY,
+          ".drelwick-publication-migration",
+          ".chapter-create.lock",
+        ].includes(name.toLowerCase()) &&
         name !== name.toLowerCase()
       )
         throw migrationError("MIGRATION_STATE_INVALID");
       if (
         !relative &&
         omitRuntime &&
-        [MIGRATION_DIRECTORY, ".chapter-create.lock"].includes(name)
+        [
+          MIGRATION_DIRECTORY,
+          ".drelwick-publication-migration",
+          ".chapter-create.lock",
+        ].includes(name)
       )
         continue;
       const path = relative ? `${relative}/${name}` : name;

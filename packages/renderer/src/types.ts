@@ -3,6 +3,11 @@ import type {
   ImageAsset,
   ManuscriptDocumentSchema,
 } from "@drelwick/project-model";
+import type {
+  PublicationMetadata,
+  PublicationInclusion,
+  MatterType,
+} from "@drelwick/shared";
 
 /** An in-memory, validated snapshot. No paths, handles, editor state or I/O. */
 export interface BookRevision {
@@ -10,10 +15,17 @@ export interface BookRevision {
   revision: string;
   title: string;
   language: string;
+  metadata?: PublicationMetadata;
+  coverAssetId?: string;
   chapters: readonly BookChapter[];
   assets: readonly BookAsset[];
 }
 export interface BookChapter {
+  publication?: {
+    section: "front" | "body" | "back";
+    kind?: MatterType | "cover";
+    inclusion: PublicationInclusion;
+  };
   id: string;
   title: string;
   type: ChapterFile["type"];
@@ -53,6 +65,7 @@ export interface SemanticTarget {
 export type AssetReference =
   { kind: "relative"; value: string } | { kind: "embedded"; value: string };
 export interface RenderOptions {
+  target?: "ebook" | "print";
   /** Trusted target code; pure/deterministic. Values are checked before serialization. */
   resolveAsset(
     asset: AssetDescriptor,
@@ -67,6 +80,7 @@ export interface RenderOptions {
   links?: "enabled" | "inert";
 }
 export interface RenderedChapter {
+  publication?: BookChapter["publication"];
   id: string;
   anchor: string;
   title: string;

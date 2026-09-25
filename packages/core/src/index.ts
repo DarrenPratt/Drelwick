@@ -9,6 +9,7 @@ import {
 export * from "./chapter-creation.js";
 export * from "./book-assembly.js";
 export * from "./book-presentation.js";
+export * from "./publication.js";
 export * from "./chapter-deletion.js";
 export * from "./chapter-ordering.js";
 export * from "./chapter-loading.js";

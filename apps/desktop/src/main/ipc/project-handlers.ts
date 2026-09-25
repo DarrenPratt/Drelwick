@@ -6,6 +6,9 @@ import {
 } from "electron";
 import {
   createProjectArchive,
+  loadPublication,
+  savePublication,
+  replacePublicationCover,
   loadBookTheme,
   saveBookTheme,
   importImageAsset,
@@ -261,6 +264,76 @@ export function registerProjectHandlers(
       event.senderFrame?.url === rendererUrl
     );
   };
+
+  for (const channel of [
+    IPC.PUBLICATION_GET,
+    IPC.PUBLICATION_SAVE,
+    IPC.PUBLICATION_COVER,
+  ] as const) {
+    ipcMain.handle(channel, async (event, payload: unknown) => {
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      const parsed = IpcRequestSchemas[channel].safeParse(payload);
+      if (!parsed.success)
+        return failure("PROJECT_INPUT_INVALID", "Invalid publication request.");
+      if (!activeProjectPath || parsed.data.projectId !== activeProjectId)
+        return failure(
+          "PROJECT_NOT_OPEN",
+          "Reopen the project before editing publication settings.",
+        );
+      if (busy)
+        return failure(
+          "PROJECT_BUSY",
+          "Wait for the current operation and retry.",
+        );
+      busy = true;
+      try {
+        await history.settleProject(activeProjectPath);
+        let value;
+        if (channel === IPC.PUBLICATION_GET)
+          value = await loadPublication(
+            activeProjectPath,
+            parsed.data.projectId,
+          );
+        else if (channel === IPC.PUBLICATION_SAVE)
+          value = await savePublication({
+            ...IpcRequestSchemas[IPC.PUBLICATION_SAVE].parse(payload),
+            projectPath: activeProjectPath,
+          });
+        else {
+          const sourcePath = await services.selectImage(getWindow()!);
+          if (!trusted(event))
+            return failure(
+              "PROJECT_ACCESS_DENIED",
+              "Project access is not permitted.",
+            );
+          if (!sourcePath) return { ok: true, value: null };
+          value = await replacePublicationCover({
+            ...IpcRequestSchemas[IPC.PUBLICATION_COVER].parse(payload),
+            projectPath: activeProjectPath,
+            sourcePath,
+          });
+        }
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project access is not permitted.",
+          );
+        preparedPreview = undefined;
+        return { ok: true, value };
+      } catch (error) {
+        return failure(
+          error instanceof ApplicationError ? error.code : "PUBLICATION_FAILED",
+          "Publication changes could not finish. Your edits and previous saved data are preserved. Check project access or recovery files; reopen if another operation changed the publication.",
+        );
+      } finally {
+        busy = false;
+      }
+    });
+  }
 
   ipcMain.handle(IPC.BOOK_PREVIEW, async (event, payload: unknown) => {
     if (!trusted(event))

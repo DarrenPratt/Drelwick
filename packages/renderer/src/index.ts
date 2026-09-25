@@ -107,6 +107,16 @@ export function renderBook(
   book: BookRevision,
   options: RenderOptions,
 ): RenderedBook {
+  // Inclusion selects existing documents; navigation is independent of visibility.
+  if (options.target)
+    book = {
+      ...book,
+      chapters: book.chapters.filter(
+        (chapter) =>
+          !chapter.publication ||
+          chapter.publication.inclusion[options.target!],
+      ),
+    };
   const diagnostics: RenderDiagnostic[] = [];
   const targets = new Map<string, SemanticTarget>();
   const documents = new Map<string, Node>();
@@ -313,10 +323,11 @@ export function renderBook(
       return markup;
     }
     const anchor = chapterAnchor(chapter.id);
-    const xhtml = `<section class="chapter" id="${anchor}" data-chapter-type="${escapeXml(chapter.type)}"><h1 class="chapter-title">${escapeXml(chapter.title)}</h1><div class="chapter-body">${render(root, [])}</div></section>`;
+    const xhtml = `<section class="chapter" id="${anchor}" data-chapter-type="${escapeXml(chapter.type)}"${chapter.publication?.kind ? ` data-matter-type="${escapeXml(chapter.publication.kind)}"` : ""}><h1 class="chapter-title">${escapeXml(chapter.title)}</h1><div class="chapter-body">${render(root, [])}</div></section>`;
     return [
       {
         id: chapter.id,
+        ...(chapter.publication ? { publication: chapter.publication } : {}),
         anchor,
         title: chapter.title,
         xhtml,

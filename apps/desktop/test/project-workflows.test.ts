@@ -152,6 +152,9 @@ beforeEach(async () => {
       return () => menuListeners.delete(callback);
     }),
     project: {
+      getPublication: vi.fn(),
+      savePublication: vi.fn(),
+      selectPublicationCover: vi.fn(),
       getBookTheme,
       setBookTheme,
       previewBook,

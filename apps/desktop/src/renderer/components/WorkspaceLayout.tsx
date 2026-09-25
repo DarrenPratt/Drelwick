@@ -22,6 +22,7 @@ export interface WorkspaceLayoutProps {
   notice?: ReactNode;
   bookPreviewAction?: ReactNode;
   bookDesign?: ReactNode;
+  publicationAction?: ReactNode;
 }
 
 /** Presentation shell only: mock controls never call persistence or export APIs. */
@@ -35,6 +36,7 @@ export function WorkspaceLayout({
   notice,
   bookPreviewAction,
   bookDesign,
+  publicationAction,
 }: WorkspaceLayoutProps) {
   const [panel, setPanel] = useState<Panel | null>("preview");
   const [navigationOpen, setNavigationOpen] = useState(
@@ -200,36 +202,40 @@ export function WorkspaceLayout({
           <span>MANUSCRIPT</span>
           <Icon name="book" />
         </div>
-        <div className="matter-group">
-          <span className="section-label">
-            FRONT MATTER <span className="mock-tag">Planned</span>
-          </span>
-          {["Title page", "Copyright", "Contents"].map((name) => (
+        {publicationAction ?? (
+          <div className="matter-group">
+            <span className="section-label">
+              FRONT MATTER <span className="mock-tag">Planned</span>
+            </span>
+            {["Title page", "Copyright", "Contents"].map((name) => (
+              <button
+                key={name}
+                className="matter-item"
+                onClick={() => selectPanel("details")}
+              >
+                <Icon name="page" />
+                {name}
+                <span className="matter-dot" />
+              </button>
+            ))}
+          </div>
+        )}
+        {navigator}
+        {!publicationAction && (
+          <div className="matter-group back-matter">
+            <span className="section-label">
+              BACK MATTER <span className="mock-tag">Planned</span>
+            </span>
             <button
-              key={name}
               className="matter-item"
               onClick={() => selectPanel("details")}
             >
               <Icon name="page" />
-              {name}
+              About the author
               <span className="matter-dot" />
             </button>
-          ))}
-        </div>
-        {navigator}
-        <div className="matter-group back-matter">
-          <span className="section-label">
-            BACK MATTER <span className="mock-tag">Planned</span>
-          </span>
-          <button
-            className="matter-item"
-            onClick={() => selectPanel("details")}
-          >
-            <Icon name="page" />
-            About the author
-            <span className="matter-dot" />
-          </button>
-        </div>
+          </div>
+        )}
         <div className="outline-bottom">
           <Icon name="book" />
           <span>
@@ -255,7 +261,9 @@ export function WorkspaceLayout({
                     : "Layout mock"
                   : panel === "format" && bookDesign
                     ? "Presentation"
-                    : "Feature mock"}
+                    : panel === "details" && publicationAction
+                      ? "Publication"
+                      : "Feature mock"}
               </span>
             </div>
             <button
@@ -317,25 +325,26 @@ export function WorkspaceLayout({
                   {samplePreview}
                 </>
               ))}
-            {panel === "details" && (
-              <div className="tool-intro">
-                <span className="section-label">YOUR BOOK</span>
-                <h3>{title}</h3>
-                <p>{author}</p>
-                <div className="planned-card">
-                  <Icon name="page" />
-                  <h3>A place for every page.</h3>
-                  <p>
-                    Publication details, your cover, and front and back matter
-                    will live here.
-                  </p>
-                  <p className="mock-explanation">
-                    Not available yet. The outline entries show the planned
-                    structure, not saved pages.
-                  </p>
+            {panel === "details" &&
+              (publicationAction ?? (
+                <div className="tool-intro">
+                  <span className="section-label">YOUR BOOK</span>
+                  <h3>{title}</h3>
+                  <p>{author}</p>
+                  <div className="planned-card">
+                    <Icon name="page" />
+                    <h3>A place for every page.</h3>
+                    <p>
+                      Publication details, your cover, and front and back matter
+                      will live here.
+                    </p>
+                    <p className="mock-explanation">
+                      Not available yet. The outline entries show the planned
+                      structure, not saved pages.
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
+              ))}
             {panel === "export" && (
               <div className="tool-intro">
                 <h3>From manuscript to book.</h3>
@@ -416,18 +425,22 @@ export function WorkspaceLayout({
             data-panel={name}
             className="rail-button"
             aria-label={
-              name === "format" && bookDesign
-                ? "Book design"
-                : name === "preview" && bookPreviewAction
-                  ? "Open book preview panel"
-                  : `${panelNames[name]} (mock)`
+              name === "details" && publicationAction
+                ? "Book details"
+                : name === "format" && bookDesign
+                  ? "Book design"
+                  : name === "preview" && bookPreviewAction
+                    ? "Open book preview panel"
+                    : `${panelNames[name]} (mock)`
             }
             title={
-              name === "format" && bookDesign
-                ? "Book design"
-                : name === "preview" && bookPreviewAction
-                  ? "Book preview"
-                  : `${panelNames[name]} · mock`
+              name === "details" && publicationAction
+                ? "Book details"
+                : name === "format" && bookDesign
+                  ? "Book design"
+                  : name === "preview" && bookPreviewAction
+                    ? "Book preview"
+                    : `${panelNames[name]} · mock`
             }
             aria-pressed={panel === name}
             onClick={() => setPanel(panel === name ? null : name)}

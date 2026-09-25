@@ -20,6 +20,7 @@ The [local publishing delivery plan](planning/local-publishing-plan.md) updates 
 Operational documents:
 
 - [Shared semantic book rendering and preview](book-rendering.md)
+- [Publication metadata, matter pages and managed covers](publication-matter.md)
 - [Community book themes, persistence and target styles](book-themes.md)
 - [Project format, version detection and recoverable migrations](project-format.md)
 - [Repository audit and reconciliations](planning/repository-audit.md)
