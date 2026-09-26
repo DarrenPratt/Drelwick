@@ -121,7 +121,9 @@ The main process retains one prepared semantic preview. Selection with its revis
 restyles that exact markup without assembling or traversing manuscript data again.
 Closing/switching/reopening a project invalidates the cache; a stale revision is
 rejected before persistence. The preview remains a captured saved revision, not a
-live editor view. Close/reopen preview to include later manuscript changes.
+live editor view. Use **Refresh preview** to include later manuscript changes.
+Issue #124 adds separate, ephemeral reader controls; changing their font size or
+colour presentation does not invoke theme persistence.
 
 Only generated preset CSS is placed in the controlled wrapper. Its exact SHA-256
 hash is authorized by CSP; arbitrary inline styles remain blocked. `script-src`,
@@ -138,7 +140,7 @@ uses relative body sizing and ordinary reflowable CSS; readers may override it.
 Print output uses point body sizes and adjusted leading/spacing. Neither target
 copies prose or invokes another semantic renderer.
 
-- #124 can consume the selected theme and ebook CSS for a full reflowable preview.
+- #124 consumes the selected theme and ebook CSS for the [reflowable preview](ebook-preview.md).
 - #126 can package the shared XHTML and ebook CSS; `requiredAssets` is empty today.
 - #128 owns physical book layout (trim, gutters, headers and page configuration),
   separately from typography. #129 owns pagination/print rendering/PDF.

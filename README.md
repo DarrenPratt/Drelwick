@@ -46,10 +46,13 @@ warnings before choosing a new empty destination. The source stays unchanged.
 The committed project is validated before opening; failed saves and failed imports
 preserve the current manuscript. See the [import review workflow](docs/import-review-ui.md).
 
-The **Book preview** panel opens a plain semantic manuscript preview. Pending edits
-are saved first; failed saves cancel preview. Local images stay within the isolated
-preview, and incomplete content is reported. Close and reopen to refresh. See the
-[shared rendering architecture](docs/book-rendering.md).
+The **Book preview** panel opens a local reflowable ebook simulation, including
+visible front matter, chapters, back matter and managed images in the selected
+theme. Contents links navigate the book. Viewport, orientation, font size and
+light/dark controls affect only the simulation. **Refresh preview** saves pending
+edits and captures a coherent new revision; failed refreshes retain the previous
+preview and editor. Changed sources are marked stale. See the
+[ebook preview guide and acceptance evidence](docs/ebook-preview.md).
 
 Use chapter **Actions** to duplicate, split at the current cursor or change status.
 For the selected chapter, **Actions → Chapter History** lists validated local

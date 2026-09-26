@@ -56,7 +56,8 @@ streaming exporter for unbounded projects.
 The desktop synchronously freezes editing, flushes the existing autosave
 coordinator and checks dirty/in-flight state before requesting assembly. Failed
 saves preserve edits and cancel preview. The dialog displays a captured saved
-revision; close/reopen to refresh. Core and the pure renderer know nothing about
+revision; #124 adds explicit Refresh and stale-state checks (see
+[ebook preview](ebook-preview.md)). Core and the pure renderer know nothing about
 editor dirty state. Future export callers must use this same flush boundary.
 
 ## Contracts and determinism
