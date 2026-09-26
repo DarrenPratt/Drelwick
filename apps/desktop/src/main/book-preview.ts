@@ -11,6 +11,8 @@ import {
   type BookPreview,
   type BookThemeSelection,
   type PublicationMetadata,
+  EbookSimulationSchema,
+  type EbookSimulation,
 } from "@drelwick/shared";
 import { createHash } from "node:crypto";
 
@@ -23,6 +25,7 @@ export interface PreparedBookPreview {
   projectId: string;
   language: string;
   markup: string;
+  navigation?: readonly { anchor: string; title: string }[];
   revision: string;
   complete: boolean;
   diagnostics: BookPreview["diagnostics"];
@@ -57,6 +60,9 @@ export async function prepareBookPreview(
     projectId,
     language: snapshot.book.language,
     markup: rendered.chapters.map((chapter) => chapter.xhtml).join(""),
+    navigation: rendered.chapters
+      .filter((chapter) => chapter.publication?.inclusion.navigation !== false)
+      .map(({ anchor, title }) => ({ anchor, title })),
     selection: resolveBookTheme(snapshot.presentation.themeId),
     revision: rendered.revision,
     complete: rendered.ok,
@@ -68,8 +74,26 @@ export async function prepareBookPreview(
 export function presentBookPreview(
   prepared: PreparedBookPreview,
   selection = prepared.selection,
+  simulation: EbookSimulation = { fontSize: 16, appearance: "light" },
 ): BookPreview {
-  const { css } = generateThemeStyles(getBookTheme(selection.themeId), "ebook");
+  const settings = EbookSimulationSchema.parse(simulation);
+  const theme = generateThemeStyles(getBookTheme(selection.themeId), "ebook");
+  const dark = settings.appearance === "dark";
+  // Trusted target CSS only; no author strings enter styles. Relative theme sizes
+  // inherit this simulated root size without changing the theme definition.
+  const css =
+    theme.css +
+    `
+html { font-size: ${settings.fontSize}px; color-scheme: ${settings.appearance}; }
+body { margin: 0; padding: 1.25rem; overflow-wrap: anywhere; }
+body, .chapter { color: ${dark ? "#e8e6e3" : "#111"}; background-color: ${dark ? "#202124" : "#fff"}; }
+.chapter { margin-block-end: 3rem; }
+.preview-navigation { font: 1rem/1.5 sans-serif; margin-block-end: 2rem; }
+.preview-navigation a { color: inherit; }
+`;
+  const navigation = prepared.navigation?.length
+    ? `<nav class="preview-navigation" aria-label="Book contents"><h2>Contents</h2><ol>${prepared.navigation.map(({ anchor, title }) => `<li><a href="about:srcdoc#${escapeXml(anchor)}">${escapeXml(title)}</a></li>`).join("")}</ol></nav>`
+    : "";
   const digest = createHash("sha256").update(css).digest("base64");
   const policy = BOOK_PREVIEW_CSP.replace(
     "style-src 'none'",
@@ -80,6 +104,6 @@ export function presentBookPreview(
     complete: prepared.complete,
     diagnostics: prepared.diagnostics,
     theme: selection,
-    document: `<!doctype html><html lang="${escapeXml(prepared.language)}"><head><meta charset="utf-8" /><meta http-equiv="Content-Security-Policy" content="${escapeXml(policy)}" /><title>${escapeXml(prepared.metadata?.title ?? "Book preview")}</title>${prepared.metadata ? `<meta name="author" content="${escapeXml(prepared.metadata.author)}" /><meta name="description" content="${escapeXml(prepared.metadata.description)}" />` : ""}<style>${css}</style></head><body>${prepared.markup}</body></html>`,
+    document: `<!doctype html><html lang="${escapeXml(prepared.language)}"><head><meta charset="utf-8" /><meta http-equiv="Content-Security-Policy" content="${escapeXml(policy)}" /><title>${escapeXml(prepared.metadata?.title ?? "Book preview")}</title>${prepared.metadata ? `<meta name="author" content="${escapeXml(prepared.metadata.author)}" /><meta name="description" content="${escapeXml(prepared.metadata.description)}" />` : ""}<style>${css}</style></head><body>${navigation}${prepared.markup}</body></html>`,
   };
 }

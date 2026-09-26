@@ -1671,7 +1671,39 @@ button svg {
   }
 }
 .book-preview {
-  width: min(900px, 90vw);
+  width: min(1100px, 94vw);
+}
+.ebook-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+.ebook-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.ebook-controls select,
+.ebook-controls input {
+  font: inherit;
+  padding: 0.4rem;
+  max-width: 14rem;
+}
+.ebook-viewport {
+  overflow: auto;
+  max-height: 65vh;
+  background: #888;
+  padding: 1rem;
+}
+.ebook-viewport iframe {
+  display: block;
+  margin-inline: auto;
+  box-sizing: content-box;
+  max-width: none;
+}
+.preview-revision {
+  font-size: 0.8rem;
 }
 
 .publication-dialog {

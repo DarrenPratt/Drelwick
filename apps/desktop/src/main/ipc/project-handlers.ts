@@ -6,6 +6,7 @@ import {
 } from "electron";
 import {
   createProjectArchive,
+  assembleBook,
   loadPublication,
   savePublication,
   replacePublicationCover,
@@ -253,6 +254,9 @@ export function registerProjectHandlers(
   let activeProjectPath: string | undefined;
   let activeProjectId: string | undefined;
   let preparedPreview: PreparedBookPreview | undefined;
+  // Foreground preview actions wait for a read-only currency check rather than
+  // failing when focus returns from the iframe and starts that check first.
+  let previewStatusSettled = Promise.resolve();
   const trusted = (event: IpcMainInvokeEvent) => {
     const window = getWindow();
     return (
@@ -336,6 +340,7 @@ export function registerProjectHandlers(
   }
 
   ipcMain.handle(IPC.BOOK_PREVIEW, async (event, payload: unknown) => {
+    await previewStatusSettled;
     if (!trusted(event))
       return failure(
         "PROJECT_ACCESS_DENIED",
@@ -357,16 +362,17 @@ export function registerProjectHandlers(
     busy = true;
     try {
       await history.settleProject(activeProjectPath);
-      preparedPreview = await prepareBookPreview(
+      const prepared = await prepareBookPreview(
         activeProjectPath,
         parsed.data.projectId,
       );
-      const value = presentBookPreview(preparedPreview);
+      const value = presentBookPreview(prepared);
       if (!trusted(event))
         return failure(
           "PROJECT_ACCESS_DENIED",
           "Project access is not permitted.",
         );
+      preparedPreview = prepared;
       return { ok: true, value };
     } catch {
       // Do not forward filesystem errors, schema payloads or rendered prose.
@@ -379,8 +385,91 @@ export function registerProjectHandlers(
     }
   });
 
+  for (const channel of [
+    IPC.BOOK_PREVIEW_SIMULATE,
+    IPC.BOOK_PREVIEW_STATUS,
+  ] as const) {
+    ipcMain.handle(channel, async (event, payload: unknown) => {
+      if (channel === IPC.BOOK_PREVIEW_SIMULATE) await previewStatusSettled;
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      const parsed = IpcRequestSchemas[channel].safeParse(payload);
+      if (!parsed.success)
+        return failure("PROJECT_INPUT_INVALID", "Invalid preview request.");
+      if (!activeProjectPath || parsed.data.projectId !== activeProjectId)
+        return failure(
+          "PROJECT_NOT_OPEN",
+          "Reopen the project before previewing.",
+        );
+      if (busy)
+        return failure(
+          "PROJECT_BUSY",
+          "Wait for the current project operation and retry.",
+        );
+      if (
+        !preparedPreview ||
+        preparedPreview.projectId !== parsed.data.projectId ||
+        preparedPreview.revision !== parsed.data.revision
+      )
+        return failure(
+          "BOOK_PREVIEW_EXPIRED",
+          "Refresh the preview to capture a new revision.",
+        );
+      busy = true;
+      let statusFinished: (() => void) | undefined;
+      if (channel === IPC.BOOK_PREVIEW_STATUS)
+        previewStatusSettled = new Promise<void>((resolve) => {
+          statusFinished = resolve;
+        });
+      try {
+        if (channel === IPC.BOOK_PREVIEW_SIMULATE) {
+          const request =
+            IpcRequestSchemas[IPC.BOOK_PREVIEW_SIMULATE].parse(payload);
+          return {
+            ok: true,
+            value: presentBookPreview(
+              preparedPreview,
+              preparedPreview.selection,
+              request.simulation,
+            ),
+          };
+        }
+        await history.settleProject(activeProjectPath);
+        // Comparison only: never replace the captured preview or mix its chapters
+        // with current sources. Reuse the same consistent assembly boundary.
+        const current = await assembleBook(activeProjectPath);
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project access is not permitted.",
+          );
+        return {
+          ok: true,
+          value: {
+            stale:
+              current.book.revision !== preparedPreview.revision ||
+              current.presentation.themeId !==
+                preparedPreview.selection.savedThemeId,
+          },
+        };
+      } catch {
+        return failure(
+          "BOOK_PREVIEW_FAILED",
+          "Unable to check or present the captured preview. Refresh after resolving project recovery or access problems. Editing and saved data are preserved.",
+        );
+      } finally {
+        busy = false;
+        statusFinished?.();
+      }
+    });
+  }
+
   for (const channel of [IPC.BOOK_THEME_GET, IPC.BOOK_THEME_SET] as const) {
     ipcMain.handle(channel, async (event, payload: unknown) => {
+      await previewStatusSettled;
       if (!trusted(event))
         return failure(
           "PROJECT_ACCESS_DENIED",
@@ -434,6 +523,7 @@ export function registerProjectHandlers(
             "PROJECT_ACCESS_DENIED",
             "Project access is not permitted.",
           );
+        if (preparedPreview) preparedPreview.selection = saved.selection;
         return {
           ok: true,
           value: {

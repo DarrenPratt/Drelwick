@@ -7,6 +7,7 @@ import {
   type ProjectOperationResult,
   type ProjectWorkspace,
   type PublicationState,
+  type BookPreview,
 } from "@drelwick/shared";
 import {
   copyFixture,
@@ -41,7 +42,7 @@ async function setup() {
   const history = {
     scheduleSnapshot: vi.fn(),
     scheduleRetention: vi.fn(),
-    settleProject: async () => undefined,
+    settleProject: vi.fn(async (): Promise<void> => undefined),
     closeProject: async () => undefined,
     settleAll: async () => undefined,
     shutdown: async () => undefined,
@@ -71,6 +72,7 @@ async function setup() {
   return {
     invoke,
     picker,
+    history,
     event,
     source,
     projectPath: copy.projectPath,
@@ -224,6 +226,127 @@ it("authorizes book preview by main frame and active identity and rejects arbitr
     },
   });
   expect(JSON.stringify(result)).not.toContain(f.source);
+});
+
+it("simulates only the captured revision, detects stale sources and preserves the cache after failed refresh", async () => {
+  const f = await setup();
+  const result = await f.invoke(IPC.BOOK_PREVIEW, { projectId: f.projectId });
+  if (!result.ok) throw new Error("Preview failed");
+  const original = result.value as BookPreview;
+  const identity = { projectId: f.projectId, revision: original.revision };
+  const simulation = { fontSize: 24, appearance: "dark" };
+  for (const channel of [IPC.BOOK_PREVIEW_STATUS, IPC.BOOK_PREVIEW_SIMULATE]) {
+    const input = {
+      ...identity,
+      ...(channel === IPC.BOOK_PREVIEW_SIMULATE ? { simulation } : {}),
+    };
+    expect(
+      await f.invoke(channel, input, {
+        ...f.event,
+        senderFrame: { url: "about:srcdoc" },
+      } as unknown as IpcMainInvokeEvent),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_ACCESS_DENIED" } });
+    expect(
+      await f.invoke(channel, { ...input, path: "file:///secret" }),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_INPUT_INVALID" } });
+    expect(
+      await f.invoke(channel, { ...input, revision: "a".repeat(64) }),
+    ).toMatchObject({ ok: false, error: { code: "BOOK_PREVIEW_EXPIRED" } });
+    expect(
+      await f.invoke(channel, {
+        ...input,
+        projectId: "00000000-0000-4000-8000-000000000999",
+      }),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_NOT_OPEN" } });
+  }
+  for (const invalid of [
+    { fontSize: 500, appearance: "dark" },
+    { fontSize: 16, appearance: "url(https://remote.invalid)" },
+    { ...simulation, css: "body{}" },
+  ])
+    expect(
+      await f.invoke(IPC.BOOK_PREVIEW_SIMULATE, {
+        ...identity,
+        simulation: invalid,
+      }),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_INPUT_INVALID" } });
+  expect(await f.invoke(IPC.BOOK_PREVIEW_STATUS, identity)).toEqual({
+    ok: true,
+    value: { stale: false },
+  });
+  const path = join(f.projectPath, "manuscript", `${f.chapterId}.json`);
+  const chapter = JSON.parse(await readFile(path, "utf8"));
+  chapter.content = {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [{ type: "text", text: "Later saved revision" }],
+      },
+    ],
+  };
+  const later = JSON.stringify(chapter);
+  await writeFile(path, later);
+  expect(await f.invoke(IPC.BOOK_PREVIEW_STATUS, identity)).toEqual({
+    ok: true,
+    value: { stale: true },
+  });
+  const simulated = await f.invoke(IPC.BOOK_PREVIEW_SIMULATE, {
+    ...identity,
+    simulation,
+  });
+  if (!simulated.ok) throw new Error("Simulation failed");
+  const passive = simulated.value as BookPreview;
+  expect(passive.revision).toBe(original.revision);
+  expect(passive.theme).toEqual(original.theme);
+  expect(passive.document.split("<body>")[1]).toBe(
+    original.document.split("<body>")[1],
+  );
+  expect(passive.document).toContain("font-size: 24px");
+  expect(passive.document).toContain("color-scheme: dark");
+  expect(passive.document).not.toContain("Later saved revision");
+  expect(await readFile(path, "utf8")).toBe(later);
+  await writeFile(path, "invalid private manuscript data");
+  expect(
+    await f.invoke(IPC.BOOK_PREVIEW, { projectId: f.projectId }),
+  ).toMatchObject({ ok: false, error: { code: "BOOK_PREVIEW_FAILED" } });
+  expect(
+    await f.invoke(IPC.BOOK_PREVIEW_SIMULATE, { ...identity, simulation }),
+  ).toEqual(simulated);
+  expect(await readFile(path, "utf8")).toBe("invalid private manuscript data");
+  await writeFile(path, later);
+  const refreshed = await f.invoke(IPC.BOOK_PREVIEW, {
+    projectId: f.projectId,
+  });
+  expect(refreshed).toMatchObject({
+    ok: true,
+    value: { document: expect.stringContaining("Later saved revision") },
+  });
+  expect(
+    await f.invoke(IPC.BOOK_PREVIEW_SIMULATE, { ...identity, simulation }),
+  ).toMatchObject({ ok: false, error: { code: "BOOK_PREVIEW_EXPIRED" } });
+});
+
+it("queues explicit refresh behind an in-flight currency check instead of failing busy", async () => {
+  const f = await setup();
+  const preview = await f.invoke(IPC.BOOK_PREVIEW, { projectId: f.projectId });
+  if (!preview.ok) throw new Error("Preview failed");
+  let finish!: () => void;
+  f.history.settleProject.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const status = f.invoke(IPC.BOOK_PREVIEW_STATUS, {
+    projectId: f.projectId,
+    revision: (preview.value as BookPreview).revision,
+  });
+  await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+  const refresh = f.invoke(IPC.BOOK_PREVIEW, { projectId: f.projectId });
+  finish();
+  expect(await status).toEqual({ ok: true, value: { stale: false } });
+  expect(await refresh).toMatchObject({ ok: true });
 });
 
 it("restricts publication operations to the active main frame and validates metadata, semantic pages and cover selection", async () => {

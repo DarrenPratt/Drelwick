@@ -60,6 +60,21 @@ describe("preload API", () => {
     expect(invoke).toHaveBeenLastCalledWith("book:preview", {
       projectId: "123e4567-e89b-42d3-a456-426614174000",
     });
+    const captured = {
+      projectId: "123e4567-e89b-42d3-a456-426614174000",
+      revision: "a".repeat(64),
+    };
+    await api.project.bookPreviewStatus(captured);
+    expect(invoke).toHaveBeenLastCalledWith("book:preview-status", captured);
+    const simulation = {
+      ...captured,
+      simulation: { fontSize: 20, appearance: "dark" as const },
+    };
+    await api.project.simulateBookPreview(simulation);
+    expect(invoke).toHaveBeenLastCalledWith(
+      "book:preview-simulate",
+      simulation,
+    );
     const historyRequest = {
       projectId: "123e4567-e89b-42d3-a456-426614174000",
       chapterId: "123e4567-e89b-42d3-a456-426614174001",

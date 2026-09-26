@@ -1808,6 +1808,11 @@ export function App() {
       {bookPreview && (
         <BookPreviewDialog
           preview={bookPreview}
+          projectId={project!.projectId}
+          onRefresh={() => void previewBook()}
+          refreshing={previewing || savingTheme}
+          error={error}
+          dirty={dirty}
           themeSelector={themeSelector}
           onClose={() => {
             setBookPreview(null);

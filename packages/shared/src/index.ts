@@ -93,6 +93,8 @@ export const IPC = {
   BOOK_THEME_GET: "book:theme-get",
   BOOK_THEME_SET: "book:theme-set",
   BOOK_PREVIEW: "book:preview",
+  BOOK_PREVIEW_SIMULATE: "book:preview-simulate",
+  BOOK_PREVIEW_STATUS: "book:preview-status",
   HISTORY_LIST: "history:list",
   HISTORY_PREVIEW: "history:preview",
   HISTORY_RESTORE: "history:restore",
@@ -203,6 +205,20 @@ export interface BookPreview {
     assetId?: string;
   }[];
 }
+/** Ephemeral reader presentation. Never persisted as book settings. */
+export const EbookSimulationSchema = z
+  .object({
+    fontSize: z.number().int().min(12).max(32),
+    appearance: z.enum(["light", "dark"]),
+  })
+  .strict();
+export type EbookSimulation = z.infer<typeof EbookSimulationSchema>;
+const PreviewIdentitySchema = z
+  .object({
+    projectId: z.string().uuid(),
+    revision: z.string().regex(/^[0-9a-f]{64}$/),
+  })
+  .strict();
 export interface RecentProject {
   id: string;
   path: string;
@@ -228,6 +244,10 @@ export const IpcRequestSchemas = {
     })
     .strict(),
   [IPC.BOOK_PREVIEW]: z.object({ projectId: z.string().uuid() }).strict(),
+  [IPC.BOOK_PREVIEW_SIMULATE]: PreviewIdentitySchema.extend({
+    simulation: EbookSimulationSchema,
+  }).strict(),
+  [IPC.BOOK_PREVIEW_STATUS]: PreviewIdentitySchema,
   [IPC.HISTORY_LIST]: z
     .object({ projectId: z.string().uuid(), chapterId: z.string().uuid() })
     .strict(),
@@ -378,6 +398,15 @@ export interface DrelwickApi {
     previewBook(input: {
       projectId: string;
     }): Promise<ProjectOperationResult<BookPreview>>;
+    simulateBookPreview(input: {
+      projectId: string;
+      revision: string;
+      simulation: EbookSimulation;
+    }): Promise<ProjectOperationResult<BookPreview>>;
+    bookPreviewStatus(input: {
+      projectId: string;
+      revision: string;
+    }): Promise<ProjectOperationResult<{ stale: boolean }>>;
     listHistory(
       input: HistoryRequest,
     ): Promise<ProjectOperationResult<ChapterHistory>>;
