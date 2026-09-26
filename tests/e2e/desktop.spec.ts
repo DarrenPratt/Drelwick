@@ -19,6 +19,185 @@ import {
   type ElectronApplication,
 } from "@playwright/test";
 import { copyFixture } from "../helpers/fixture-projects.js";
+import { ebookProject } from "../helpers/ebook-project.js";
+
+test("reflowable ebook simulation navigates complete matter offline, preserves sources and refreshes coherent revisions", async () => {
+  const fixture = await ebookProject();
+  const scratch = await mkdtemp(join(tmpdir(), "drelwick-ebook-"));
+  let application: ElectronApplication | undefined;
+  try {
+    const launched = await launchApplication(join(scratch, "user-data"));
+    application = launched.application;
+    const page = launched.page;
+    await page.context().setOffline(true);
+    const requests: string[] = [];
+    page.on("request", (request) => {
+      if (/^https?:/.test(request.url())) requests.push(request.url());
+    });
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, fixture.projectPath);
+    await page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    await expect(page.locator(".ProseMirror")).toBeEditable();
+    const editorBefore = await page.locator(".ProseMirror").innerHTML();
+    await page
+      .getByRole("button", { name: "Book preview", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog", {
+      name: "Book preview",
+      exact: true,
+    });
+    const iframe = dialog.locator("iframe");
+    const frame = iframe.contentFrame();
+    await expect(dialog).toContainText("not a guarantee");
+    await expect(frame.locator(".chapter")).toHaveCount(7);
+    await expect(frame.locator('[data-matter-type="dedication"]')).toHaveCount(
+      0,
+    );
+    await expect(
+      frame.locator('[data-matter-type="acknowledgements"]'),
+    ).toHaveCount(1);
+    await expect(
+      frame
+        .getByRole("navigation", { name: "Book contents" })
+        .getByRole("link"),
+    ).toHaveCount(3);
+    await expect(
+      frame.getByRole("link", { name: "Acknowledgements", exact: true }),
+    ).toHaveCount(0);
+    await expect(frame.locator(".chapter").first()).toHaveCSS(
+      "font-family",
+      /Palatino/,
+    );
+    await expect(frame.locator("img")).toHaveJSProperty("naturalWidth", 2);
+    const contents = await frame.locator("body").innerHTML();
+    for (const [preset, width, height] of [
+      ["phone", 390, 844],
+      ["reader", 600, 800],
+      ["tablet", 768, 1024],
+    ] as const) {
+      await dialog.getByLabel("Viewport", { exact: true }).selectOption(preset);
+      await expect(iframe).toHaveCSS("width", `${width}px`);
+      await expect(iframe).toHaveCSS("height", `${height}px`);
+      expect(
+        await frame.locator("body").evaluate(() => window.innerWidth),
+      ).toBe(width);
+      await dialog.locator(".ebook-viewport").screenshot({
+        path: test.info().outputPath(`ebook-${preset}.png`),
+      });
+    }
+    await dialog
+      .getByLabel("Orientation", { exact: true })
+      .selectOption("landscape");
+    await expect(iframe).toHaveCSS("width", "1024px");
+    await expect(iframe).toHaveCSS("height", "768px");
+    await dialog.getByLabel("Viewport", { exact: true }).selectOption("custom");
+    await dialog.getByLabel("Portrait width", { exact: true }).fill("480");
+    await dialog.getByLabel("Portrait height", { exact: true }).fill("720");
+    await expect(iframe).toHaveCSS("width", "720px");
+    await expect(iframe).toHaveCSS("height", "480px");
+    await dialog.getByLabel("Font size", { exact: true }).selectOption("24");
+    await expect(frame.locator("html")).toHaveCSS("font-size", "24px");
+    await expect(frame.locator(".chapter").first()).toHaveCSS(
+      "font-size",
+      "24px",
+    );
+    await dialog
+      .getByLabel("Presentation", { exact: true })
+      .selectOption("dark");
+    await expect(frame.locator(".chapter").first()).toHaveCSS(
+      "background-color",
+      "rgb(32, 33, 36)",
+    );
+    expect(await frame.locator("body").innerHTML()).toBe(contents);
+    await dialog.locator(".ebook-viewport").screenshot({
+      path: test.info().outputPath("ebook-landscape-dark-large.png"),
+    });
+    await frame
+      .getByRole("link", { name: "About the author", exact: true })
+      .click();
+    await expect
+      .poll(() => frame.locator("body").evaluate(() => location.hash))
+      .toBe(`#chapter-${fixture.data.pages[4]!.id}`);
+    expect(
+      await frame.locator("body").evaluate(() => window.scrollY),
+    ).toBeGreaterThan(0);
+    expect(
+      await Promise.all(fixture.paths.map((path) => readFile(path))),
+    ).toEqual(fixture.bytes);
+    expect(await page.locator(".ProseMirror").innerHTML()).toBe(editorBefore);
+    const chapterPath = fixture.chapterPaths[0]!;
+    const chapter = JSON.parse(await readFile(chapterPath, "utf8"));
+    chapter.content = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "Explicit refreshed revision" }],
+        },
+      ],
+    };
+    await writeFile(chapterPath, JSON.stringify(chapter));
+    await expect(dialog).toContainText("Stale preview", { timeout: 12000 });
+    await expect(frame.locator("body")).not.toContainText(
+      "Explicit refreshed revision",
+    );
+    await dialog
+      .getByRole("button", { name: "Refresh preview", exact: true })
+      .click();
+    await expect(dialog.getByRole("alert")).toHaveCount(0);
+    await expect(dialog).not.toContainText("Refreshing preview");
+    await expect
+      .poll(() => dialog.getByRole("alert").allTextContents())
+      .toEqual([]);
+    expect(await readFile(chapterPath, "utf8")).toContain(
+      "Explicit refreshed revision",
+    );
+    await expect(iframe).toHaveAttribute(
+      "srcdoc",
+      /Explicit refreshed revision/,
+    );
+    await expect(frame.locator("body")).toContainText(
+      "Explicit refreshed revision",
+    );
+    await expect(frame.locator("html")).toHaveCSS("font-size", "24px");
+    await expect(frame.locator(".chapter").first()).toHaveCSS(
+      "background-color",
+      "rgb(32, 33, 36)",
+    );
+    const refreshed = await iframe.getAttribute("srcdoc");
+    await writeFile(chapterPath, "invalid source preserved");
+    await dialog
+      .getByRole("button", { name: "Refresh preview", exact: true })
+      .click();
+    await expect(dialog.getByRole("alert")).toContainText("Unable to preview");
+    expect(await iframe.getAttribute("srcdoc")).toBe(refreshed);
+    expect(await readFile(chapterPath, "utf8")).toBe(
+      "invalid source preserved",
+    );
+    expect(await page.locator(".ProseMirror").innerHTML()).toBe(editorBefore);
+    await writeFile(chapterPath, JSON.stringify(chapter));
+    await dialog
+      .getByRole("button", { name: "Close preview", exact: true })
+      .click();
+    await expect(page.locator(".ProseMirror")).toBeEditable();
+    expect(requests).toEqual([]);
+  } finally {
+    await application?.close();
+    await fixture.cleanup();
+    await rm(scratch, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 200,
+    });
+  }
+});
 
 test("Publication pages preserve prose and identity through editing, cover import and restart", async () => {
   const fixture = await copyFixture("minimal-book");
@@ -537,9 +716,9 @@ test("shared book preview saves pending prose and isolates active content, asset
         .first()
         .evaluate((image) => (image as HTMLImageElement).naturalWidth),
     ).toBe(2);
-    await expect(frame.locator("a,script,iframe,object,[onclick]")).toHaveCount(
-      0,
-    );
+    await expect(
+      frame.locator(".chapter a,script,iframe,object,[onclick]"),
+    ).toHaveCount(0);
     const privileges = await frame.locator("body").evaluate(() => {
       const globals = globalThis as unknown as Record<string, unknown>;
       let parentBlocked = false;
@@ -553,6 +732,9 @@ test("shared book preview saves pending prose and isolates active content, asset
         process: typeof globals.process,
         preload: typeof globals.drelwick,
         ipc: typeof globals.ipcRenderer,
+        filesystem: typeof globals.fs,
+        shell: typeof globals.shell,
+        childProcess: typeof globals.child_process,
         parentBlocked,
       };
     });
@@ -561,6 +743,9 @@ test("shared book preview saves pending prose and isolates active content, asset
       process: "undefined",
       preload: "undefined",
       ipc: "undefined",
+      filesystem: "undefined",
+      shell: "undefined",
+      childProcess: "undefined",
       parentBlocked: true,
     });
     await dialog.screenshot({
@@ -575,7 +760,7 @@ test("shared book preview saves pending prose and isolates active content, asset
       const frame = element as HTMLIFrameElement;
       frame.srcdoc = frame.srcdoc.replace(
         "</body>",
-        '<p id="isolation-probe" style="display:none">Isolation probe</p><style>@import url("https://remote.invalid/style.css"); #isolation-probe { display:none }</style><script>globalThis.executed = true; parent.drelwick.project.open()</script><img src="https://remote.invalid/image" onerror="globalThis.executed = true" /><iframe src="https://remote.invalid/frame"></iframe><object data="file:///secret"></object></body>',
+        '<p id="isolation-probe" style="display:none">Isolation probe</p><style>@import url("https://remote.invalid/style.css"); #isolation-probe { display:none }</style><script>globalThis.executed = true; require("fs"); require("child_process"); require("electron").shell; parent.drelwick.project.open(); fetch("https://remote.invalid/connect")</script><script src="https://remote.invalid/script.js"></script><link rel="stylesheet" href="file:///secret.css"><img src="file:///secret.png"><img src="https://remote.invalid/image" onerror="globalThis.executed = true" /><iframe src="https://remote.invalid/frame"></iframe><object data="file:///secret"></object></body>',
       );
     });
     await expect(frame.locator("#isolation-probe")).toHaveText(

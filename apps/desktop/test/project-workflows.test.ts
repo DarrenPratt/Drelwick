@@ -158,6 +158,10 @@ beforeEach(async () => {
       getBookTheme,
       setBookTheme,
       previewBook,
+      simulateBookPreview: vi.fn(),
+      bookPreviewStatus: vi
+        .fn()
+        .mockResolvedValue({ ok: true, value: { stale: false } }),
       listHistory: vi.fn(),
       previewHistory: vi.fn(),
       restoreHistory: vi.fn(),
@@ -1318,6 +1322,55 @@ describe("chapter editor persistence", () => {
     expect(editor().isEditable).toBe(true);
     expect(saveStatus()).toBe("Unsaved changes");
     expect(container.textContent).toContain("Preview was cancelled");
+  });
+
+  it("explicitly refreshes through autosave and retains the preview and editor after a render failure", async () => {
+    await openChapter();
+    await click("Book preview");
+    const before = editor().getJSON();
+    const frame = container.querySelector("iframe")!;
+    previewBook.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "BOOK_PREVIEW_FAILED",
+        message: "Rendering failed safely",
+      },
+    });
+    await click("Refresh preview");
+    expect(previewBook).toHaveBeenCalledTimes(2);
+    expect(frame.srcdoc).toBe("<p>Saved preview</p>");
+    expect(container.querySelector("dialog")?.textContent).toContain(
+      "Rendering failed safely",
+    );
+    expect(editor().getJSON()).toEqual(before);
+    expect(editor().isEditable).toBe(true);
+    await editText("Pending refresh prose");
+    await click("Refresh preview");
+    expect(saveChapter.mock.calls.at(-1)?.[0].document).toEqual(
+      editor().getJSON(),
+    );
+    expect(saveChapter.mock.invocationCallOrder.at(-1)).toBeLessThan(
+      previewBook.mock.invocationCallOrder.at(-1)!,
+    );
+  });
+
+  it("marks a changed revision stale without fetching replacement markup", async () => {
+    await openChapter();
+    await click("Book preview");
+    vi.mocked(window.drelwick.project.bookPreviewStatus).mockResolvedValueOnce({
+      ok: true,
+      value: { stale: true },
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(container.querySelector("dialog")?.textContent).toContain(
+      "Stale preview",
+    );
+    expect(previewBook).toHaveBeenCalledOnce();
+    expect(container.querySelector("iframe")?.srcdoc).toBe(
+      "<p>Saved preview</p>",
+    );
   });
 
   it("labels incomplete preview and explains missing assets without hiding the diagnostic", async () => {
