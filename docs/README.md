@@ -11,7 +11,7 @@ Read these documents in the order below to move from product design to implement
 
 These are design and planning documents, rather than a description of implemented functionality. Plan issue numbers identify stable tasks; the [GitHub tracking register](planning/github-tracking.md) maps them to actual created issues and dependencies.
 
-The commercial architecture addendum is labelled build plan version 0.2. It supplements the v0.1 plan with updated milestones, product classification and additional completion criteria; it is not a replacement build plan or the v0.2 feature backlog. Its licensing and contribution decisions remain planned work, including final selection of the Community licence.
+The commercial architecture addendum is labelled build plan version 0.2. It supplements the v0.1 plan with updated milestones, product classification and additional completion criteria; it is not a replacement build plan or the v0.2 feature backlog. Final licensing approval and the contributor agreement process remain pending. The [contributor strategy](contributor-copyright-strategy.md) records the owner's intended `AGPL-3.0-only`, CLA and DCO direction without claiming legal approval.
 
 Keep product design and technical specifications directly under `docs/`, and delivery plans and planning addenda under `docs/planning/`. Use descriptive lowercase filenames with hyphens.
 
@@ -19,6 +19,9 @@ The [local publishing delivery plan](planning/local-publishing-plan.md) updates 
 
 Operational documents:
 
+- [Contribution guide and closed external-contribution gate](../CONTRIBUTING.md)
+- [Contributor agreement and copyright strategy (proposed; legal review pending)](contributor-copyright-strategy.md)
+- [CLA requirements (draft for legal review; not an agreement)](contributor-cla-requirements.md)
 - [Offline spell checking and local personal dictionary](offline-spelling.md)
 - [Shared semantic book rendering and preview](book-rendering.md)
 - [Local reflowable ebook simulation and acceptance evidence](ebook-preview.md)
