@@ -1,5 +1,10 @@
 ## Summary
 
+**External contribution gate is CLOSED pending #54 and the Licensing & Commercial
+Architecture milestone.** Do not merge or cherry-pick external submissions while
+the gate is closed. See [CONTRIBUTING.md](../CONTRIBUTING.md). A checkbox or
+sign-off is not CLA acceptance or legal approval.
+
 Describe the problem and resulting behaviour.
 
 ## Related Issue
