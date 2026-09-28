@@ -38,6 +38,13 @@ Split work that delivers independently scoped products. Basic themes are CORE, p
 15. Basic local authoring works offline without an account.
 16. Community must remain independently useful; monetise added value rather than artificial restrictions.
 
+Run `pnpm check:architecture` when changing dependencies, imports or workspace
+configuration; the normal `pnpm check:workspace` CI step also runs it. New packages
+must be added to the reviewed Community inventory with their responsibility
+documented in the [package boundary](technical-spec.md#31-community--pro-dependency-boundary).
+Never add Pro to that inventory. Optional/dev/peer/test dependencies are subject
+to the same one-way boundary as application code.
+
 The desktop security baseline is enforced in
 `apps/desktop/src/main/windows/window-options.ts`: renderer Node integration is
 disabled, context isolation and sandboxing are enabled, insecure content and

@@ -237,6 +237,226 @@ Avoid allowing this package to become a dumping ground.
 
 ---
 
+# 3.1 Community / Pro dependency boundary
+
+**Classification: CORE.** Community defines capabilities and extension boundaries.
+Pro may consume or implement those boundaries. Community must never import, link
+to, require or otherwise depend upon Pro, including optional, development, peer,
+test or build dependencies. A disabled feature flag does not permit a reverse
+dependency.
+
+```text
+       Drelwick Pro (separate repository, future #61)
+                         |
+                         | consumes / implements Community contracts
+                         v
+       Drelwick Community (this repository)
+       capabilities + open format + extension boundaries
+
+       Pro -> Community: ALLOWED architectural direction
+       Community -> Pro: FORBIDDEN
+```
+
+This is an architectural rule, not permission to distribute proprietary code
+combined with Community. Issue [#53](https://github.com/DarrenPratt/Drelwick/issues/53)
+records the owner's intended **AGPL-3.0-only** Community licence and separately
+licensed proprietary/commercial Pro functionality. **Legal review and final
+licensing approval remain pending.** Earlier candidate-language in planning
+documents is historical; this section does not select a different licence.
+Technical separation, dependency inversion and a plugin API do not establish an
+AGPL exception or third-party commercial relicensing rights. Distribution, Pro
+interaction, plugins and dual licensing require #53 review; contributor rights
+require #54. No source file becomes both Community and proprietary by belonging
+to the same project. Public release remains gated by #60.
+
+## Actual Community package graph
+
+Audited against main `58da41f` on 28 September 2026. The layout in section 2 is a
+target, not the current package inventory. All six current workspaces are CORE;
+`private: true` is the current package-publication setting, not a PRO classification.
+The root `drelwick` manifest contains Community development tooling only.
+
+| Workspace                   | Responsibility and Community contracts                                                                                                                                                              | Direct workspace dependencies         |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `@drelwick/shared`          | Renderer-safe DTOs, IPC names/validation, `DrelwickApi`, errors, IDs, publication/theme/import types                                                                                                | None                                  |
+| `@drelwick/project-model`   | Versioned project/book/chapter/asset schemas, semantic validation, format detection/migration models, import and archive validation                                                                 | shared                                |
+| `@drelwick/renderer`        | Pure semantic XHTML generation: `BookRevision`, `RenderOptions`, `RenderedBook`, diagnostics, asset/link resolvers and built-in theme CSS                                                           | project-model, shared                 |
+| `@drelwick/core`            | Local creation/loading/saving, atomic persistence, autosave, recovery/history, search/replacement, assets, staged imports, book assembly, publication settings, archive backup/restore and spelling | project-model, renderer, shared       |
+| `@drelwick/desktop`         | Electron main/preload adapters, restricted IPC, React/TipTap editor, native dialogs, menus, local preview and bundled spelling resources                                                            | core, project-model, renderer, shared |
+| `@drelwick/workspace-smoke` | Separate private test consumer that resolves Community package exports in TypeScript and Node                                                                                                       | renderer, shared                      |
+
+There is no Pro package or Pro runtime loader. There is no separate storage or
+import/export workspace: those operations currently live in core with privileged
+desktop adapters. The shared package is populated, not an empty bootstrap module.
+TipTap extensions currently live in desktop's renderer; `packages/editor-schema`
+is a proposed extraction, not an installed workspace. `packages/epub`,
+`packages/print`, `packages/validation` and `packages/plugin-sdk` are future CORE
+packages. Adding them requires a reviewed Community inventory entry; #55 does
+not create placeholders or move existing functionality.
+
+## Existing contracts and optional extension direction
+
+These are actual internal Community interfaces, **not a stable public plugin SDK**:
+
+| Capability                            | Existing Community boundary                                                                                                                                    | Safe extension direction / remaining work                                                                                                                                                         |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Publishing and analysis               | `core.assembleBook` captures a coherent `AssembledBook`; renderer consumes `BookRevision` and `RenderOptions`, returning `RenderedBook` and `RenderDiagnostic` | Optional consumers can analyse a bounded snapshot or supply trusted asset/link resolvers. Ordinary render/validation must remain built in. Public registration and permissions belong to #57.     |
+| Import                                | `core.ManuscriptImporter`, `StagedManuscriptImport`, isolated first-party parser contract, project-model `ImporterResult` and validation; shared import DTOs   | Desktop explicitly registers bundled parsers. #57 can build a restricted external contract from this use case; the current worker/VM runner is not a hostile-plugin sandbox.                      |
+| Export                                | Shared semantic rendering already supports ebook/print targets; core captures assets and publication order                                                     | #125 owns local DOCX export, #126 EPUB packaging, #128–#130 basic print/PDF. They must work before/without plugin registration. No exporter registry exists yet.                                  |
+| Validation                            | Project-model schemas, core project/import validation and renderer diagnostics                                                                                 | Pro may add checks to Community results. It cannot supply a validator required to open a normal project or publish basic output. Public validator registration remains #57.                       |
+| Storage and backup                    | Core local filesystem seams such as `ProjectLoadingFileSystem`, atomic writes, `createProjectArchive` and `restoreProjectArchive`                              | Filesystem injection is a privileged internal/test seam, not authority for plugins. Provider research #139 precedes any scoped archive adapter contract.                                          |
+| Themes                                | Community theme types/presets, persisted selection and renderer theme generation                                                                               | Three built-in themes work independently. Premium/third-party themes must use a future reviewed contract, with a usable Community fallback; current strict built-in IDs are not an open registry. |
+| Advanced authoring / project analysis | Validated semantic documents, snapshots, shared DTOs and explicit editor transactions                                                                          | Pro may eventually consume a permission-limited snapshot and return suggestions for user review. No new analysis, AI or advanced-authoring interface is needed for this boundary check.           |
+
+When optional registration is introduced, Community owns the contract, validation,
+versioning and absence/failure behaviour. A separate Pro composition layer may
+consume that contract and register its implementation; Community must not import
+the concrete Pro implementation to register it. An empty optional registry must
+leave all basic workflows usable. Never add a type-only import from Pro to define
+a Community contract. Package exports, rather than private source paths, are the
+future consumption boundary; compatibility testing belongs to #61 after #57.
+
+Issue #57 owns public extension security, permissions, versioning and failure
+isolation. Third-party extensions should eventually use the same public contracts.
+No plugin runtime, private repository or blanket proprietary-plugin permission is
+introduced here. Existing Electron context isolation, sandboxing, validated IPC
+and restricted preload access remain mandatory.
+
+## Local operation and publishing status
+
+The 19 September clarification in #109 / merged PR #140 is authoritative: basic
+DOCX import/export and portable local backup/restore belong in Community. Basic
+importing, writing, previewing, publishing and backup/restore must require no
+Drelwick account, network service, proprietary package or sibling checkout.
+Dependency downloads during installation are separate from offline application
+operation. Development's optional local Vite server is not a production service
+requirement; normal desktop startup loads bundled files.
+
+| Community capability                                                                                                          | Current implementation / outstanding work                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Project create/open/save, chapter management, semantic editing, local persistence, autosave/recovery, history, search/replace | Implemented in core, project-model and desktop; ordinary opening validates local files, with migration before desktop activation.                                                                |
+| Local image assets, metadata/front/back matter, Community themes, ebook preview                                               | Implemented. Core assembles saved content; renderer creates XHTML; desktop hosts an isolated local preview. Preview is not an EPUB file or proof of final PDF pagination.                        |
+| Basic DOCX import                                                                                                             | #114 staging and #115 parser are implemented, with #116 review/commit UI; TXT/Markdown/HTML also use the same Community pipeline.                                                                |
+| Basic DOCX export                                                                                                             | #125 remains open; reserve its exporter in core and native export adapter in desktop. No hosted conversion or Pro requirement.                                                                   |
+| Portable local backup/restore                                                                                                 | #110 implemented in core, with project-model archive schema and restricted desktop commands. Project files remain authoritative.                                                                 |
+| EPUB 3                                                                                                                        | #126 remains open (workflow validation #127). Use Community renderer/project-model/core and the planned CORE epub package.                                                                       |
+| Basic print/PDF and Community publishing validation                                                                           | #128–#130 remain open (platform/output validation #131). Use Community print/validation implementation and privileged local Chromium orchestration. Advanced Pro checks cannot be prerequisites. |
+| Open project format and extension API                                                                                         | Community format implementation exists; fuller public specification #58 and public extension design #57 remain separate work.                                                                    |
+
+Future optional remote backup adapters may upload/download consistent archives
+with separately authorized credentials and bounded access. They must never become
+the authoritative manuscript store, replace local persistence, gate local restore,
+or lock access to a user's projects behind Pro or a service. Removing the adapter
+must leave the local project usable. Provider research does not authorize cloud
+editing or live synchronization.
+
+## Community owns the project format
+
+The source of truth is local versioned JSON and managed assets; schemas and
+migrations belong entirely to project-model/core. Neither project loading nor
+recovery asks for a licence entitlement, Pro metadata decoder or account.
+Generated EPUB/PDF/DOCX are outputs, never authoritative manuscript storage.
+Supported Community projects remain editable and portable, with publishing through
+Community capabilities as those implementations arrive.
+
+There is **no general extension-metadata preservation contract yet**. Some envelope
+schemas ignore unknown fields and some writers preserve raw fields, but strict
+semantic, format and presentation schemas reject unsupported structures. This is
+not permission to insert proprietary nodes, required fields, theme IDs or format
+versions. Unknown/newer format versions fail safely rather than loading Pro.
+
+Before Pro writes optional metadata, #57/#58 must specify a namespaced, versioned
+representation that Community can safely preserve or ignore across save, migration,
+backup/restore and publishing. Core manuscript text, order, semantics and required
+assets must never depend on it. That future change needs round-trip/absence tests
+and a Community fallback. Existing valid projects do not contain required Pro data;
+no format migration or speculative extension field is needed for #55.
+
+## Enforcement and independent verification
+
+`pnpm check:architecture` executes the regression tests and
+`scripts/check-community-boundary.mjs`. `pnpm check:workspace` includes it, so the
+existing required CI **Quality checks** job enforces the boundary on every PR.
+`scripts/community-packages.json` is the reviewed inventory of this repository's
+Community packages and root tooling. New manifests fail until classified. Pro
+belongs in a separate checkout and must never be added to this inventory.
+
+The checker examines tracked and nonignored new JavaScript/TypeScript sources,
+tests, tooling, manifests and JSON/YAML configuration. It checks static/type-only
+imports, re-exports, import types, literal dynamic imports, `require` and
+`require.resolve`; computed module loading fails and must use a static reviewed
+registry. Reserved Pro namespaces/repository paths, unclassified Drelwick imports,
+Pro aliases in manifests/configuration, nonlocal Community dependency versions,
+escaping relative imports/local dependencies/TypeScript path mappings, and changes
+to the Community-only workspace globs fail with an explanatory error. Optional,
+peer, dev and root tooling dependencies are included. It uses the already pinned
+TypeScript parser, not a new architecture framework.
+
+This is regression protection, not a security or licence audit. Renamed proprietary
+third-party modules, arbitrary shell execution, constructed paths and semantic
+account/network requirements still require review. Package additions must include
+ownership/classification and dependency review; do not weaken the inventory to
+silence an error. The rule applies to this Community checkout, so it does not ban
+a future separate Pro repository from consuming approved Community exports.
+
+To reproduce independent verification in a fresh Community-only checkout, with no
+Pro repository or linked proprietary packages:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm format:check
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm check:workspace
+pnpm test:e2e
+```
+
+Use the pinned Node/pnpm versions and platform guidance in
+[development](development.md) and [tests](../tests/README.md). CI checks out only
+this repository. The checker's adversarial fixtures test prohibited dependencies;
+the actual workspace scan and build test the real graph. Core project-loading,
+chapter-saving, migration, archive and import suites exercise local files; renderer
+tests cover semantic output and diagnostics; desktop E2E covers offline import,
+editing/reopening, themes, preview and recovery. Unimplemented DOCX/EPUB/PDF output
+must not be described as executed or validated.
+
+The audit found no prohibited Pro dependency, mandatory account/service path,
+Pro environment variable, entitlement-bearing IPC contract or sibling/private
+checkout assumption in current application/build/test paths. XML namespace URLs
+and manuscript links are data; the optional Vite URL is development configuration.
+The gap addressed here is missing automated boundary enforcement and a stale
+target-only package description, not a runtime coupling requiring source changes.
+
+Verification on Windows, Node 24.20.0 and pnpm 10.34.5, in a fresh Community
+worktree with its own frozen-lockfile installation and no Pro checkout/package:
+
+- Passed lint, formatting, typecheck, build and workspace smoke checks.
+- Passed all 933 unit tests across 79 files, including local project loading,
+  saving, migration, import, archive round trips and semantic rendering.
+- Passed 20 architecture regression tests and the actual repository boundary scan.
+- Desktop E2E: 14 passed; one existing ebook-simulation navigation test failed at
+  `tests/e2e/desktop.spec.ts:316` because clicking the contents link left the
+  iframe location hash empty. The same failure reproduced in a separate checkout
+  whose application/package/test sources are identical to main `58da41f`.
+  This does not demonstrate a Pro dependency, but the full E2E suite is **not
+  passing**. No preview behaviour or test assertion is changed in #55.
+
+Passing desktop scenarios include offline DOCX/text import, editing/reopening,
+local images, themes, basic preview isolation, autosave/recovery and history.
+EPUB, DOCX export and PDF output were not executed because they are unimplemented.
+This Windows run does not claim installer, macOS or Linux E2E validation.
+
+**Readiness:** #52 is still open and is #55's recorded prerequisite. This work
+implements the invariant using the existing product decisions without completing
+that feature-boundary review. Use `Related to #55` while that prerequisite remains
+unresolved. #53 legal review, #57 extension design, #60 release gates and #61 Pro
+integration remain separate; later publishing features are not required to prove
+the current package boundary and are not claimed complete.
+
+---
+
 # 4. Electron Architecture
 
 Electron should use the recommended isolation model.

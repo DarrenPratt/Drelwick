@@ -1,0 +1,9 @@
+{
+  "drelwick": ".",
+  "@drelwick/desktop": "apps/desktop",
+  "@drelwick/core": "packages/core",
+  "@drelwick/project-model": "packages/project-model",
+  "@drelwick/renderer": "packages/renderer",
+  "@drelwick/shared": "packages/shared",
+  "@drelwick/workspace-smoke": "tests/workspace-smoke"
+}

@@ -133,11 +133,19 @@ without a Pro checkout or proprietary dependencies.
 
 ## Workspace layout
 
-- `apps/desktop/`: Electron desktop application shell.
-- `packages/shared/`: empty Community package entry point for future shared types.
-- `tests/workspace-smoke/`: private consumer of the shared package for bootstrap validation.
+- `apps/desktop/`: Electron adapters, restricted preload and React/TipTap application.
+- `packages/core/`: local project operations, import, backup, recovery and book assembly.
+- `packages/project-model/`: versioned persistent schemas and semantic validation.
+- `packages/renderer/`: semantic XHTML rendering, diagnostics and Community themes.
+- `packages/shared/`: renderer-safe contracts, IPC DTOs and shared primitives.
+- `tests/workspace-smoke/`: private consumer of Community package exports.
 - `docs/`: product design, architecture and delivery plans.
-- `scripts/`: location for future development helpers.
+- `scripts/`: build helpers and Community dependency-boundary enforcement.
+
+All current workspaces belong to Community. `pnpm check:architecture` checks the
+reviewed package inventory and rejects dependencies on Pro; `check:workspace`
+runs it in CI. See the [actual package graph and Community/Pro boundary](docs/technical-spec.md#31-community--pro-dependency-boundary)
+for existing interfaces, future publishing packages and independent verification.
 
 Workspace packages extend `tsconfig.base.json` and define their own `src/` and
 `dist/` directories. Use ESM imports and `workspace:*` for local dependencies;
