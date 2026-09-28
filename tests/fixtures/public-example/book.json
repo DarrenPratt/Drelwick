@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "title": "The Lantern Example — working title",
+  "subtitle": "Synthetic format fixture",
+  "author": "Example Author",
+  "language": "en-GB",
+  "publisher": "Example imprint (fictional)",
+  "description": "A synthetic project for format and recovery verification.",
+  "series": {
+    "name": "Synthetic Examples",
+    "number": 1
+  },
+  "created": "2026-01-02T12:00:00.000Z",
+  "modified": "2026-01-02T12:00:00.000Z"
+}

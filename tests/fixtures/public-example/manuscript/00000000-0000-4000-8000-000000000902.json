@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "id": "00000000-0000-4000-8000-000000000902",
+  "type": "chapter",
+  "title": "First in the manifest",
+  "status": "final",
+  "created": "2026-01-02T12:00:00.000Z",
+  "modified": "2026-01-02T12:00:00.000Z",
+  "content": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "heading",
+        "attrs": {
+          "level": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "A synthetic beginning"
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "“Café” — Καλημέρα · こんにちは · مرحبًا · 😀 · é."
+          },
+          {
+            "type": "hardBreak"
+          },
+          {
+            "type": "text",
+            "text": "All prose in this project is synthetic."
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "Bold and italic",
+            "marks": [
+              {
+                "type": "bold"
+              },
+              {
+                "type": "italic"
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": " introduce a "
+          },
+          {
+            "type": "text",
+            "text": "sample link",
+            "marks": [
+              {
+                "type": "link",
+                "attrs": {
+                  "href": "https://example.invalid/story",
+                  "title": "Inert example link"
+                }
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "."
+          }
+        ]
+      },
+      {
+        "type": "epigraph",
+        "attrs": {
+          "attribution": "An invented archive"
+        },
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "A lantern is only a mark on this fictional map."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "bulletList",
+        "content": [
+          {
+            "type": "listItem",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "An imaginary quay"
+                  }
+                ]
+              },
+              {
+                "type": "orderedList",
+                "attrs": {
+                  "start": 3,
+                  "type": "a"
+                },
+                "content": [
+                  {
+                    "type": "listItem",
+                    "content": [
+                      {
+                        "type": "paragraph",
+                        "content": [
+                          {
+                            "type": "text",
+                            "text": "A nested synthetic step"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "image",
+        "attrs": {
+          "assetId": "00000000-0000-4000-8000-000000000903",
+          "alt": "Synthetic blue rectangle, two by three pixels.",
+          "size": "small"
+        }
+      },
+      {
+        "type": "sceneBreak"
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "The first chapter ends here."
+          }
+        ]
+      }
+    ]
+  }
+}

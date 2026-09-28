@@ -90,6 +90,9 @@ verifies a complete local recovery copy, stages the format upgrade and commits i
 through a recoverable journal. Manuscript files remain byte-identical. Newer
 unsupported formats are rejected without rewriting them. See
 [project formats and migration recovery](docs/project-format.md).
+The [public project format specification](docs/project-format-specification.md)
+documents the implemented files, a synthetic example and recovery with ordinary
+JSON/ZIP tools, without installing Drelwick.
 
 Use **Spelling** above the chapter to select English (US/UK), check the current
 text, review suggestions and manage a persistent local personal dictionary.

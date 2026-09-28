@@ -18,7 +18,7 @@
 
 The current [open-core decision](design.md#current-product-decision--september-2026) and [audit](planning/repository-audit.md) apply throughout this specification. Community packages may expose public extension interfaces; they must never import or require Pro. Planned `packages/print` and `packages/validation` will supply basic Community publishing. Advanced professional modules belong in the eventual separate Pro codebase. The [Community extension architecture](extension-architecture.md) defines the #57 contracts and security/versioning policy; `packages/plugin-sdk` is deferred until a concrete host capability can prove its contracts, not a v0.1 runtime requirement.
 
-The snippets below illustrate architecture rather than defining a complete wire format. All persisted objects (including settings, history and session metadata) require explicit schema versions, directly or through a versioned envelope. Schema changes require compatibility and migration consideration. The public format specification is commercial task 57.
+The snippets below illustrate architecture rather than defining a complete wire format. All persisted objects (including settings, history and session metadata) require explicit schema versions, directly or through a versioned envelope. Schema changes require compatibility and migration consideration. The [public project format specification](project-format-specification.md), delivered by GitHub #58 (commercial plan task 57), defines the implemented on-disk contract and independent recovery; it takes precedence over prospective file/model examples below.
 
 Use immutable UUIDs and manifest ordering; short `chapter-001`/`0f23...` placeholders below are explanatory, not valid identities. Service logic belongs in `packages/core` where independent of Electron; main-process services adapt platform/IPC/lifecycle operations rather than duplicating business logic. Shared renderer-safe types must not pull privileged file helpers into renderer bundles.
 
@@ -352,7 +352,7 @@ requirement; normal desktop startup loads bundled files.
 | Portable local backup/restore                                                                                                 | #110 implemented in core, with project-model archive schema and restricted desktop commands. Project files remain authoritative.                                                                 |
 | EPUB 3                                                                                                                        | #126 remains open (workflow validation #127). Use Community renderer/project-model/core and the planned CORE epub package.                                                                       |
 | Basic print/PDF and Community publishing validation                                                                           | #128–#130 remain open (platform/output validation #131). Use Community print/validation implementation and privileged local Chromium orchestration. Advanced Pro checks cannot be prerequisites. |
-| Open project format and extension API                                                                                         | Community format implementation exists; fuller public specification #58 remains separate. #57 documents the extension design; SDK/runtime remain deferred.                                       |
+| Open project format and extension API                                                                                         | #58 documents the implemented public project format with a production-validated example and independent recovery. #57 documents the extension design; SDK/runtime remain deferred.               |
 
 Future optional remote backup adapters may upload/download consistent archives
 with separately authorized credentials and bounded access. They must never become
@@ -362,6 +362,10 @@ must leave the local project usable. Provider research does not authorize cloud
 editing or live synchronization.
 
 ## Community owns the project format
+
+The [public format specification](project-format-specification.md) documents the
+current schema versions, authoritative ordering, unknown-data behavior and
+ordinary-tool recovery. No Pro-specific field or preservation mechanism is added.
 
 The source of truth is local versioned JSON and managed assets; schemas and
 migrations belong entirely to project-model/core. Neither project loading nor
