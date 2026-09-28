@@ -2,6 +2,12 @@
 
 Drelwick is in private development. Do not accept unrestricted external contributions until the Licensing & Commercial Architecture milestone is complete and the contributor/copyright strategy is formally approved. This document does not grant a licence or establish a contributor agreement.
 
+The [contribution guide](../CONTRIBUTING.md) and
+[contributor/copyright strategy](contributor-copyright-strategy.md) record the
+proposed retained-copyright, CLA and DCO 1.1 process. External acceptance remains
+closed until #54 is complete and the broader milestone gate above is satisfied;
+legal review and the approved agreement/acceptance mechanism remain pending.
+
 Use `Requirement -> Design -> Issue -> Branch -> Commit -> Pull Request -> Tests -> Review -> Merge`. Prefer one implementation issue per focused PR. Use `feature/<issue-number>-short-description`, `fix/<issue-number>-short-description` or `chore/<issue-number>-short-description`. Complete PRs use `Closes #<issue>`; partial work uses `Related to #<issue>`. Review and merge are separate from creating a PR.
 
 Read the [design](design.md), [technical specification](technical-spec.md), [build plan](planning/v0.1-build-plan.md), [commercial addendum](planning/commercial-architecture-addendum.md) and [audit reconciliations](planning/repository-audit.md) before implementation. Use the [tracking register](planning/github-tracking.md) to distinguish stable plan IDs from actual GitHub numbers.

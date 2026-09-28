@@ -2,10 +2,19 @@
 
 Status: **not completed**. Repository stays private. The v0.3 Community candidate is a review target, not permission to publish. Record reviewer, date and evidence for every item; creating an issue does not satisfy a legal or security gate.
 
+Contributor preparation for #54: the [proposed strategy](../contributor-copyright-strategy.md),
+[CLA requirements](../contributor-cla-requirements.md) and
+[contribution guide](../../CONTRIBUTING.md) record the owner's intended retained
+copyright + CLA + DCO 1.1 model. #53 records the intended `AGPL-3.0-only` selection;
+legal review and final licensing approval remain pending. These documents do not
+complete the agreement process or clear any checklist item below. External
+contributions remain blocked until #54 and the Licensing & Commercial Architecture
+milestone are complete.
+
 - [ ] Scan full Git history, branches and tags for secrets; also review current files, release assets and relevant Actions artifacts/logs.
 - [ ] Review credentials and tokens; revoke/rotate any exposed credential and assess history remediation before release.
 - [ ] Review private URLs, personal information and private/internal documentation, including example content and audit artifacts.
-- [ ] Review Community licence with appropriate legal advice; AGPLv3 remains a candidate until formally selected.
+- [ ] Review Community licence with appropriate legal advice; intended `AGPL-3.0-only` selection still requires final approval under #53.
 - [ ] Prepare the approved LICENSE and accurate README licensing statement.
 - [ ] Audit dependency, bundled asset/font/theme and redistributed binary licences.
 - [ ] Approve contributor/copyright/dual-licensing strategy and any required agreements before external contributions.
