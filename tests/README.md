@@ -44,6 +44,14 @@ Node.js types match the supported Node 24 runtime. Tests explicitly import
 
 ## Workspace conventions
 
+Issue #132 uses synthetic Hunspell resources and injected adapters for core,
+schema, IPC and editor tests. `spelling-adapter.test.ts` additionally executes
+the built worker against the pinned bundled US/UK dictionaries; build before
+running Vitest directly. No test uses host-installed dictionaries. The Electron
+`offline spelling` scenario verifies explicit review, undo/redo, autosave,
+restart, local dictionary management, missing resources, no network attempts
+and no synthetic manuscript content in logs. See [the acceptance audit](../docs/offline-spelling.md#acceptance-evidence).
+
 Issue #123 uses `packages/core/test/publication.test.ts` for migration, exact
 chapter preservation, matter editing/order/type changes, all inclusion combinations,
 atomic failures, managed covers and portable backup/restore. Desktop IPC tests

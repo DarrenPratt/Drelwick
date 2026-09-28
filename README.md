@@ -85,6 +85,12 @@ through a recoverable journal. Manuscript files remain byte-identical. Newer
 unsupported formats are rejected without rewriting them. See
 [project formats and migration recovery](docs/project-format.md).
 
+Use **Spelling** above the chapter to select English (US/UK), check the current
+text, review suggestions and manage a persistent local personal dictionary.
+Only an explicit replacement changes prose, through ordinary undo and autosave.
+Resources are bundled; no text goes online and no dictionaries are downloaded.
+See [offline spelling and its acceptance evidence](docs/offline-spelling.md).
+
 ## Development setup
 
 Use Node.js 24.x and pnpm 10.34.5. The root manifest pins pnpm and TypeScript

@@ -13,14 +13,16 @@
     "dev": "pnpm build && concurrently -k \"vite --host 127.0.0.1\" \"tsc -p tsconfig.json --watch\" \"vite build --config vite.preload.config.ts --watch\" \"wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173/ electron .\""
   },
   "dependencies": {
-    "@drelwick/renderer": "workspace:*",
     "@drelwick/core": "workspace:*",
     "@drelwick/project-model": "workspace:*",
+    "@drelwick/renderer": "workspace:*",
     "@drelwick/shared": "workspace:*",
     "@tiptap/core": "3.31.3",
     "@tiptap/pm": "3.31.3",
     "@tiptap/react": "3.31.3",
     "@tiptap/starter-kit": "3.31.3",
+    "dictionary-en": "4.0.0",
+    "dictionary-en-gb": "3.0.0",
     "react": "19.1.1",
     "react-dom": "19.1.1"
   },

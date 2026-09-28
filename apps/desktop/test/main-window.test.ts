@@ -7,6 +7,7 @@ describe("main window security", () => {
     const options = getMainWindowOptions("preload.js");
 
     expect(options.webPreferences).toMatchObject({
+      spellcheck: false,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,

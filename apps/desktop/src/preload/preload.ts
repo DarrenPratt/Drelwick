@@ -9,6 +9,12 @@ import {
 import type { DrelwickApi } from "@drelwick/shared";
 
 const api: DrelwickApi = {
+  spelling: {
+    get: () => ipcRenderer.invoke(IPC.SPELLING_GET),
+    update: (input) => ipcRenderer.invoke(IPC.SPELLING_UPDATE, input),
+    check: (input) => ipcRenderer.invoke(IPC.SPELLING_CHECK, input),
+    suggest: (input) => ipcRenderer.invoke(IPC.SPELLING_SUGGEST, input),
+  },
   imports: {
     inspect: (input) => ipcRenderer.invoke(IPC.IMPORT_INSPECT, input),
     open: (operationId) => ipcRenderer.invoke(IPC.IMPORT_OPEN, { operationId }),

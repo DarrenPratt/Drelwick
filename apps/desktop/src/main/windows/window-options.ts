@@ -8,6 +8,8 @@ export function getMainWindowOptions(preloadPath: string) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Drelwick's bundled checker never invokes native downloads/autocorrection.
+      spellcheck: false,
       webSecurity: true,
       allowRunningInsecureContent: false,
       webviewTag: false,

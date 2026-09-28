@@ -8,6 +8,7 @@ import type { JSONContent, Editor as TipTapEditor } from "@tiptap/core";
 import { DOMParser as ProseMirrorDOMParser } from "@tiptap/pm/model";
 import { useEffect, useState } from "react";
 import { createManuscriptExtensions } from "./manuscript-extensions.js";
+import { SpellingPanel } from "./SpellingPanel.js";
 
 const escapedCharacters: Record<string, string> = {
   "&": "&amp;",
@@ -127,6 +128,7 @@ export function Editor({
   const [linkError, setLinkError] = useState<string>();
   const [imageError, setImageError] = useState<string>();
   const [importing, setImporting] = useState(false);
+  const [spellingOpen, setSpellingOpen] = useState(false);
   const editor = useEditor({
     extensions: createManuscriptExtensions(projectId),
     content,
@@ -134,6 +136,11 @@ export function Editor({
     immediatelyRender: false,
     onUpdate: ({ editor: current }) => onChange(current.getJSON()),
     editorProps: {
+      attributes: {
+        spellcheck: "false",
+        autocorrect: "off",
+        autocapitalize: "off",
+      },
       handleDrop: (view, event, _slice, moved) => {
         if (moved) return false;
         if (event.dataTransfer?.files.length) {
@@ -476,6 +483,16 @@ export function Editor({
       )}
       {importing && <p role="status">Importing image…</p>}
       {imageError && <p role="alert">{imageError}</p>}
+      <button
+        type="button"
+        aria-expanded={spellingOpen}
+        onClick={() => setSpellingOpen(!spellingOpen)}
+      >
+        Spelling
+      </button>
+      {spellingOpen && (
+        <SpellingPanel editor={editor} editable={editable && !importing} />
+      )}
       <div className="editor-document">
         {title && (
           <header className="manuscript-title">

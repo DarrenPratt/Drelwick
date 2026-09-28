@@ -1,5 +1,14 @@
 import { z } from "zod";
 import {
+  SpellingCheckSchema,
+  SpellingSuggestSchema,
+  SpellingUpdateSchema,
+  type SpellingCheck,
+  type SpellingState,
+  type SpellingUpdate,
+} from "./spelling-contracts.js";
+export * from "./spelling-contracts.js";
+import {
   PublicationSaveRequestSchema,
   PublicationCoverRequestSchema,
   type PublicationState,
@@ -87,6 +96,10 @@ export type ChapterOrganisationRequest = z.infer<
 >;
 
 export const IPC = {
+  SPELLING_GET: "spelling:get",
+  SPELLING_UPDATE: "spelling:update",
+  SPELLING_CHECK: "spelling:check",
+  SPELLING_SUGGEST: "spelling:suggest",
   PUBLICATION_GET: "publication:get",
   PUBLICATION_SAVE: "publication:save",
   PUBLICATION_COVER: "publication:cover",
@@ -229,6 +242,10 @@ export type ProjectOperationResult<T> =
   | { ok: false; error: { code: string; message: string } };
 
 export const IpcRequestSchemas = {
+  [IPC.SPELLING_GET]: z.undefined(),
+  [IPC.SPELLING_UPDATE]: SpellingUpdateSchema,
+  [IPC.SPELLING_CHECK]: SpellingCheckSchema,
+  [IPC.SPELLING_SUGGEST]: SpellingSuggestSchema,
   [IPC.PUBLICATION_GET]: z.object({ projectId: z.string().uuid() }).strict(),
   [IPC.PUBLICATION_SAVE]: PublicationSaveRequestSchema,
   [IPC.PUBLICATION_COVER]: PublicationCoverRequestSchema,
@@ -342,6 +359,18 @@ export interface RecoveryCandidateSummary {
 }
 
 export interface DrelwickApi {
+  spelling: {
+    get(): Promise<ProjectOperationResult<SpellingState>>;
+    update(
+      input: SpellingUpdate,
+    ): Promise<ProjectOperationResult<SpellingState>>;
+    check(
+      input: z.infer<typeof SpellingCheckSchema>,
+    ): Promise<ProjectOperationResult<SpellingCheck>>;
+    suggest(
+      input: z.infer<typeof SpellingSuggestSchema>,
+    ): Promise<ProjectOperationResult<string[]>>;
+  };
   imports: {
     inspect(
       input: z.infer<typeof ImportInspectRequestSchema>,

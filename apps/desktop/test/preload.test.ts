@@ -34,6 +34,23 @@ describe("preload API", () => {
     );
 
     const [, api] = exposeInMainWorld.mock.calls[0] as [string, DrelwickApi];
+    await api.spelling.get();
+    expect(invoke).toHaveBeenLastCalledWith("spelling:get");
+    await api.spelling.update({ operation: "add", word: "Drelwick" });
+    expect(invoke).toHaveBeenLastCalledWith("spelling:update", {
+      operation: "add",
+      word: "Drelwick",
+    });
+    await api.spelling.check({ language: "en-US", words: ["helo"] });
+    expect(invoke).toHaveBeenLastCalledWith("spelling:check", {
+      language: "en-US",
+      words: ["helo"],
+    });
+    await api.spelling.suggest({ language: "en-US", word: "helo" });
+    expect(invoke).toHaveBeenLastCalledWith("spelling:suggest", {
+      language: "en-US",
+      word: "helo",
+    });
     await api.project.getPublication({
       projectId: "123e4567-e89b-42d3-a456-426614174000",
     });
