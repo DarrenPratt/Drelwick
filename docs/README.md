@@ -19,6 +19,8 @@ The [local publishing delivery plan](planning/local-publishing-plan.md) updates 
 
 Operational documents:
 
+- [Public project format: implemented files, semantic content and independent recovery](project-format-specification.md)
+- [Public format implementation cross-check and recovery evidence](planning/58-format-review.md)
 - [Community extension architecture: contracts, capabilities, trust and compatibility](extension-architecture.md)
 - [Extension design acceptance review and deferred implementation gates](planning/57-extension-review.md)
 - [Contribution guide and closed external-contribution gate](../CONTRIBUTING.md)

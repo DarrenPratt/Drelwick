@@ -1,5 +1,9 @@
 # Project format and local migration
 
+For the implementation-independent on-disk contract and ordinary-tool recovery,
+read the [public project format specification](project-format-specification.md).
+This document retains the implementation and migration protocol notes.
+
 ## Pre-release product identity
 
 Drelwick uses `@drelwick/*` workspace packages and the restricted
@@ -36,7 +40,7 @@ The [staged manuscript import pipeline](manuscript-import.md) translates validat
 imports into this existing format. Its temporary intermediate envelope is internal
 version 1; it does not change authoritative project or component versions.
 
-This is the implemented format including issues #111–#113. Project files are authoritative;
+This describes the implemented format including issues #111–#113, #122 and #123. Project files are authoritative;
 EPUB, PDF and DOCX outputs are not. All JSON is UTF-8. No account, service or Pro
 package is needed to read, migrate, back up or recover a project.
 
@@ -90,8 +94,10 @@ and use the recoverable migration framework rather than redefining this version.
 
 New projects use version 2. This version introduces an explicit component-version
 descriptor so future publishing additions do not imply rewriting every chapter.
-It defines no themes, assets, front/back matter semantics or print settings; those
-remain the responsibility of their respective implementation issues.
+The v1→v2 transition itself introduces no themes, assets or matter semantics.
+The independently versioned asset, presentation and publication components above
+have since landed without another manifest version change. Future print settings
+are not implied by this descriptor.
 
 `project.json` changes to `schemaVersion: 2` and adds `formatFile: "format.json"`.
 The new authoritative `format.json` is:
@@ -147,8 +153,8 @@ authoritative manuscript. No authoritative file changes before backup verificati
 
 The backup copies **every regular project file and directory**, including unknown
 author files, assets, empty directories, unreferenced chapters, history and `.tmp`
-recovery prose. Only the migration workspace itself and its operation lock are
-excluded. This intentionally differs from portable ZIP backup's sharing-oriented
+recovery prose. The schema and publication migration workspaces and the operation
+lock are excluded. This intentionally differs from portable ZIP backup's sharing-oriented
 exclusions: ZIP archives omit unknown roots and transient files and therefore are
 not a complete pre-migration recovery copy. Local snapshots reuse the checksummed
 inventory schema and the existing atomic JSON writer.
@@ -254,8 +260,8 @@ and invalid-state errors remain distinguishable domain codes.
 ## Executable evidence
 
 Tests copy the real deterministic V1 fixtures `minimal-book`, `unicode-book`,
-`formatted-book`, `multi-chapter-book` and `recovery-project`. Canonical fixtures
-remain V1. Additional unknown metadata/files and recovery temporaries are synthetic
+`formatted-book`, `multi-chapter-book` and `recovery-project`. These historical fixtures
+remain V1; the public specification's `public-example` is V2. Additional unknown metadata/files and recovery temporaries are synthetic
 and created only in disposable copies; no real manuscripts are used.
 
 Failure tests throw or terminate a child process before/after workspace and lock

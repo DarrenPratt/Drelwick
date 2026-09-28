@@ -147,14 +147,15 @@ source image. See [local image evidence](../docs/local-image-assets.md#evidence)
 Canonical, publication-safe project fixtures live under `tests/fixtures/`. Their
 UUIDs, timestamps and synthetic manuscript content are deterministic.
 
-| Fixture              | Purpose                                                                                         |
-| -------------------- | ----------------------------------------------------------------------------------------------- |
-| `minimal-book`       | Small valid project with one empty paragraph chapter.                                           |
-| `multi-chapter-book` | Three valid chapters whose manifest order differs from filename order.                          |
-| `formatted-book`     | Nodes and marks accepted by the current `ManuscriptDocumentSchema`.                             |
-| `unicode-book`       | UTF-8 punctuation, accents, Greek, Japanese and Arabic synthetic text.                          |
-| `invalid-project`    | Valid book/chapter files with one deliberate error: a duplicated manifest chapter ID.           |
-| `recovery-project`   | Valid authoritative chapter plus a newer, tracked manual history snapshot offered for recovery. |
+| Fixture              | Purpose                                                                                                                                              |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `minimal-book`       | Small valid project with one empty paragraph chapter.                                                                                                |
+| `multi-chapter-book` | Three valid chapters whose manifest order differs from filename order.                                                                               |
+| `formatted-book`     | Nodes and marks accepted by the current `ManuscriptDocumentSchema`.                                                                                  |
+| `unicode-book`       | UTF-8 punctuation, accents, Greek, Japanese and Arabic synthetic text.                                                                               |
+| `invalid-project`    | Valid book/chapter files with one deliberate error: a duplicated manifest chapter ID.                                                                |
+| `recovery-project`   | Valid authoritative chapter plus a newer, tracked manual history snapshot offered for recovery.                                                      |
+| `public-example`     | Current v2 project with every semantic node/mark, Unicode, managed image, publication/matter, theme and history for the public format specification. |
 
 Use `copyFixture` from `tests/helpers/fixture-projects.ts` instead of modifying a
 canonical fixture. It recursively copies a named fixture to a unique temporary
@@ -166,7 +167,7 @@ and unignored.
 
 ## Project migration regression tests (#111)
 
-The canonical fixtures remain version 1 and also serve as historical migration
+The original canonical fixtures remain version 1 and also serve as historical migration
 inputs. `packages/core/test/project-migration.test.ts` copies these real projects,
 checks manuscript/backup bytes, and injects failures and child-process termination
 at each journal/commit boundary. It also tests interruption during recovery itself,
@@ -174,6 +175,26 @@ malformed/newer versions, corrupt copies, path conflicts and subsequent edits.
 Child processes use the built core entry; run `pnpm build` before invoking Vitest
 directly. Desktop tests verify migration-before-open and recovery-before-scan.
 See [format and recovery guarantees](../docs/project-format.md).
+
+## Public project specification and independent recovery (#58)
+
+`packages/core/test/public-project-format.test.ts` validates `public-example`
+against production schemas, editor loading, book assembly, managed asset reads
+and real save/reopen. It checks exact manifest ordering, all component versions,
+UTF-8 bytes, combining Unicode, BOM rejection and accepted CRLF/no-final-newline
+input. Unknown-field tests distinguish raw-field-preserving saves from parsed
+rewrites and strict component/semantic rejection.
+
+The standalone `scripts/recover-project-text.mjs` is copied outside the repository
+and run using only Node built-ins, with exact expected prose, hidden matter,
+links and local image paths. Tests create a real ZIP, extract through an ordinary
+ZIP reader independently of Drelwick restore, verify every inventory byte/hash,
+and compare recovered text/assets. Production restore and history-excluded
+archives are checked separately. The canonical fixture is never edited; no
+network, UI, Pro package or independent replacement schema is involved.
+
+See the [public specification](../docs/project-format-specification.md) for manual
+JSON/ZIP recovery and the [review](../docs/planning/58-format-review.md) for evidence.
 
 ## Autosave and recovery audit (#44)
 

@@ -10,6 +10,7 @@ export const FIXTURE_NAMES = [
   "unicode-book",
   "invalid-project",
   "recovery-project",
+  "public-example",
 ] as const;
 
 export type FixtureName = (typeof FIXTURE_NAMES)[number];

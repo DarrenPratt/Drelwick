@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "00000000-0000-4000-8000-000000000990",
+  "chapterId": "00000000-0000-4000-8000-000000000902",
+  "created": "2026-01-02T11:00:00.000Z",
+  "reason": "manual",
+  "content": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "An earlier synthetic sentence, kept only in local history."
+          }
+        ]
+      }
+    ]
+  }
+}

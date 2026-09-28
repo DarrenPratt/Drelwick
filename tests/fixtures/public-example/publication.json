@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "projectId": "00000000-0000-4000-8000-000000000900",
+  "metadata": {
+    "title": "The Lantern Example",
+    "author": "Example Author",
+    "language": "en-GB",
+    "description": "Synthetic publication metadata; no real manuscript.",
+    "identifiers": [
+      {
+        "scheme": "other",
+        "value": "synthetic-format-example"
+      }
+    ]
+  },
+  "pages": [
+    {
+      "id": "00000000-0000-4000-8000-000000000906",
+      "title": "About the synthetic author",
+      "type": "author",
+      "placement": "back",
+      "inclusion": {
+        "navigation": true,
+        "ebook": true,
+        "print": true
+      },
+      "document": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Example Author is a fictional credit for this fixture."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000904",
+      "title": "Example title page",
+      "type": "title",
+      "placement": "front",
+      "inclusion": {
+        "navigation": false,
+        "ebook": true,
+        "print": true
+      },
+      "document": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "The Lantern Example"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Example Author"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000905",
+      "title": "Hidden dedication draft",
+      "type": "dedication",
+      "placement": "front",
+      "inclusion": {
+        "navigation": false,
+        "ebook": false,
+        "print": false
+      },
+      "document": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "This hidden draft must remain recoverable."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "body": [
+    {
+      "id": "00000000-0000-4000-8000-000000000901",
+      "inclusion": {
+        "navigation": true,
+        "ebook": true,
+        "print": true
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000902",
+      "inclusion": {
+        "navigation": true,
+        "ebook": true,
+        "print": true
+      }
+    }
+  ],
+  "coverAssetId": "00000000-0000-4000-8000-000000000903"
+}

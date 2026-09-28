@@ -13,10 +13,13 @@ contains `.drelwick-archive.json`, a strict version-1 manifest with the source
 project UUID, archive creation time, the optional-history flag, and an inventory
 of every included relative path, uncompressed byte size and SHA-256 checksum.
 The manifest is separate from the authoritative project format. Both V1 projects
-and V2 projects with their `format.json` descriptor are supported. ZIP CRC checks and the manifest checksums are
-verified before a restored project is activated.
+and V2 projects with their `format.json` descriptor are supported. Uncompressed
+lengths and manifest SHA-256 checksums are verified before a restored project is
+activated. These checks detect damage, not an attacker replacing both inventory
+and payload; an independent ZIP CRC verification is not promised.
 
-The archive includes `project.json`, `book.json`, `format.json` and `presentation.json` when present, the project `cover.jpg` when
+The archive includes `project.json`, `book.json`, `format.json`, `presentation.json`
+and `publication.json` when present, the project `cover.jpg` when
 present, and regular files under `manuscript/`, `frontmatter/`, `backmatter/`,
 `assets/`, `reference/` and `styles/`. The **Include saved version history**
 prompt controls whether `.history/` is included. History is included by default.
@@ -64,6 +67,12 @@ invalid or unsafe archives receive actionable messages. Archive paths and
 manuscript bodies are not logged. Backups are copies; the project files remain
 the authoritative editable source, and generated EPUB/PDF files are not
 authoritative project data.
+
+The [public format specification](project-format-specification.md#portable-local-backup-envelope)
+defines the envelope and exclusions, and explains
+[independent recovery](project-format-specification.md#independent-recovery-with-ordinary-tools)
+using ordinary ZIP, JSON and hashing tools without Drelwick. Local history is
+optional content inside a backup, not itself a complete project backup.
 
 Tests cover Unicode and asset round-trips, optional history, excluded files,
 source preservation, restore collision handling, tampered and malformed ZIPs,
