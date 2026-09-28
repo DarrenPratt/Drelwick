@@ -1757,3 +1757,20 @@ button svg {
   border: 1px solid currentColor;
   background: white;
 }
+.spelling-panel {
+  margin: 0.75rem 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border, #d4d4d4);
+  border-radius: 0.5rem;
+}
+
+.spelling-panel button,
+.spelling-panel select,
+.spelling-panel input {
+  margin: 0.25rem;
+}
+
+.spelling-panel ul {
+  max-height: 12rem;
+  overflow: auto;
+}

@@ -122,6 +122,12 @@ beforeEach(async () => {
     vi.fn(() => true),
   );
   window.drelwick = {
+    spelling: {
+      get: vi.fn(),
+      update: vi.fn(),
+      check: vi.fn(),
+      suggest: vi.fn(),
+    },
     reportRendererError: vi.fn(),
     imports: {
       inspect: vi.fn(),

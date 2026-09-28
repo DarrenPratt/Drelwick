@@ -19,6 +19,7 @@ The [local publishing delivery plan](planning/local-publishing-plan.md) updates 
 
 Operational documents:
 
+- [Offline spell checking and local personal dictionary](offline-spelling.md)
 - [Shared semantic book rendering and preview](book-rendering.md)
 - [Local reflowable ebook simulation and acceptance evidence](ebook-preview.md)
 - [Publication metadata, matter pages and managed covers](publication-matter.md)

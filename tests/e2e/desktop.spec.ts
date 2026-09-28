@@ -21,6 +21,196 @@ import {
 import { copyFixture } from "../helpers/fixture-projects.js";
 import { ebookProject } from "../helpers/ebook-project.js";
 
+test("offline spelling reviews explicitly, persists dictionary and replacements, supports undo and never requests the network", async () => {
+  const fixture = await copyFixture("minimal-book");
+  const scratch = await mkdtemp(join(tmpdir(), "drelwick-spelling-e2e-"));
+  const userData = join(scratch, "user-data");
+  let application: ElectronApplication | undefined;
+  try {
+    let launched = await launchApplication(userData);
+    application = launched.application;
+    let page = launched.page;
+    const open = async () => {
+      await page.context().setOffline(true);
+      await application!.evaluate(({ dialog, session }) => {
+        Object.assign(globalThis, { spellingNetworkRequests: [] as string[] });
+        session.defaultSession.webRequest.onBeforeRequest(
+          { urls: ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"] },
+          (details, callback) => {
+            (
+              globalThis as unknown as { spellingNetworkRequests: string[] }
+            ).spellingNetworkRequests.push(details.url);
+            callback({ cancel: true });
+          },
+        );
+        dialog.showOpenDialog = async () => ({
+          canceled: false,
+          filePaths: [],
+        });
+      });
+      await application!.evaluate(({ dialog }, path) => {
+        dialog.showOpenDialog = async () => ({
+          canceled: false,
+          filePaths: [path],
+        });
+      }, fixture.projectPath);
+      await page
+        .getByRole("button", { name: "Open project", exact: true })
+        .click();
+      await expect(page.locator(".ProseMirror")).toBeEditable();
+      await page.getByRole("button", { name: "Spelling", exact: true }).click();
+    };
+    await open();
+    let panel = page.getByRole("region", { name: "Offline spelling" });
+    const editor = page.locator(".ProseMirror");
+    await expect(editor).toHaveAttribute("spellcheck", "false");
+    expect(
+      await page.evaluate(() => ({
+        node: typeof (window as unknown as { require?: unknown }).require,
+        ipc: "ipcRenderer" in window,
+        filesystem: "fs" in window,
+      })),
+    ).toEqual({ node: "undefined", ipc: false, filesystem: false });
+    await editor.fill("helo Drelwickword colour");
+    await expect(page.getByLabel("Chapter save status")).toHaveText(
+      "All changes saved",
+    );
+    const manifest = JSON.parse(
+      await readFile(join(fixture.projectPath, "project.json"), "utf8"),
+    );
+    const chapterPath = join(
+      fixture.projectPath,
+      "manuscript",
+      `${manifest.manuscript.order[0]}.json`,
+    );
+    const before = await readFile(chapterPath, "utf8");
+    await panel
+      .getByRole("button", { name: "Check chapter", exact: true })
+      .click();
+    await expect(panel).toContainText("3 possible spelling errors");
+    await panel
+      .getByRole("button", { name: "Suggestions", exact: true })
+      .click();
+    await expect(
+      panel.getByRole("button", { name: "Replace with hello", exact: true }),
+    ).toBeVisible();
+    expect(await readFile(chapterPath, "utf8")).toBe(before);
+    await expect(editor).toHaveText("helo Drelwickword colour");
+    await panel
+      .getByRole("button", { name: "Replace with hello", exact: true })
+      .click();
+    await expect(editor).toHaveText("hello Drelwickword colour");
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(editor).toHaveText("helo Drelwickword colour");
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    await expect(editor).toHaveText("hello Drelwickword colour");
+    await expect(page.getByLabel("Chapter save status")).toHaveText(
+      "All changes saved",
+    );
+    expect(await readFile(chapterPath, "utf8")).toContain(
+      "hello Drelwickword colour",
+    );
+    await panel.getByLabel("Spelling language").selectOption("en-GB");
+    await expect(panel.getByRole("status")).toContainText(
+      "settings saved locally",
+    );
+    await panel
+      .getByRole("button", { name: "Check chapter", exact: true })
+      .click();
+    await expect(panel).toContainText("1 possible spelling errors");
+    await panel
+      .getByRole("button", { name: "Add to personal dictionary", exact: true })
+      .click();
+    await expect(panel.getByRole("status")).toContainText(
+      "settings saved locally",
+    );
+    await panel
+      .getByRole("button", { name: "Check chapter", exact: true })
+      .click();
+    await expect(panel).toContainText("0 possible spelling errors");
+    expect(
+      await application.evaluate(
+        () =>
+          (globalThis as unknown as { spellingNetworkRequests: string[] })
+            .spellingNetworkRequests,
+      ),
+    ).toEqual([]);
+    await page.screenshot({
+      path: test.info().outputPath("offline-spelling.png"),
+    });
+    await application.close();
+    application = undefined;
+
+    launched = await launchApplication(userData);
+    application = launched.application;
+    page = launched.page;
+    await open();
+    panel = page.getByRole("region", { name: "Offline spelling" });
+    await expect(panel.getByLabel("Spelling language")).toHaveValue("en-GB");
+    await expect(page.locator(".ProseMirror")).toHaveText(
+      "hello Drelwickword colour",
+    );
+    await panel
+      .getByRole("button", { name: "Check chapter", exact: true })
+      .click();
+    await expect(panel).toContainText("0 possible spelling errors");
+    await panel.locator("summary").click();
+    await panel
+      .getByRole("button", { name: "Remove Drelwickword", exact: true })
+      .click();
+    await expect(panel.getByRole("status")).toContainText(
+      "settings saved locally",
+    );
+    await panel
+      .getByRole("button", { name: "Check chapter", exact: true })
+      .click();
+    await expect(panel).toContainText("1 possible spelling errors");
+    // A syntactically valid but unbundled language tests the real unavailable path.
+    await page.evaluate(() =>
+      window.drelwick.spelling.update({
+        operation: "language",
+        language: "fr-FR",
+      }),
+    );
+    await page.getByRole("button", { name: "Spelling", exact: true }).click();
+    await page.getByRole("button", { name: "Spelling", exact: true }).click();
+    await expect(panel.getByRole("alert")).toContainText(
+      "missing or unsupported",
+    );
+    await page.locator(".ProseMirror").fill("Editing works without resources");
+    await expect(page.getByLabel("Chapter save status")).toHaveText(
+      "All changes saved",
+    );
+    expect(await readFile(chapterPath, "utf8")).toContain(
+      "Editing works without resources",
+    );
+    expect(
+      await application.evaluate(
+        () =>
+          (globalThis as unknown as { spellingNetworkRequests: string[] })
+            .spellingNetworkRequests,
+      ),
+    ).toEqual([]);
+    await application.close();
+    application = undefined;
+    const logDirectory = join(userData, "logs");
+    for (const name of await readdir(logDirectory)) {
+      const log = await readFile(join(logDirectory, name), "utf8");
+      expect(log).not.toContain("Drelwickword");
+      expect(log).not.toContain("Editing works without resources");
+    }
+  } finally {
+    application?.process().kill();
+    await fixture.cleanup();
+    await rm(scratch, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 200,
+    });
+  }
+});
+
 test("reflowable ebook simulation navigates complete matter offline, preserves sources and refreshes coherent revisions", async () => {
   const fixture = await ebookProject();
   const scratch = await mkdtemp(join(tmpdir(), "drelwick-ebook-"));

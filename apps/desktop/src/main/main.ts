@@ -13,6 +13,9 @@ import { registerImportHandlers } from "./ipc/import-handlers.js";
 import { registerRecoveryHandlers } from "./ipc/recovery-handlers.js";
 import { registerRendererErrorHandler } from "./ipc/renderer-error-handler.js";
 import { RecentProjects } from "./recent-projects.js";
+import { SpellingService } from "@drelwick/core";
+import { BundledSpellingAdapter } from "./spelling-adapter.js";
+import { registerSpellingHandlers } from "./ipc/spelling-handlers.js";
 import { installApplicationMenu } from "./application-menu.js";
 import { configureApplicationIdentity } from "./application-identity.js";
 import { SessionMarkerService } from "./session-marker.js";
@@ -33,6 +36,7 @@ let fatalErrorHandled = false;
 let stopHistory: (() => Promise<void>) | undefined;
 let stopImports: (() => Promise<void>) | undefined;
 const recoveryService = new RecoveryService();
+const spellingAdapter = new BundledSpellingAdapter();
 const logger = new FileLogger(app.getPath("userData"));
 installProcessErrorHandling(logger, handleFatalProcessError);
 let recoveryScanError: string | undefined;
@@ -123,6 +127,11 @@ void app.whenReady().then(async () => {
     logger,
   );
   registerRendererErrorHandler(() => mainWindow, getRendererUrl(), logger);
+  registerSpellingHandlers(
+    () => mainWindow,
+    getRendererUrl(),
+    new SpellingService(app.getPath("userData"), spellingAdapter),
+  );
   ipcMain.handle(IPC.APPLICATION_SHUTDOWN_READY, async (event, payload) => {
     if (
       !shutdownPending ||
@@ -165,6 +174,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("will-quit", () => {
+  spellingAdapter.dispose();
   logShutdown("application_quit");
 });
 
