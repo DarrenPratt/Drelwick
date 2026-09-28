@@ -19,6 +19,8 @@ The [local publishing delivery plan](planning/local-publishing-plan.md) updates 
 
 Operational documents:
 
+- [Community extension architecture: contracts, capabilities, trust and compatibility](extension-architecture.md)
+- [Extension design acceptance review and deferred implementation gates](planning/57-extension-review.md)
 - [Contribution guide and closed external-contribution gate](../CONTRIBUTING.md)
 - [Contributor agreement and copyright strategy (proposed; legal review pending)](contributor-copyright-strategy.md)
 - [CLA requirements (draft for legal review; not an agreement)](contributor-cla-requirements.md)

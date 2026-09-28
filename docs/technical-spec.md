@@ -16,7 +16,7 @@
 
 ## Baseline reconciliation — September 2026
 
-The current [open-core decision](design.md#current-product-decision--september-2026) and [audit](planning/repository-audit.md) apply throughout this specification. Community packages may expose public extension interfaces; they must never import or require Pro. `packages/print` and `packages/validation` supply basic Community publishing. Advanced professional modules belong in the eventual separate Pro codebase. `packages/plugin-sdk` is a future Community interface package, not a v0.1 runtime requirement.
+The current [open-core decision](design.md#current-product-decision--september-2026) and [audit](planning/repository-audit.md) apply throughout this specification. Community packages may expose public extension interfaces; they must never import or require Pro. Planned `packages/print` and `packages/validation` will supply basic Community publishing. Advanced professional modules belong in the eventual separate Pro codebase. The [Community extension architecture](extension-architecture.md) defines the #57 contracts and security/versioning policy; `packages/plugin-sdk` is deferred until a concrete host capability can prove its contracts, not a v0.1 runtime requirement.
 
 The snippets below illustrate architecture rather than defining a complete wire format. All persisted objects (including settings, history and session metadata) require explicit schema versions, directly or through a versioned envelope. Schema changes require compatibility and migration consideration. The public format specification is commercial task 57.
 
@@ -298,15 +298,15 @@ not create placeholders or move existing functionality.
 
 These are actual internal Community interfaces, **not a stable public plugin SDK**:
 
-| Capability                            | Existing Community boundary                                                                                                                                    | Safe extension direction / remaining work                                                                                                                                                         |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Publishing and analysis               | `core.assembleBook` captures a coherent `AssembledBook`; renderer consumes `BookRevision` and `RenderOptions`, returning `RenderedBook` and `RenderDiagnostic` | Optional consumers can analyse a bounded snapshot or supply trusted asset/link resolvers. Ordinary render/validation must remain built in. Public registration and permissions belong to #57.     |
-| Import                                | `core.ManuscriptImporter`, `StagedManuscriptImport`, isolated first-party parser contract, project-model `ImporterResult` and validation; shared import DTOs   | Desktop explicitly registers bundled parsers. #57 can build a restricted external contract from this use case; the current worker/VM runner is not a hostile-plugin sandbox.                      |
-| Export                                | Shared semantic rendering already supports ebook/print targets; core captures assets and publication order                                                     | #125 owns local DOCX export, #126 EPUB packaging, #128–#130 basic print/PDF. They must work before/without plugin registration. No exporter registry exists yet.                                  |
-| Validation                            | Project-model schemas, core project/import validation and renderer diagnostics                                                                                 | Pro may add checks to Community results. It cannot supply a validator required to open a normal project or publish basic output. Public validator registration remains #57.                       |
-| Storage and backup                    | Core local filesystem seams such as `ProjectLoadingFileSystem`, atomic writes, `createProjectArchive` and `restoreProjectArchive`                              | Filesystem injection is a privileged internal/test seam, not authority for plugins. Provider research #139 precedes any scoped archive adapter contract.                                          |
-| Themes                                | Community theme types/presets, persisted selection and renderer theme generation                                                                               | Three built-in themes work independently. Premium/third-party themes must use a future reviewed contract, with a usable Community fallback; current strict built-in IDs are not an open registry. |
-| Advanced authoring / project analysis | Validated semantic documents, snapshots, shared DTOs and explicit editor transactions                                                                          | Pro may eventually consume a permission-limited snapshot and return suggestions for user review. No new analysis, AI or advanced-authoring interface is needed for this boundary check.           |
+| Capability                            | Existing Community boundary                                                                                                                                    | Safe extension direction / remaining work                                                                                                                                                                                      |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Publishing and analysis               | `core.assembleBook` captures a coherent `AssembledBook`; renderer consumes `BookRevision` and `RenderOptions`, returning `RenderedBook` and `RenderDiagnostic` | Optional consumers can analyse a bounded snapshot or supply trusted asset/link resolvers. Ordinary render/validation must remain built in. Public contracts/permissions are designed in #57; registration runtime is deferred. |
+| Import                                | `core.ManuscriptImporter`, `StagedManuscriptImport`, isolated first-party parser contract, project-model `ImporterResult` and validation; shared import DTOs   | Desktop explicitly registers bundled parsers. #57 can build a restricted external contract from this use case; the current worker/VM runner is not a hostile-plugin sandbox.                                                   |
+| Export                                | Shared semantic rendering already supports ebook/print targets; core captures assets and publication order                                                     | #125 owns local DOCX export, #126 EPUB packaging, #128–#130 basic print/PDF. They must work before/without plugin registration. No exporter registry exists yet.                                                               |
+| Validation                            | Project-model schemas, core project/import validation and renderer diagnostics                                                                                 | Pro may add checks to Community results. It cannot supply a validator required to open a normal project or publish basic output. Public validator contracts are designed in #57; registration runtime is deferred.             |
+| Storage and backup                    | Core local filesystem seams such as `ProjectLoadingFileSystem`, atomic writes, `createProjectArchive` and `restoreProjectArchive`                              | Filesystem injection is a privileged internal/test seam, not authority for plugins. Provider research #139 precedes any scoped archive adapter contract.                                                                       |
+| Themes                                | Community theme types/presets, persisted selection and renderer theme generation                                                                               | Three built-in themes work independently. Premium/third-party themes must use a future reviewed contract, with a usable Community fallback; current strict built-in IDs are not an open registry.                              |
+| Advanced authoring / project analysis | Validated semantic documents, snapshots, shared DTOs and explicit editor transactions                                                                          | Pro may eventually consume a permission-limited snapshot and return suggestions for user review. No new analysis, AI or advanced-authoring interface is needed for this boundary check.                                        |
 
 When optional registration is introduced, Community owns the contract, validation,
 versioning and absence/failure behaviour. A separate Pro composition layer may
@@ -316,11 +316,22 @@ leave all basic workflows usable. Never add a type-only import from Pro to defin
 a Community contract. Package exports, rather than private source paths, are the
 future consumption boundary; compatibility testing belongs to #61 after #57.
 
-Issue #57 owns public extension security, permissions, versioning and failure
-isolation. Third-party extensions should eventually use the same public contracts.
-No plugin runtime, private repository or blanket proprietary-plugin permission is
-introduced here. Existing Electron context isolation, sandboxing, validated IPC
-and restricted preload access remain mandatory.
+The [#57 extension architecture](extension-architecture.md) defines one public
+Community-owned contract family for Pro and eventual third parties: Importer,
+Exporter, Validator, Theme, Publishing Profile, Editor Tool, Reference Tool and
+AI Provider. Host adapters negotiate independent API/category/data versions and
+grant only operation-scoped capabilities. They validate results and retain all
+commit, persistence and privileged I/O authority. Themes/profiles are declarative;
+editor tools return reviewed semantic proposals; AI receives explicit approved
+context through future credential/network brokers. Interface compatibility is
+not trust, and the current parser runner is not a hostile-plugin sandbox.
+
+The design defers the SDK package and runtime, keeps built-ins independent and
+does not add a backup-provider API while #139 research is unresolved. See the
+[example review and implementation gates](planning/57-extension-review.md).
+No private repository or blanket proprietary-plugin permission is introduced.
+Existing Electron context isolation, sandboxing, validated IPC and restricted
+preload access remain mandatory.
 
 ## Local operation and publishing status
 
@@ -341,7 +352,7 @@ requirement; normal desktop startup loads bundled files.
 | Portable local backup/restore                                                                                                 | #110 implemented in core, with project-model archive schema and restricted desktop commands. Project files remain authoritative.                                                                 |
 | EPUB 3                                                                                                                        | #126 remains open (workflow validation #127). Use Community renderer/project-model/core and the planned CORE epub package.                                                                       |
 | Basic print/PDF and Community publishing validation                                                                           | #128–#130 remain open (platform/output validation #131). Use Community print/validation implementation and privileged local Chromium orchestration. Advanced Pro checks cannot be prerequisites. |
-| Open project format and extension API                                                                                         | Community format implementation exists; fuller public specification #58 and public extension design #57 remain separate work.                                                                    |
+| Open project format and extension API                                                                                         | Community format implementation exists; fuller public specification #58 remains separate. #57 documents the extension design; SDK/runtime remain deferred.                                       |
 
 Future optional remote backup adapters may upload/download consistent archives
 with separately authorized credentials and bounded access. They must never become
@@ -365,7 +376,8 @@ semantic, format and presentation schemas reject unsupported structures. This is
 not permission to insert proprietary nodes, required fields, theme IDs or format
 versions. Unknown/newer format versions fail safely rather than loading Pro.
 
-Before Pro writes optional metadata, #57/#58 must specify a namespaced, versioned
+Before Pro writes optional metadata, a #58-aligned follow-up to the extension
+design must specify a namespaced, versioned
 representation that Community can safely preserve or ignore across save, migration,
 backup/restore and publishing. Core manuscript text, order, semantics and required
 assets must never depend on it. That future change needs round-trip/absence tests
@@ -3430,21 +3442,38 @@ No silent manuscript modifications.
 
 # 114. Future Plugin System
 
-If plugins are introduced later, they should operate through a restricted application API.
+The [Community extension architecture](extension-architecture.md) is the detailed
+design for #57. Public contracts are owned by Community and shared by future Pro
+and third-party consumers, subject to host trust and capability policy.
 
-Potential plugin categories:
+Designed categories:
 
 ```text
 Importer
 Exporter
 Validator
 Theme
+Publishing Profile
 Editor Tool
 Reference Tool
 AI Provider
 ```
 
-Plugin runtime/distribution is deferred; public extension API architecture is planned before external contributions through commercial tasks 54 and 56. This does not require a Pro repository or plugin implementation in v0.1.
+The future `packages/plugin-sdk` will contain only reviewed public DTOs/contracts,
+without desktop/core implementation dependencies. It is not created yet: current
+internal exports are not a stable plugin API. Declarative themes/profiles do not
+need executable access; import/export use scoped inputs and staged output;
+validators cannot override Community integrity checks; editor tools propose
+controlled transactions; reference tools and AI require explicit context and
+separate permission for any network use. No public filesystem, process, Node,
+Electron or secret-read API is provided.
+
+Runtime enforcement, installation/distribution, schema evolution for external
+theme IDs and credential/network brokers are separately gated future work. The
+[acceptance review](planning/57-extension-review.md) distinguishes those gaps from
+the current DOCX staging, semantic renderer and local persistence evidence. Basic
+Community operation never requires a plugin runtime. This design does not create
+Pro, decide plugin licensing or authorize public contributions.
 
 ---
 
