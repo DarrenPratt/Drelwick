@@ -1,6 +1,6 @@
 # CLA requirements for legal review
 
-**DRAFT / FOR LEGAL REVIEW. Legal review: pending.**
+**DRAFT — FOR LEGAL REVIEW. Legal review: pending.**
 This is a requirements brief, not contractual wording, an approved CLA, or an
 agreement that can be signed. It grants no rights. External contributions remain
 blocked by #54. Read the [strategy](contributor-copyright-strategy.md) and
@@ -41,3 +41,12 @@ Test missing assent, wrong agreement version, unmatched identities, missing
 sign-offs, absent employer authority, third-party material and changed commits.
 Each must block acceptance until resolved. Do not configure an acceptance service
 or collect signatures against this draft. No third-party CLA has been copied.
+
+Evaluate the [acceptance mechanism options](contributor-copyright-strategy.md#acceptance-mechanism-options-and-implementation-gate)
+against the final terms before choosing a tool. Verify retrieval of the original
+accepted version and evidence after a PR comment is edited/deleted, an account
+changes, a corporate contributor leaves or an agreement is superseded. A status
+check must refer to retained evidence and the current contribution scope; it is
+not itself an agreement. Record the tested individual and corporate approval and
+rejection cases before enabling intake. All such legal review, implementation
+and operational verification remain pending.
