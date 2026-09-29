@@ -1,6 +1,6 @@
 # Contributor agreement and copyright strategy
 
-Status on 28 September 2026: **proposed strategy; legal review: pending**.
+Status on 29 September 2026: **proposed strategy; legal review: pending**.
 CORE (`product:core`). Related to [#54](https://github.com/DarrenPratt/Drelwick/issues/54).
 
 **DO NOT ACCEPT EXTERNAL CONTRIBUTIONS until #54 is complete.** The broader
@@ -14,10 +14,11 @@ Preserve the ability to accept contributions without unintentionally losing the
 intended future commercial/dual-licensing capability. This record separates owner
 intent from rights actually obtained and professional legal approval.
 
-At base `58da41f8667a0aa02128516886f7ae718334ce55`, repository planning described
-AGPLv3 as a candidate, with no root LICENSE, CONTRIBUTING.md, approved CLA or
-acceptance mechanism. Live [#53](https://github.com/DarrenPratt/Drelwick/issues/53),
-reviewed on 28 September 2026, records **AGPL-3.0-only as the owner's intended
+The first framework was delivered by [PR #195](https://github.com/DarrenPratt/Drelwick/pull/195).
+At the follow-up base `fdaf5d500e9a43dc07adee749aaeb06a04d3cb18`, CONTRIBUTING.md
+and the CLA requirements brief exist; a root LICENSE, approved CLA and operational
+acceptance mechanism do not. Live [#53](https://github.com/DarrenPratt/Drelwick/issues/53),
+rechecked on 29 September 2026, records **AGPL-3.0-only as the owner's intended
 selection**, with legal review and final licensing approval pending; it is open.
 No evidence of professional review was found in the reviewed repository or issues.
 This work is expressly authorised preparation despite that unresolved dependency,
@@ -45,6 +46,14 @@ not a declaration that #54 is ready for final approval.
 
 These are project intentions, not contractual grants or findings about applicable law.
 
+Copyright assignment is not selected because the intended model preserves each
+contributor's ownership while seeking the necessary additional permissions through
+a CLA. Transfer of ownership is not the project's objective. Whether the final
+grant is sufficient for the intended uses requires legal review; if advice identifies
+a gap, resolve it explicitly before accepting work rather than silently switching
+to assignment. The owner decisions in [#60](https://github.com/DarrenPratt/Drelwick/issues/60)
+confirm retained copyright and CLA plus sign-off, not an approved contract.
+
 ## Individual, employee and corporate contributors
 
 | Scenario                                 | Proposed treatment                                                                                                                                        | Evidence needed before acceptance                                                                                                                                     |
@@ -58,6 +67,19 @@ These are project intentions, not contractual grants or findings about applicabl
 
 Contributors should not upload employment agreements or private identity documents
 to public PRs. The owner must establish a reviewed private evidence route first.
+An employed contributor is responsible for obtaining any required employer
+permission before submission and confirming authority under the approved process.
+Maintainers must not decide who owns particular employment-related work; uncertainty
+requires appropriate advice and a hold on acceptance.
+
+For company-owned work, the proposed starting point for counsel is a corporate CLA
+signed by an authorised representative, with a maintained list of authorised
+contributors and covered submissions. A reviewed alternative may be suitable,
+but must explicitly obtain the company's necessary rights and establish the
+submitter's authority. Each submitter still provides their own DCO certification.
+Neither employment nor an individual CLA automatically binds the organisation.
+Final corporate terms, signatory checks, roster changes and coverage of former
+employees remain pending legal review.
 
 ## CLA and DCO roles
 
@@ -94,6 +116,10 @@ interactions and whether an exception or other permission is required. The same
 provenance and rights checks apply to contributed extension/API code; do not
 promise proprietary plugins are allowed before approval.
 
+Issues #55 and #57 are closed for their technical boundary/design work as of
+29 September 2026. Their completion does not establish legal compatibility;
+the corresponding Pro/plugin legal conclusions remain part of #53's pending review.
+
 The project intends to respect Community source-licence rights for commercial
 use, modification and forks, without adding restrictions prohibiting them.
 Contributor acceptance rules are not extra restrictions on recipients' source
@@ -104,18 +130,18 @@ and compatibility remain within #53's legal-review scope.
 
 ## Existing contribution evidence
 
-Technical identity/provenance audit on 28 September 2026, before this change:
+Technical identity/provenance audit refreshed on 29 September 2026, before this change:
 
 - Non-shallow history; fetched origin branches and available PR heads into
-  `refs/audit/pull/*/head`. `git log --all` covered 175 commits across 99 refs,
-  including the separate local #60 preparation commit. Main at `58da41f` contains
-  174 commits: 102 authored as Darren Pratt, 61 as `jynx_Protocol`, 11 as `unknown`.
+  `refs/audit/pull/*/head`. `git log --all` covered 186 commits across 208 refs,
+  including local-only history. Main at `fdaf5d5` contains 185 commits:
+  111 authored as Darren Pratt, 63 as `jynx_Protocol`, 11 as `unknown`.
 - Compared author/committer names and email identity overlap privately, and
   inspected commit-message co-author/sign-off trailers. Both alias groups share
   email metadata with Darren Pratt. This supports, but does not prove, common
   identity or ownership. Owner confirmation of aliases is pending. No raw email
   addresses are reproduced here.
-- All 79 GitHub PRs returned by the all-state inventory were opened by
+- All 84 GitHub PRs returned by the all-state inventory were opened by
   `DarrenPratt`; there is no apparent separate human PR submitter in that inventory.
   GitHub merge-committer metadata is not an additional code contributor.
 - 27 commits contain Copilot co-author trailers; none of the inspected historical
@@ -172,6 +198,46 @@ and unresolved claims. Public PRs should contain only minimal verification statu
 and a non-sensitive reference, not private agreements or unnecessary personal data.
 No CLA service, signature collection, retention schedule or legal recipient has
 been approved by this document.
+
+### Acceptance mechanism options and implementation gate
+
+For the present project size, prefer evaluating a maintainer-verified process
+using GitHub PR identifiers plus private agreement records before adding a hosted
+CLA service. This is a proposal for review, not an enabled mechanism:
+
+| Option                                                        | Intended evidence                                                                                                                                        | Review needed before selection                                                                                                                                           |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Private acceptance of a versioned agreement, linked to GitHub | Exact accepted document, affirmative acceptance and timestamp, verified account/identity link, contribution scope and maintainer verification reference. | Counsel approves acceptance method; owner establishes private custody, backup and an identity-verification procedure. Corporate authority stays private.                 |
+| Explicit assent from a GitHub account against immutable terms | Account identifier, terms revision/hash, timestamp, captured assent event and covered PR/commits, with an independently retained evidence copy.          | Counsel confirms enforceability and identity requirements; review edited/deleted comments, account changes and public disclosure. A generic PR checkbox is insufficient. |
+| CLA application/service                                       | Equivalent exportable agreement/version/identity/scope records and status checks.                                                                        | Assess permissions, privacy, retention, cost and continuity if the service disappears. No service is currently selected or required.                                     |
+
+Whichever option is approved must link **who**, **which terms/version**, **when**
+and **which contributions**. Record whether the approved agreement covers one
+submission or future work; never infer broader coverage. Preserve the original
+assent evidence separately from a mutable PR status. Changes to terms or corporate
+authority must trigger the reviewed coverage/reacceptance procedure. The owner
+must implement and test the selected mechanism before #54 can close.
+
+### DCO verification feasibility
+
+The current `.github/workflows/ci.yml` runs repository quality checks but has no
+DCO or CLA verification. A small future GitHub Actions check can inspect the
+actual proposed commit range using Git's trailer parser and require correctly
+formed `Signed-off-by` trailers under the approved identity/forwarding policy.
+It should read commit metadata with minimal permissions, never execute submission
+code to verify certification, and avoid printing personal email addresses.
+
+Test missing/malformed trailers, multiple authors or forwarded work, new commits,
+and rebased/squashed revisions; recheck the exact revision proposed for merge.
+Define merge-commit and bot treatment explicitly before enforcement, without
+fabricating anyone's sign-off or retrospectively applying it to existing history.
+Configure the verified check as a merge requirement when intake is activated.
+Syntax checks cannot prove authority, ownership or CLA assent; those remain
+separate maintainer checks. Implementation and required-check configuration are
+pending the approved process, and no DCO bot or external infrastructure is added
+by this documentation.
+
+### Withdrawal and disputed rights
 
 For a withdrawal request before acceptance, stop processing the submission and
 record the request using the approved privacy process. For accepted/distributed

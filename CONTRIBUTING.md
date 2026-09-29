@@ -38,6 +38,12 @@ organisation. Obtain the necessary authorisation; personal sign-off alone cannot
 establish the employer's permission. The corporate agreement/authorised-contributor
 mechanism awaits legal review.
 
+If you are employed, you are responsible for obtaining any necessary employer
+authority before submission. Do not ask maintainers to decide ownership under
+your employment arrangements. For company-owned work, the proposed corporate
+process requires an authorised organisation grant and confirmation that you and
+your submissions are covered; an individual CLA does not substitute for it.
+
 Before any future external contribution is accepted, the maintainer must verify
 acceptance of the approved CLA version, contributor identity, organisational
 authority where needed, and the submitted commits. There is **no approved CLA to
@@ -45,6 +51,12 @@ sign yet**. [CLA requirements](docs/contributor-cla-requirements.md) are a revie
 brief, not legal terms. If the CLA is missing, incomplete, unverifiable or cannot
 be granted, the contribution must not be accepted. Do not paste signatures,
 employment documents or private identity evidence into public PRs.
+
+The [acceptance-mechanism proposal](docs/contributor-copyright-strategy.md#acceptance-mechanism-options-and-implementation-gate)
+requires a retained record of who accepted which agreement version, when, and
+which contributions it covers. Its selection and implementation remain pending;
+do not attempt to accept the draft by commenting on a PR. Agreement acceptance
+does not oblige Drelwick to accept or use a contribution.
 
 Read the complete [Developer Certificate of Origin 1.1](https://developercertificate.org/)
 before signing off. Under the proposed external process, each contribution commit
@@ -54,7 +66,8 @@ must carry the submitter's truthful certification in this form:
 Signed-off-by: Name <email>
 ```
 
-For a new commit, use `git commit -s` with your own configured name and email.
+For a new commit, use [`git commit -s`](https://git-scm.com/docs/git-commit#Documentation/git-commit.txt--s)
+with your own configured name and email.
 The `-s` flag adds a trailer; it does not cryptographically sign the commit or
 complete a CLA. Never sign for another person. Preserve attribution and valid
 trailers when integrating work, and recheck all commits after changes. Do not
@@ -66,6 +79,8 @@ address before submission and review that disclosure. The repository is currentl
 private; these instructions do not authorise publication of historical emails.
 DCO certification does **not** replace the CLA or establish proprietary relicensing
 rights. Existing owner commits are not retrospectively certified by this guide.
+CI does not currently verify DCO or CLA compliance. A future sign-off check will
+assist review but cannot establish your authority or replace CLA verification.
 
 ## Licensing of accepted contributions
 
