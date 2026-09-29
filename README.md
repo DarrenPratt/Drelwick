@@ -27,6 +27,11 @@ contributions remain blocked until #54 and the Licensing & Commercial Architectu
 milestone are complete. Community will build independently of the eventual private
 Pro product; basic authoring and publishing belong in Community.
 
+The [proposed branding and distribution policy](docs/branding-distribution-policy.md)
+separates source-code rights from names, logos and official-release status.
+Trademark/artwork legal review and reuse permissions remain pending; this draft
+does not authorise public release.
+
 See the [development workflow](docs/development.md), [repository audit](docs/planning/repository-audit.md) and [GitHub tracking register](docs/planning/github-tracking.md).
 
 The desktop shell supports creating a project through **New project**. Enter the

@@ -11,6 +11,16 @@ complete the agreement process or clear any checklist item below. External
 contributions remain blocked until #54 and the Licensing & Commercial Architecture
 milestone are complete.
 
+Branding preparation for #59: the [proposed policy](../branding-distribution-policy.md)
+and [asset/decision review](59-branding-review.md) separate source rights, artwork
+permissions and official status. **Legal review: pending.** The branding gate is
+documentationally prepared, awaiting professional review and owner approval of
+unresolved permissions, including exact-artifact mirroring. Record the reviewer,
+date, scope, final artwork terms and owner approval before clearing the gate.
+Review the original logo's full C2PA metadata for sensitive information; the limited
+inventory inspection is not privacy signoff. Preserve tool-origin provenance
+unless a separately reviewed privacy/security concern requires remediation.
+
 - [ ] Scan full Git history, branches and tags for secrets; also review current files, release assets and relevant Actions artifacts/logs.
 - [ ] Review credentials and tokens; revoke/rotate any exposed credential and assess history remediation before release.
 - [ ] Review private URLs, personal information and private/internal documentation, including example content and audit artifacts.
