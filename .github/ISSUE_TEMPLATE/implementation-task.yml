@@ -3,7 +3,7 @@ description: Plan focused work during private Drelwick development.
 body:
   - type: markdown
     attributes:
-      value: "Private development: external contribution terms are not yet approved. Do not include secrets or private manuscript text."
+      value: "Private development: external contribution terms are not yet approved. Do not include secrets or private manuscript text. Never report vulnerabilities in this form; follow [SECURITY.md](https://github.com/DarrenPratt/Drelwick/blob/main/SECURITY.md)."
   - type: textarea
     id: objective
     attributes:

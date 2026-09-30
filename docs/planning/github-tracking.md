@@ -21,7 +21,7 @@ Reconciled 14 September 2026. Plan IDs remain stable source-document identifiers
 
 The original requirements from the two build plans are retained in each issue, supplemented with missing objective/scope/components/tests and product classification. Original prerequisites and additional readiness prerequisites are explicitly separated. The combined graph is acyclic.
 
-Planning foundation: [#1](https://github.com/DarrenPratt/Drelwick/issues/1), completed by merged PR #63. Project board setup: [#62](https://github.com/DarrenPratt/Drelwick/issues/62). Projects access is now available through the account-authorized GitHub CLI; the original access blocker is resolved. The existing private [Drelwick project](https://github.com/users/DarrenPratt/projects/1) is linked to this repository and reused; no duplicate board was created.
+Planning foundation: [#1](https://github.com/DarrenPratt/Drelwick/issues/1), completed by merged PR #63. Project board setup: [#62](https://github.com/DarrenPratt/Drelwick/issues/62). Projects access is now available through the account-authorized GitHub CLI; the original access blocker is resolved. The existing private Drelwick project (private board; link held in maintainer records) is linked to this repository and reused; no duplicate board was created.
 
 ## Local publishing update — 19 September 2026
 
@@ -255,7 +255,7 @@ flowchart TD
 
 ## Project board setup
 
-The owner-created [Drelwick](https://github.com/users/DarrenPratt/projects/1) is the build plan's development board. Its existing name and repository link are retained. The initial inspection after authorization found one private Project, already linked to Drelwick, with no items and the default Todo/In Progress/Done statuses.
+The owner-created Drelwick (private board; link held in maintainer records) is the build plan's development board. Its existing name and repository link are retained. The initial inspection after authorization found one private Project, already linked to Drelwick, with no items and the default Todo/In Progress/Done statuses.
 
 Configured fields:
 

@@ -19,13 +19,35 @@ the current roadmap.
 
 Start with the [documentation index](docs/README.md) for the design, technical specification and build plans.
 
-Development is private. The owner has selected `AGPL-3.0-only` as the intended licence in
-[#53](https://github.com/DarrenPratt/Drelwick/issues/53); legal review and final
-approval remain pending. See [CONTRIBUTING.md](CONTRIBUTING.md) and the
+Development is private. The owner-selected Community licence is GNU Affero General
+Public License v3 only (`AGPL-3.0-only`); see [LICENSE](LICENSE) and
+[copyright and third-party notices](COPYRIGHT.md). Legal review and final approval
+under [#53](https://github.com/DarrenPratt/Drelwick/issues/53) remain pending.
+Copyright © 2026 Darren Pratt and Drelwick contributors.
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the
 [contributor strategy](docs/contributor-copyright-strategy.md). External
 contributions remain blocked until #54 and the Licensing & Commercial Architecture
 milestone are complete. Community will build independently of the eventual private
-Pro product; basic authoring and publishing belong in Community.
+Pro product; basic authoring and publishing belong in Community. Pro is not
+currently available. Implemented local authoring/import/preview/backup workflows
+need no Drelwick account, backend or Pro checkout. DOCX export, EPUB and basic PDF
+are planned Community capabilities, not available exports today.
+
+There are no public standalone installers yet. The development setup below
+builds from source; Windows runtime tests do not establish macOS/Linux or packaged
+release validation. Follow the [release evidence register](docs/planning/public-release-checklist.md)
+for current blockers. Preparation does not authorise publication.
+
+Read the [Code of Conduct](CODE_OF_CONDUCT.md) and [security policy](SECURITY.md).
+Never report vulnerabilities in ordinary issues or PRs. Public security/conduct
+contact activation remains pending; the policies describe the current private
+handoff and do not advertise untested addresses.
+
+The [public project specification](docs/project-format-specification.md) explains
+the implemented local format and independent recovery. The
+[Community extension architecture](docs/extension-architecture.md) is a design;
+its public SDK and runtime are not yet available. Built-in workflows do not
+depend on that future runtime.
 
 The [proposed branding and distribution policy](docs/branding-distribution-policy.md)
 separates source-code rights from names, logos and official-release status.

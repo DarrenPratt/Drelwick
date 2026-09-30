@@ -1,0 +1,23 @@
+name: Feature request
+description: Describe a user need or improvement.
+labels: ["type:feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not use this form for security reports; read [SECURITY.md](https://github.com/DarrenPratt/Drelwick/blob/main/SECURITY.md).
+        Describe the user need before proposing implementation. Maintainers assign CORE, PRO, SERVICE or ECOSYSTEM during triage. External contributions remain gated by CONTRIBUTING.md.
+  - type: textarea
+    id: need
+    attributes:
+      label: User need
+      description: What authoring or publishing task is difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed improvement and alternatives
+      description: Explain the expected result and any workaround. Do not include private manuscript content.
+    validations:
+      required: true

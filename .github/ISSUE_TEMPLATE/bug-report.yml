@@ -1,0 +1,30 @@
+name: Bug report
+description: Report a reproducible non-security problem in Drelwick Community.
+labels: ["type:bug", "product:core"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report vulnerabilities here. Read [SECURITY.md](https://github.com/DarrenPratt/Drelwick/blob/main/SECURITY.md) for private reporting status and instructions.
+        Do not include credentials, private paths or real manuscript content. Use synthetic examples. External code contributions remain gated by CONTRIBUTING.md.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include expected behaviour and any data-loss impact without sharing private content.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Use the smallest synthetic example that shows the problem.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Version and platform
+      description: Commit or release version, operating system, and source build or packaged build.
+    validations:
+      required: true

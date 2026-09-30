@@ -5,6 +5,11 @@ Architecture milestone.** Do not merge or cherry-pick external submissions while
 the gate is closed. See [CONTRIBUTING.md](../CONTRIBUTING.md). A checkbox or
 sign-off is not CLA acceptance or legal approval.
 
+Never include vulnerability details here; follow [SECURITY.md](../SECURITY.md).
+Read the [Code of Conduct](../CODE_OF_CONDUCT.md). When external intake is approved,
+each commit needs DCO sign-off and separate verified CLA coverage; neither is
+established by ticking this template.
+
 Describe the problem and resulting behaviour.
 
 ## Related Issue

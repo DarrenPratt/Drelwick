@@ -12,7 +12,7 @@
 
 ## Current product decision — September 2026
 
-Drelwick is a cross-platform, local-first, open-core authoring and publishing application in private development. Community will eventually be public; Pro remains a separate private commercial product. AGPLv3 is only a candidate Community licence. Licence selection, contributor/copyright strategy, dual licensing and trademarks require proper review before public release. Do not accept unrestricted external contributions until that strategy is approved.
+Drelwick is a cross-platform, local-first, open-core authoring and publishing application in private development. Community is intended for public release; Pro is planned as a separate private commercial product. The owner selected `AGPL-3.0-only` for Community, with legal review and final licensing approval pending under #53. Contributor/copyright strategy, dual licensing and trademarks require appropriate review before public release. Do not accept external contributions until #54 and the Licensing & Commercial Architecture milestone are complete. See the [central notices](../COPYRIGHT.md) and [release gate](planning/public-release-checklist.md).
 
 The dependency direction is always `Drelwick Pro -> Drelwick Community`. Community must build and test with no Pro repository present. No Pro repository is required during the v0.1 foundation. Manuscript/project files belong to the author and remain authoritative, recoverable outside the application and usable without cloud connectivity. EPUB/PDF are generated outputs, never editable master documents.
 

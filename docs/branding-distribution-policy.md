@@ -39,7 +39,8 @@ interaction with the source licence require legal review.
 The owner selected **AGPL-3.0-only** as the intended Community licence in
 [#53](https://github.com/DarrenPratt/Drelwick/issues/53) and
 [#60](https://github.com/DarrenPratt/Drelwick/issues/60). Final licensing approval
-and legal review remain pending, and the reviewed tree has no root LICENSE.
+and legal review remain pending. The [central notices](../COPYRIGHT.md) and
+[LICENSE](../LICENSE) now prepare that selection without completing #53's review.
 This document is not itself a source-code licence grant. References below to
 licensed redistribution describe the intended public model, subject to the
 licence actually applying to the material, including dependencies.

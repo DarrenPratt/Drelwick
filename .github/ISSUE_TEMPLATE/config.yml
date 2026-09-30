@@ -1,1 +1,5 @@
 blank_issues_enabled: false
+contact_links:
+  - name: Security reporting instructions
+    url: https://github.com/DarrenPratt/Drelwick/blob/main/SECURITY.md
+    about: Read the private reporting status and instructions. Never post vulnerability details in an issue.
