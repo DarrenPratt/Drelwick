@@ -1,44 +1,52 @@
 # Public Community release gate
 
-Status: **not completed**. Repository stays private. The v0.3 Community candidate is a review target, not permission to publish. Record reviewer, date and evidence for every item; creating an issue does not satisfy a legal or security gate.
+**BLOCKED — repository remains private. Do not change visibility.**
+The v0.3 Community candidate is a review target, not publication permission.
+Related to #60; preparation does not complete it. Publication is a separate
+explicit owner action even after this register is complete.
 
-Contributor preparation for #54: the [proposed strategy](../contributor-copyright-strategy.md),
-[CLA requirements](../contributor-cla-requirements.md) and
-[contribution guide](../../CONTRIBUTING.md) record the owner's intended retained
-copyright + CLA + DCO 1.1 model. #53 records the intended `AGPL-3.0-only` selection;
-legal review and final licensing approval remain pending. These documents do not
-complete the agreement process or clear any checklist item below. External
-contributions remain blocked until #54 and the Licensing & Commercial Architecture
-milestone are complete.
+Evidence refreshed: **30 September 2026**. Technical reviewer: **Codex**. Accountable
+owner: **Darren Pratt**. “Verified” means only the stated technical scope, never
+legal review or owner approval. No professional legal-review evidence has been
+provided. The [audit](60-release-audit.md) records revisions, scan scope, actual
+configuration and limitations. Each row retains an original checklist obligation;
+partial preparation is not a completed gate.
 
-Branding preparation for #59: the [proposed policy](../branding-distribution-policy.md)
-and [asset/decision review](59-branding-review.md) separate source rights, artwork
-permissions and official status. **Legal review: pending.** The branding gate is
-documentationally prepared, awaiting professional review and owner approval of
-unresolved permissions, including exact-artifact mirroring. Record the reviewer,
-date, scope, final artwork terms and owner approval before clearing the gate.
-Review the original logo's full C2PA metadata for sensitive information; the limited
-inventory inspection is not privacy signoff. Preserve tool-origin provenance
-unless a separately reviewed privacy/security concern requires remediation.
+| Gate                                                                           | Status                                                 | Reviewer / owner               | Date       | Evidence and blocker                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------ | ------------------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R01 Full history/tree, branches/tags, release assets and Actions secret review | Partially verified; final candidate pending            | Codex / Darren Pratt           | 2026-09-30 | [Scans](60-release-audit.md#secret-and-history-review): 188 commits, 1,318 blobs; repeat tree/history/object scans retain only synthetic UUID alerts. All 166 prior log scans still cover available runs. Final candidate and owner privacy review pending. |
+| R02 Credentials/tokens and rotation/remediation                                | No genuine credential identified; owner review pending | Codex / Darren Pratt           | 2026-09-30 | Same scan/triage. Revoke/rotate any subsequently confirmed credential and assess historical exposure. No history rewrite authorised.                                                                                                                        |
+| R03 Private URLs, personal information, internal docs and audit artifacts      | Blocked on owner privacy decisions                     | Codex / Darren Pratt           | 2026-09-30 | Private email/path/ref inventory outside Git; current board links removed. Historical emails and logo identifiers lack publication approval. Review hosted issues/PRs.                                                                                      |
+| R04 Community licence professional review                                      | Pending (#53)                                          | Darren Pratt / adviser pending | 2026-09-30 | Owner selected AGPL-3.0-only; no legal evidence for Community/Pro, plugins, ownership or commercial/dual licensing.                                                                                                                                         |
+| R05 Approved LICENSE and accurate README statement                             | Prepared; approval pending                             | Codex / Darren Pratt           | 2026-09-30 | [LICENSE](../../LICENSE), [COPYRIGHT](../../COPYRIGHT.md), README and seven manifest fields match owner selection. GNU text preserved; R04 remains open.                                                                                                    |
+| R06 Dependency, asset/font/theme and binary redistribution                     | Blocked on packaged review                             | Codex inventory / Darren Pratt | 2026-09-30 | [530-record inventory and actual notices](60-release-audit.md#dependencies-and-distribution); Electron/Chromium, sharp/libvips and spelling are inputs, not legal clearance. No #107 artifact.                                                              |
+| R07 Contributor/copyright/dual-licensing agreements                            | Blocked (#54)                                          | Darren Pratt / adviser pending | 2026-09-30 | [Strategy](../contributor-copyright-strategy.md) and draft requirements only. Final terms, corporate mechanism, acceptance/records and legal review missing. External contributions closed.                                                                 |
+| R08 CONTRIBUTING aligned with approved strategy                                | Prepared; final terms pending                          | Codex / Darren Pratt           | 2026-09-30 | [Guide](../../CONTRIBUTING.md) separates CLA from DCO and covers authority/third-party work. Final legal/process alignment awaits R07.                                                                                                                      |
+| R09 Code of Conduct and enforcement/contact                                    | Policy prepared; contact blocked                       | Codex / Darren Pratt           | 2026-09-30 | [Covenant v2.1](../../CODE_OF_CONDUCT.md), sole maintainer, no invented team. Configure/test conduct mailbox; no standing independent referral service.                                                                                                     |
+| R10 Security policy, private route and support                                 | Policy prepared; route blocked                         | Codex / Darren Pratt           | 2026-09-30 | [SECURITY](../../SECURITY.md): latest supported release, best effort/no SLA. GitHub reporting GET/PUT returned 404 while private; security mailbox unverified. No public vulnerability issues.                                                              |
+| R11 Trademark, fork branding, official builds and artwork                      | Blocked on review; #59 closed                          | Darren Pratt / adviser pending | 2026-09-30 | [Policy](../branding-distribution-policy.md) and [review](59-branding-review.md); source/compatibility rights separate, no registration claim. PR #199 and closed #59 provide no legal-review evidence; artwork approval remains missing.                   |
+| R12 Community/Pro feature/package boundary and standalone Community            | Package boundary verified; feature review open         | Codex / Darren Pratt           | 2026-09-30 | #55 checker/tests and isolated install/build/test without Pro. #52 open; future Community exports stay CORE. [Dependencies](60-release-audit.md#dependencies-and-implemented-scope).                                                                        |
+| R13 Public format and independent recovery                                     | Technically verified for implemented format            | Codex / Darren Pratt           | 2026-09-30 | [Specification](../project-format-specification.md), production-validated synthetic example, schema/migration/archive tests and independent helper. No unsupported reference/Pro metadata promise.                                                          |
+| R14 Extension security/versioning and absence behaviour                        | Design verified; runtime not advertised                | Codex / Darren Pratt           | 2026-09-30 | [Architecture](../extension-architecture.md) and [review](57-extension-review.md); SDK/host deferred, built-ins independent. Future runtime requires its own implementation evidence.                                                                       |
+| R15 Reliability, packaging and offline EPUB candidate                          | Blocked (#51, #107, #127)                              | Codex evidence / Darren Pratt  | 2026-09-30 | 15 Windows source E2E tests pass. No installer, DOCX export or EPUB export. Owner reliability signoff and platform/artifact/publishing evidence missing. #139/#131 are not EPUB prerequisites.                                                              |
+| R16 Green required CI and enforced merge checks                                | Baseline verified; candidate CI pending                | Codex / Darren Pratt           | 2026-09-30 | [Main run 36608365122](https://github.com/DarrenPratt/Drelwick/actions/runs/36608365122) passed. Strict Quality checks enforced including admins. This PR and release candidate require independent green CI.                                               |
+| R17 Templates, settings, README, contacts and release claims                   | Prepared; operational review pending                   | Codex / Darren Pratt           | 2026-09-30 | Bug/feature/task/PR forms and security-policy redirects. Three domain contacts unverified; check rendered forms after merge. Dependabot alerts enabled/query verified; no public release claim.                                                             |
+| R18 Licensing milestone and release preparation complete                       | Blocked                                                | Darren Pratt                   | 2026-09-30 | Milestone open (four issues open at audit); #60 open. Files and CI cannot clear legal/contact/privacy/packaging/publishing gates.                                                                                                                           |
+| R19 Explicit owner publication decision                                        | Not authorised; separate action                        | Darren Pratt only              | 2026-09-30 | No visibility change or artifact publication is authorised by this work or eventual #60 completion.                                                                                                                                                         |
+| R20 Dependency vulnerability triage                                            | Blocked                                                | Codex / Darren Pratt           | 2026-09-30 | [Triage](60-release-audit.md#dependencies-and-distribution): tooling updated; 46 advisory records remain (18 high, 22 moderate, six low). Electron migration, extract-zip and brace-expansion remediation require validation.                               |
 
-- [ ] Scan full Git history, branches and tags for secrets; also review current files, release assets and relevant Actions artifacts/logs.
-- [ ] Review credentials and tokens; revoke/rotate any exposed credential and assess history remediation before release.
-- [ ] Review private URLs, personal information and private/internal documentation, including example content and audit artifacts.
-- [ ] Review Community licence with appropriate legal advice; intended `AGPL-3.0-only` selection still requires final approval under #53.
-- [ ] Prepare the approved LICENSE and accurate README licensing statement.
-- [ ] Audit dependency, bundled asset/font/theme and redistributed binary licences.
-- [ ] Approve contributor/copyright/dual-licensing strategy and any required agreements before external contributions.
-- [ ] Prepare and review CONTRIBUTING.md against that approved strategy.
-- [ ] Prepare and review CODE_OF_CONDUCT.md and its enforcement/contact process.
-- [ ] Prepare and review SECURITY.md with a working private vulnerability-reporting route and support policy.
-- [ ] Approve trademark, fork branding and official-build/distribution policy.
-- [ ] Complete Community/Pro feature and package boundary review; verify Community builds/tests without Pro.
-- [ ] Publishable project-format specification includes UTF-8, schemas, versions, ordering, migration, assets and independent recovery examples.
-- [ ] Review extension API security/versioning and ensure optional extensions cannot hold manuscripts hostage.
-- [ ] Complete v0.1 reliability validation (#51), standalone packaging (#107), and the offline DOCX-to-EPUB publishing gate before advertising the v0.3 publishing candidate; record platform limitations. Optional provider backup and later print delivery are not prerequisites for this EPUB candidate.
-- [ ] Verify CI is green and appropriate merge checks are enforced.
-- [ ] Verify issue/PR templates, contribution settings, README and release documentation are ready.
-- [ ] Complete the Licensing & Commercial Architecture milestone and public-release preparation issue, with evidence.
-- [ ] Obtain an explicit release decision before changing visibility or publishing artifacts.
+The [resumption record](60-release-audit.md#resumption-verification--30-september-2026)
+distinguishes inherited evidence from refreshed checks and records the #59 closure
+without treating it as legal approval. All rows were reassessed; pending owner and
+professional decisions remain pending.
 
-Deleting a secret from the current working tree does not remove it from Git history. This checklist is preparation, not a claim that a scan, legal review or release approval has occurred.
+Before closing a row, record reviewer, date, exact candidate revision/artifact and
+durable evidence, including qualifications. Keep sensitive findings and privileged
+advice private and reference them safely here. General, security and conduct
+mailboxes must be configured/tested before addresses are published. Repeat scans
+for new source, logs, assets and hosted content since this audit.
+
+**Legal review: pending. External contributions: blocked. Public release: blocked.**
+Deleting a secret/private link from the current tree does not remove history.
+Any rewrite requires separate explicit owner approval. Do not close #60 or change
+visibility on the strength of prepared documentation.

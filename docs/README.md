@@ -19,6 +19,11 @@ The [local publishing delivery plan](planning/local-publishing-plan.md) updates 
 
 Operational documents:
 
+- [Public-release evidence and outstanding gates](planning/public-release-checklist.md)
+- [Release audit, privacy scan scope and redistribution blockers](planning/60-release-audit.md)
+- [Central copyright and licensing notices](../COPYRIGHT.md)
+- [Code of Conduct and pending public contact](../CODE_OF_CONDUCT.md)
+- [Security reporting and support policy](../SECURITY.md)
 - [Branding and official distribution policy (proposed; legal review pending)](branding-distribution-policy.md)
 - [Branding inventory, repository evidence and outstanding release gates](planning/59-branding-review.md)
 - [Public project format: implemented files, semantic content and independent recovery](project-format-specification.md)

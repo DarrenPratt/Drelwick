@@ -98,16 +98,16 @@ Pro remains separately licensed; no proprietary plugin exception is promised.
 
 ## Conduct and private security reports
 
-Treat participants respectfully and follow the project's Code of Conduct when
-adopted. The owner selected Contributor Covenant v2.1; adoption, enforcement and
-tested contact arrangements remain [#60](https://github.com/DarrenPratt/Drelwick/issues/60)
-work. No working conduct address is claimed here.
+Follow the [Code of Conduct](CODE_OF_CONDUCT.md), adapted from Contributor Covenant
+v2.1 with sole-maintainer enforcement. A tested public conduct contact remains
+[#60](https://github.com/DarrenPratt/Drelwick/issues/60) work; no operational
+conduct mailbox is claimed here.
 
-**Do not report vulnerabilities in public issues, PRs or discussions.** The intended
-preferred route is GitHub Private Vulnerability Reporting through the repository's
-Security tab when enabled, with a tested private Drelwick-domain security address
-as an alternative. Neither route was verified operational for this change. Current
-authorised collaborators should contact Darren Pratt through their existing private
-project channel to arrange a secure handoff before sharing details. If no private
-channel is available, withhold vulnerability details until a verified route is
-published. #60 owns activation and SECURITY.md; do not guess an email address.
+**Do not report vulnerabilities in public issues, PRs or discussions.** Follow
+[SECURITY.md](SECURITY.md) for current private reporting instructions and support
+policy. GitHub Private Vulnerability Reporting is the intended preferred route,
+but query/enable requests returned HTTP 404 while the repository remains private.
+No Drelwick-domain security mailbox has been verified. Authorised collaborators
+should arrange a secure handoff through their existing private project channel;
+otherwise withhold details until a verified route is provided. Do not guess an
+email address or use a public issue as a fallback.

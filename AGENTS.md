@@ -77,8 +77,9 @@ Do not introduce artificial limitations into Community functionality merely to c
 
 ## Licensing
 
-The repository is currently private. AGPLv3 is a candidate Community licence,
-not a final licensing decision.
+The repository is currently private. The owner selected `AGPL-3.0-only` for
+Community; central notices implement that direction. Legal review and final
+licensing approval under #53 remain pending. See COPYRIGHT.md and the release gate.
 
 Do not:
 
