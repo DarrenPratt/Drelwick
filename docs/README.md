@@ -19,6 +19,7 @@ The [local publishing delivery plan](planning/local-publishing-plan.md) updates 
 
 Operational documents:
 
+- [Pro integration readiness and public API blockers](planning/61-pro-readiness.md)
 - [Public-release evidence and outstanding gates](planning/public-release-checklist.md)
 - [Release audit, privacy scan scope and redistribution blockers](planning/60-release-audit.md)
 - [Central copyright and licensing notices](../COPYRIGHT.md)
