@@ -418,7 +418,8 @@ export function registerProjectHandlers(
     } catch (value) {
       if (
         value instanceof ApplicationError &&
-        value.code.startsWith("EPUB_EXPORT_")
+        (value.code.startsWith("EPUB_EXPORT_") ||
+          value.code.startsWith("EPUB_"))
       )
         return failure(value.code, value.message);
       return failure(

@@ -1375,7 +1375,7 @@ export function App() {
       {project ? (
         <WorkspaceLayout
           exportAction={
-            <>
+            <div className="export-actions">
               <button
                 type="button"
                 disabled={
@@ -1395,7 +1395,7 @@ export function App() {
               >
                 {exportingEpub ? "Exporting EPUB…" : "Export EPUB"}
               </button>
-            </>
+            </div>
           }
           publicationAction={
             <button
