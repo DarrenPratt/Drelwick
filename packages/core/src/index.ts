@@ -27,6 +27,8 @@ export * from "./import-parser.js";
 export * from "./docx-importer.js";
 export * from "./docx-export.js";
 export * from "./docx-output.js";
+export * from "./epub-export.js";
+export * from "./epub-output.js";
 export * from "./text-importer.js";
 export * from "./manuscript-replacement.js";
 import { assertReplacementReadable } from "./manuscript-replacement.js";

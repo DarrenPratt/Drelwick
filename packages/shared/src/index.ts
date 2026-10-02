@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { DocxExportReceipt } from "./docx-contracts.js";
+import type { EpubExportReceipt } from "./epub-contracts.js";
 export * from "./docx-contracts.js";
+export * from "./epub-contracts.js";
 import {
   SpellingCheckSchema,
   SpellingSuggestSchema,
@@ -99,6 +101,7 @@ export type ChapterOrganisationRequest = z.infer<
 
 export const IPC = {
   DOCX_EXPORT: "docx:export",
+  EPUB_EXPORT: "epub:export",
   SPELLING_GET: "spelling:get",
   SPELLING_UPDATE: "spelling:update",
   SPELLING_CHECK: "spelling:check",
@@ -265,6 +268,7 @@ export const IpcRequestSchemas = {
     .strict(),
   [IPC.BOOK_PREVIEW]: z.object({ projectId: z.string().uuid() }).strict(),
   [IPC.DOCX_EXPORT]: z.object({ projectId: z.string().uuid() }).strict(),
+  [IPC.EPUB_EXPORT]: z.object({ projectId: z.string().uuid() }).strict(),
   [IPC.BOOK_PREVIEW_SIMULATE]: PreviewIdentitySchema.extend({
     simulation: EbookSimulationSchema,
   }).strict(),
@@ -434,6 +438,9 @@ export interface DrelwickApi {
     exportDocx(input: {
       projectId: string;
     }): Promise<ProjectOperationResult<DocxExportReceipt>>;
+    exportEpub(input: {
+      projectId: string;
+    }): Promise<ProjectOperationResult<EpubExportReceipt>>;
     simulateBookPreview(input: {
       projectId: string;
       revision: string;

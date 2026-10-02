@@ -162,6 +162,10 @@ beforeEach(async () => {
         ok: true,
         value: { created: true, revision: "revision", warnings: [] },
       }),
+      exportEpub: vi.fn().mockResolvedValue({
+        ok: true,
+        value: { created: true, revision: "revision", warnings: [] },
+      }),
       getPublication: vi.fn(),
       savePublication: vi.fn(),
       selectPublicationCover: vi.fn(),
