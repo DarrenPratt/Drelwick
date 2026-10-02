@@ -60,7 +60,7 @@ describe("EPUB export", () => {
     expect(files["OEBPS/nav.xhtml"]).toBeDefined();
     expect(files["OEBPS/styles/book.css"]).toBeDefined();
     const content = new TextDecoder().decode(
-      files[`OEBPS/text/${id.replace(/-/g, "")}.xhtml`],
+      files[`OEBPS/${id.replace(/-/g, "")}.xhtml`],
     );
     expect(content).toContain("Bonjour 日本語");
     expect(content).toContain("Safe &amp; &lt;escaped&gt;");
