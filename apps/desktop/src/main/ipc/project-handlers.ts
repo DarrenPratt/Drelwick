@@ -54,6 +54,7 @@ import {
   type PreparedBookPreview,
 } from "../book-preview.js";
 import { basename, dirname, join } from "node:path";
+import { exportDocx } from "../docx-export.js";
 
 interface HistoryTasks {
   scheduleSnapshot(input: {
@@ -70,6 +71,7 @@ interface HistoryTasks {
 }
 
 interface Dependencies {
+  exportDocx: typeof exportDocx;
   selectImage(window: BrowserWindow): Promise<string | null>;
   importImage: typeof importImageAsset;
   readImage: typeof readImageAsset;
@@ -98,6 +100,7 @@ interface Dependencies {
 }
 
 const dependencies: Dependencies = {
+  exportDocx,
   selectImage: async (window) => {
     const result = await dialog.showOpenDialog(window, {
       title: "Import a local image",
@@ -338,6 +341,49 @@ export function registerProjectHandlers(
       }
     });
   }
+
+  ipcMain.handle(IPC.DOCX_EXPORT, async (event, payload: unknown) => {
+    await previewStatusSettled;
+    if (!trusted(event))
+      return failure(
+        "PROJECT_ACCESS_DENIED",
+        "Project access is not permitted.",
+      );
+    const parsed = IpcRequestSchemas[IPC.DOCX_EXPORT].safeParse(payload);
+    if (!parsed.success)
+      return failure("PROJECT_INPUT_INVALID", "Invalid DOCX export request.");
+    if (!activeProjectPath || parsed.data.projectId !== activeProjectId)
+      return failure("PROJECT_NOT_OPEN", "Open the project before exporting.");
+    if (busy)
+      return failure(
+        "PROJECT_BUSY",
+        "Wait for the current operation and retry export.",
+      );
+    busy = true;
+    try {
+      await history.settleProject(activeProjectPath);
+      const value = await services.exportDocx(
+        getWindow()!,
+        activeProjectPath,
+        parsed.data.projectId,
+        () => !!trusted(event),
+      );
+      return { ok: true, value };
+    } catch (error) {
+      // Only fixed application messages; never forward arbitrary I/O/parser errors.
+      if (
+        error instanceof ApplicationError &&
+        error.code.startsWith("DOCX_EXPORT_")
+      )
+        return failure(error.code, error.message);
+      return failure(
+        "DOCX_EXPORT_FAILED",
+        "Unable to export a consistent manuscript. Save pending edits, resolve project recovery or missing assets, and retry. Your project is preserved.",
+      );
+    } finally {
+      busy = false;
+    }
+  });
 
   ipcMain.handle(IPC.BOOK_PREVIEW, async (event, payload: unknown) => {
     await previewStatusSettled;

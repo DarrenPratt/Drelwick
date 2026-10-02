@@ -21,6 +21,124 @@ import {
 import { copyFixture } from "../helpers/fixture-projects.js";
 import { ebookProject } from "../helpers/ebook-project.js";
 
+test("DOCX export flushes unsaved Unicode offline and preserves the project and declined destination", async () => {
+  const fixture = await copyFixture("minimal-book");
+  const scratch = await mkdtemp(join(tmpdir(), "drelwick-docx-e2e-"));
+  const target = join(scratch, "manuscript.docx");
+  let application: ElectronApplication | undefined;
+  try {
+    const launched = await launchApplication(join(scratch, "user-data"));
+    application = launched.application;
+    const page = launched.page;
+    await page.context().setOffline(true);
+    const requests: string[] = [];
+    page.on("request", (request) => {
+      if (/^https?:/.test(request.url())) requests.push(request.url());
+    });
+    await application.evaluate(
+      ({ dialog, session }, input) => {
+        Object.assign(globalThis, { docxRequests: [] as string[] });
+        session.defaultSession.webRequest.onBeforeRequest(
+          { urls: ["http://*/*", "https://*/*"] },
+          (details, callback) => {
+            (
+              globalThis as unknown as { docxRequests: string[] }
+            ).docxRequests.push(details.url);
+            callback({ cancel: true });
+          },
+        );
+        dialog.showOpenDialog = async () => ({
+          canceled: false,
+          filePaths: [input.project],
+        });
+        dialog.showSaveDialog = async () => ({
+          canceled: false,
+          filePath: input.target,
+        });
+        dialog.showMessageBox = async () => ({
+          response: 1,
+          checkboxChecked: false,
+        });
+      },
+      { project: fixture.projectPath, target },
+    );
+    await page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    const editor = page.locator(".ProseMirror");
+    await expect(editor).toBeEditable();
+    await page.clock.install();
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    const prose = "Fresh café — 日本語 العربية Ελληνικά 👩🏽‍🚀 & editable prose";
+    await editor.fill(prose);
+    await expect(page.getByLabel("Chapter save status")).toHaveText(
+      "Unsaved changes",
+    );
+    await page
+      .getByRole("button", { name: "Export DOCX", exact: true })
+      .click();
+    await expect(
+      page.getByText("Editable DOCX exported.", { exact: true }),
+    ).toBeVisible();
+    const { DocxManuscriptImporter } =
+      await import("../../packages/core/dist/index.js");
+    const parsed = await new DocxManuscriptImporter().parse(
+      await readFile(target),
+      new AbortController().signal,
+    );
+    expect(parsed).toContain(prose);
+    const project = JSON.parse(
+      await readFile(join(fixture.projectPath, "project.json"), "utf8"),
+    );
+    const chapterPath = join(
+      fixture.projectPath,
+      "manuscript",
+      `${project.manuscript.order[0]}.json`,
+    );
+    const before = await readFile(chapterPath);
+    expect(before.toString()).toContain(prose);
+    await writeFile(target, "Existing author-owned file");
+    await application.evaluate(({ dialog }) => {
+      dialog.showMessageBox = async () => ({
+        response: 0,
+        checkboxChecked: false,
+      });
+    });
+    await page
+      .getByRole("button", { name: "Export DOCX", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Export DOCX", exact: true }),
+    ).toBeEnabled();
+    expect(await readFile(target, "utf8")).toBe("Existing author-owned file");
+    expect(await readFile(chapterPath)).toEqual(before);
+    expect(requests).toEqual([]);
+    expect(
+      await application.evaluate(
+        () =>
+          (globalThis as unknown as { docxRequests: string[] }).docxRequests,
+      ),
+    ).toEqual([]);
+    expect(
+      await page.evaluate(() => ({
+        node: typeof (window as unknown as { require?: unknown }).require,
+        filesystem: "fs" in window,
+      })),
+    ).toEqual({ node: "undefined", filesystem: false });
+    await page.screenshot({ path: "test-results/docx-export.png" });
+  } finally {
+    await application?.close();
+    await fixture.cleanup();
+    await rm(scratch, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 200,
+    });
+  }
+});
+
 test("offline spelling reviews explicitly, persists dictionary and replacements, supports undo and never requests the network", async () => {
   const fixture = await copyFixture("minimal-book");
   const scratch = await mkdtemp(join(tmpdir(), "drelwick-spelling-e2e-"));

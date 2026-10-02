@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { DocxExportReceipt } from "./docx-contracts.js";
+export * from "./docx-contracts.js";
 import {
   SpellingCheckSchema,
   SpellingSuggestSchema,
@@ -96,6 +98,7 @@ export type ChapterOrganisationRequest = z.infer<
 >;
 
 export const IPC = {
+  DOCX_EXPORT: "docx:export",
   SPELLING_GET: "spelling:get",
   SPELLING_UPDATE: "spelling:update",
   SPELLING_CHECK: "spelling:check",
@@ -261,6 +264,7 @@ export const IpcRequestSchemas = {
     })
     .strict(),
   [IPC.BOOK_PREVIEW]: z.object({ projectId: z.string().uuid() }).strict(),
+  [IPC.DOCX_EXPORT]: z.object({ projectId: z.string().uuid() }).strict(),
   [IPC.BOOK_PREVIEW_SIMULATE]: PreviewIdentitySchema.extend({
     simulation: EbookSimulationSchema,
   }).strict(),
@@ -427,6 +431,9 @@ export interface DrelwickApi {
     previewBook(input: {
       projectId: string;
     }): Promise<ProjectOperationResult<BookPreview>>;
+    exportDocx(input: {
+      projectId: string;
+    }): Promise<ProjectOperationResult<DocxExportReceipt>>;
     simulateBookPreview(input: {
       projectId: string;
       revision: string;

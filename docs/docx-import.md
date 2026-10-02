@@ -5,6 +5,10 @@ This is local CORE functionality. No Word installation, account, service, networ
 or Pro package is used. The [review/mapping interface and import menu](import-review-ui.md) from #116
 let authors approve this parser's proposed manuscript before creating a project.
 
+For local editable Word output, see the [DOCX export support matrix](docx-export.md).
+Export retains some Word formatting that this importer deliberately flattens;
+its review warnings explain those round-trip limits.
+
 ## Dependency decision
 
 Pinned runtime libraries:

@@ -11,7 +11,7 @@ are available; EPUB and print PDF remain planned work. See the [DOCX support mat
 [TXT/Markdown/HTML support matrix](docs/text-import.md) and
 [local publishing delivery plan](docs/planning/local-publishing-plan.md).
 
-Basic DOCX import is a Community capability; manuscript DOCX export remains planned.
+Basic DOCX import and [editable DOCX export](docs/docx-export.md) are built-in Community capabilities.
 The delivery roadmap is a local desktop workflow with no account or hosted
 conversion requirement. Optional backup to user-owned storage such as Google
 Drive, Wasabi or Git repositories is research only; cloud editing and collaboration are outside
@@ -30,8 +30,8 @@ contributions remain blocked until #54 and the Licensing & Commercial Architectu
 milestone are complete. Community will build independently of the eventual private
 Pro product; basic authoring and publishing belong in Community. Pro is not
 currently available. Implemented local authoring/import/preview/backup workflows
-need no Drelwick account, backend or Pro checkout. DOCX export, EPUB and basic PDF
-are planned Community capabilities, not available exports today.
+need no Drelwick account, backend or Pro checkout. Editable DOCX export is available through **Export → Export DOCX**. EPUB and basic
+PDF remain planned Community capabilities.
 
 There are no public standalone installers yet. The development setup below
 builds from source; Windows runtime tests do not establish macOS/Linux or packaged
@@ -72,6 +72,11 @@ or **Cancel startup** before editing. See [manuscript recovery](docs/manuscript-
 [chapter persistence](docs/chapter-persistence.md),
 [project creation UI](docs/project-creation-ui.md) and
 [project opening UI](docs/project-open-ui.md).
+
+Use **Export → Export DOCX** to save an editable Word manuscript locally. Pending
+edits must save successfully first. Review fidelity warnings and choose a native
+destination; replacing an existing file requires confirmation. This is manuscript
+interchange, not exact Word page layout. See the [export support matrix](docs/docx-export.md).
 
 Use **Import manuscript** on the welcome screen/workspace or in the File menu to
 inspect DOCX, TXT, Markdown or HTML, adjust chapter boundaries and explicitly approve conversion

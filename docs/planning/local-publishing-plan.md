@@ -62,6 +62,13 @@ The existing GitHub milestone names are retained. Dependencies below are actual 
 - #42–#44 must audit existing tests before adding missing v0.1 coverage. #43 now names actual schema/test locations. #50 builds on the existing Save menu; future import/export commands belong to their own issues.
 - Advanced design issues remain unsatisfied until their decisions and scoped implementation follow-ups exist. No Pro repository, licence decision, cloud integration or publishing implementation is delivered by this planning update.
 
+## DOCX export implementation (#125)
+
+The built-in Community exporter uses saved-book assembly, normal save flushing,
+structured OOXML and atomic local output. See the [export matrix](../docx-export.md)
+for supported semantics, located fidelity warnings and round-trip evidence. It
+does not implement print layout or change later licensing/Pro decisions.
+
 ## Implementation guidance
 
 Treat document conversion as a potentially lossy transformation with explicit warnings and testable content preservation. Import into staged new projects; never modify the source DOCX. Persist schema changes through recoverable migrations. Flush pending edits before snapshots, bulk replacements, backup and export, or fail explicitly without claiming success.

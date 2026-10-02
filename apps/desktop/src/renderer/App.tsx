@@ -1,3 +1,4 @@
+import { exportSavedDocx } from "./docx-export.js";
 import {
   ChapterStatusSchema,
   type ChapterOrganisationRequest,
@@ -54,6 +55,7 @@ export function App() {
   const [loadingPublication, setLoadingPublication] = useState(false);
   const [bookPreview, setBookPreview] = useState<BookPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [exportingDocx, setExportingDocx] = useState(false);
   const [themeSelection, setThemeSelection] =
     useState<BookThemeSelection | null>(null);
   const [themeMessage, setThemeMessage] = useState("");
@@ -136,6 +138,7 @@ export function App() {
     loadingPublication ||
     savingTheme ||
     previewing ||
+    exportingDocx ||
     restoringHistory ||
     organising ||
     replacing ||
@@ -209,7 +212,6 @@ export function App() {
       setSavingTheme(false);
     }
   }
-
   const themeSelector = (
     <BookThemeSelector
       selection={themeSelection}
@@ -1141,6 +1143,53 @@ export function App() {
     }
   }
 
+  async function exportWordManuscript() {
+    if (
+      !project ||
+      pending.current ||
+      changingDocument ||
+      reordering ||
+      renamingChapterId ||
+      replacementRecoveryRequired
+    )
+      return;
+    if (activeChapterId && !documentReady) {
+      setError("Wait for the chapter to finish loading before exporting.");
+      return;
+    }
+    pending.current = true;
+    setExportingDocx(true);
+    searchEditor?.setEditable(false, false);
+    setError("");
+    setProjectMessage("");
+    try {
+      const result = await exportSavedDocx({
+        flush: async () => (await autosave.current?.flush()) ?? true,
+        dirty: () =>
+          savePending.current || isDocumentDirty(documentRef.current),
+        export: () =>
+          window.drelwick.project.exportDocx({ projectId: project.projectId }),
+      });
+      if (!result.ok) setError(result.error.message);
+      else if (result.value.created)
+        setProjectMessage(
+          result.value.warnings
+            .filter((w) => w.construct === "temporary-output")
+            .map((w) => w.message)
+            .join(" ") +
+            `Editable DOCX exported.${result.value.warnings.length ? " Reviewed fidelity limitations apply." : ""}`,
+        );
+    } catch {
+      setError(
+        "Unable to export DOCX. Verify that pending edits saved successfully and retry. Your edits remain in the editor.",
+      );
+    } finally {
+      pending.current = false;
+      setExportingDocx(false);
+      searchEditor?.setEditable(true, false);
+    }
+  }
+
   async function previewBook() {
     if (
       !project ||
@@ -1283,6 +1332,20 @@ export function App() {
     <>
       {project ? (
         <WorkspaceLayout
+          exportAction={
+            <button
+              type="button"
+              disabled={
+                changingDocument ||
+                reordering ||
+                !!renamingChapterId ||
+                replacementRecoveryRequired
+              }
+              onClick={() => void exportWordManuscript()}
+            >
+              {exportingDocx ? "Exporting DOCX…" : "Export DOCX"}
+            </button>
+          }
           publicationAction={
             <button
               disabled={changingDocument}
