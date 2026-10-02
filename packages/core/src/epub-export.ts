@@ -60,7 +60,7 @@ function contentDocument(
   title: string,
   body: string,
 ): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" lang="${xml(language)}" xml:lang="${xml(language)}"><head><meta charset="utf-8" /><title>${xml(title)}</title><link rel="stylesheet" type="text/css" href="../styles/book.css" /></head><body>${withoutRuntimeAttributes(body)}</body></html>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" lang="${xml(language)}" xml:lang="${xml(language)}"><head><meta charset="utf-8" /><title>${xml(title)}</title><link rel="stylesheet" type="text/css" href="styles/book.css" /></head><body>${withoutRuntimeAttributes(body)}</body></html>\n`;
 }
 
 function navigationDocument(
@@ -71,7 +71,7 @@ function navigationDocument(
     .filter((chapter) => chapter.publication?.inclusion.navigation !== false)
     .map(
       (chapter) =>
-        `<li><a href="text/${safeId(chapter.id)}.xhtml#${chapter.anchor}">${xml(chapter.title)}</a></li>`,
+        `<li><a href="${safeId(chapter.id)}.xhtml#${chapter.anchor}">${xml(chapter.title)}</a></li>`,
     )
     .join("");
   return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="${xml(language)}" xml:lang="${xml(language)}"><head><meta charset="utf-8" /><title>Contents</title></head><body><nav epub:type="toc" id="toc"><h1>Contents</h1><ol>${items}</ol></nav></body></html>\n`;
@@ -99,7 +99,7 @@ function packageDocument(
   const spine = chapters
     .map(
       (chapter) =>
-        `<itemref idref="${xml(resourceId(`text/${safeId(chapter.id)}.xhtml`))}"/>`,
+        `<itemref idref="${xml(resourceId(`${safeId(chapter.id)}.xhtml`))}"/>`,
     )
     .join("");
   const identifierScheme = metadata.identifiers[0]?.scheme;
@@ -141,18 +141,36 @@ export function generateEpub(assembled: AssembledBook): EpubPackage {
       return extension
         ? {
             kind: "relative",
-            value: `../images/${safeId(asset.id)}.${extension}`,
+            value: `images/${safeId(asset.id)}.${extension}`,
           }
         : undefined;
     },
     resolveInternalLink: (target) =>
-      `../text/${safeId(target.chapterId)}.xhtml#${target.id}`,
+      `${safeId(target.chapterId)}.xhtml#${target.id}`,
   });
-  if (!rendered.ok || rendered.diagnostics.length > 0)
+  const blockingDiagnostics = rendered.diagnostics.filter(
+    (diagnostic) =>
+      diagnostic.severity === "error" ||
+      diagnostic.code === "unresolved-internal-link",
+  );
+  if (!rendered.ok || blockingDiagnostics.length > 0) {
+    const locations = blockingDiagnostics
+      .slice(0, 5)
+      .map((diagnostic) => {
+        const item =
+          book.chapters.find((chapter) => chapter.id === diagnostic.chapterId)
+            ?.title ?? "Unknown item";
+        const path = diagnostic.path.length
+          ? `, block ${diagnostic.path.map((part) => part + 1).join(".")}`
+          : "";
+        return `${item}${path}: ${diagnostic.code}`;
+      })
+      .join("; ");
     throw exportError(
       "EPUB_CONTENT_INVALID",
-      "The manuscript contains content or references that cannot be packaged as EPUB.",
+      `The manuscript contains content or references that cannot be packaged as EPUB${locations ? ` (${locations}).` : "."}`,
     );
+  }
   const theme = getBookTheme(resolveBookTheme(presentation.themeId).themeId);
   const files: EpubFile[] = [
     {
@@ -173,7 +191,7 @@ export function generateEpub(assembled: AssembledBook): EpubPackage {
   ];
   for (const chapter of rendered.chapters)
     files.push({
-      path: `text/${safeId(chapter.id)}.xhtml`,
+      path: `${safeId(chapter.id)}.xhtml`,
       bytes: strToU8(
         contentDocument(book.language, chapter.title, chapter.xhtml),
       ),

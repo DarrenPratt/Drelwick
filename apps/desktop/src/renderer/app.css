@@ -1316,11 +1316,25 @@ button svg {
   color: var(--muted);
 }
 .export-actions {
-  display: grid;
+  align-items: stretch;
+  background: transparent;
+  border: 0;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   margin: 18px 0;
+  padding: 0;
 }
-.export-actions button {
+.export-actions > button {
+  display: block;
+  width: 100%;
+}
+.export-action {
+  display: block;
+  width: 100%;
+}
+.export-action > button {
+  display: block;
   width: 100%;
 }
 .theme-choices {
