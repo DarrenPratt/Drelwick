@@ -1375,26 +1375,34 @@ export function App() {
       {project ? (
         <WorkspaceLayout
           exportAction={
-            <div className="export-actions">
-              <button
-                type="button"
-                disabled={
-                  changingDocument ||
-                  reordering ||
-                  !!renamingChapterId ||
-                  replacementRecoveryRequired
-                }
-                onClick={() => void exportWordManuscript()}
-              >
-                {exportingDocx ? "Exporting DOCX…" : "Export DOCX"}
-              </button>
-              <button
-                type="button"
-                disabled={exportingEpub}
-                onClick={() => void exportEbook()}
-              >
-                {exportingEpub ? "Exporting EPUB…" : "Export EPUB"}
-              </button>
+            <div
+              className="export-actions"
+              role="group"
+              aria-label="Book export formats"
+            >
+              <div className="export-action">
+                <button
+                  type="button"
+                  disabled={
+                    changingDocument ||
+                    reordering ||
+                    !!renamingChapterId ||
+                    replacementRecoveryRequired
+                  }
+                  onClick={() => void exportWordManuscript()}
+                >
+                  {exportingDocx ? "Exporting DOCX…" : "Export DOCX"}
+                </button>
+              </div>
+              <div className="export-action">
+                <button
+                  type="button"
+                  disabled={exportingEpub}
+                  onClick={() => void exportEbook()}
+                >
+                  {exportingEpub ? "Exporting EPUB…" : "Export EPUB"}
+                </button>
+              </div>
             </div>
           }
           publicationAction={

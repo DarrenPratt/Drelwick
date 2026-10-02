@@ -1329,6 +1329,14 @@ button svg {
   display: block;
   width: 100%;
 }
+.export-action {
+  display: block;
+  width: 100%;
+}
+.export-action > button {
+  display: block;
+  width: 100%;
+}
 .theme-choices {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
