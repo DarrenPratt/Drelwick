@@ -148,11 +148,29 @@ export function generateEpub(assembled: AssembledBook): EpubPackage {
     resolveInternalLink: (target) =>
       `${safeId(target.chapterId)}.xhtml#${target.id}`,
   });
-  if (!rendered.ok || rendered.diagnostics.length > 0)
+  const blockingDiagnostics = rendered.diagnostics.filter(
+    (diagnostic) =>
+      diagnostic.severity === "error" ||
+      diagnostic.code === "unresolved-internal-link",
+  );
+  if (!rendered.ok || blockingDiagnostics.length > 0) {
+    const locations = blockingDiagnostics
+      .slice(0, 5)
+      .map((diagnostic) => {
+        const item =
+          book.chapters.find((chapter) => chapter.id === diagnostic.chapterId)
+            ?.title ?? "Unknown item";
+        const path = diagnostic.path.length
+          ? `, block ${diagnostic.path.map((part) => part + 1).join(".")}`
+          : "";
+        return `${item}${path}: ${diagnostic.code}`;
+      })
+      .join("; ");
     throw exportError(
       "EPUB_CONTENT_INVALID",
-      "The manuscript contains content or references that cannot be packaged as EPUB.",
+      `The manuscript contains content or references that cannot be packaged as EPUB${locations ? ` (${locations}).` : "."}`,
     );
+  }
   const theme = getBookTheme(resolveBookTheme(presentation.themeId).themeId);
   const files: EpubFile[] = [
     {
