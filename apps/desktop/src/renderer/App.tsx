@@ -1,4 +1,5 @@
 import { exportSavedDocx } from "./docx-export.js";
+import { exportSavedEpub } from "./epub-export.js";
 import {
   ChapterStatusSchema,
   type ChapterOrganisationRequest,
@@ -56,6 +57,7 @@ export function App() {
   const [bookPreview, setBookPreview] = useState<BookPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [exportingDocx, setExportingDocx] = useState(false);
+  const [exportingEpub, setExportingEpub] = useState(false);
   const [themeSelection, setThemeSelection] =
     useState<BookThemeSelection | null>(null);
   const [themeMessage, setThemeMessage] = useState("");
@@ -1157,6 +1159,7 @@ export function App() {
       setError("Wait for the chapter to finish loading before exporting.");
       return;
     }
+
     pending.current = true;
     setExportingDocx(true);
     searchEditor?.setEditable(false, false);
@@ -1186,6 +1189,45 @@ export function App() {
     } finally {
       pending.current = false;
       setExportingDocx(false);
+      searchEditor?.setEditable(true, false);
+    }
+  }
+
+  async function exportEbook() {
+    if (
+      !project ||
+      pending.current ||
+      changingDocument ||
+      reordering ||
+      renamingChapterId ||
+      replacementRecoveryRequired
+    )
+      return;
+    if (activeChapterId && !documentReady) {
+      setError("Wait for the chapter to finish loading before exporting.");
+      return;
+    }
+    pending.current = true;
+    setExportingEpub(true);
+    searchEditor?.setEditable(false, false);
+    setError("");
+    try {
+      const result = await exportSavedEpub({
+        flush: async () => (await autosave.current?.flush()) ?? true,
+        dirty: () =>
+          savePending.current || isDocumentDirty(documentRef.current),
+        export: () =>
+          window.drelwick.project.exportEpub({ projectId: project.projectId }),
+      });
+      if (!result.ok) setError(result.error.message);
+      else if (result.value.created) setProjectMessage("EPUB ebook exported.");
+    } catch {
+      setError(
+        "Unable to export EPUB. Verify that pending edits saved successfully and retry.",
+      );
+    } finally {
+      pending.current = false;
+      setExportingEpub(false);
       searchEditor?.setEditable(true, false);
     }
   }
@@ -1333,18 +1375,27 @@ export function App() {
       {project ? (
         <WorkspaceLayout
           exportAction={
-            <button
-              type="button"
-              disabled={
-                changingDocument ||
-                reordering ||
-                !!renamingChapterId ||
-                replacementRecoveryRequired
-              }
-              onClick={() => void exportWordManuscript()}
-            >
-              {exportingDocx ? "Exporting DOCX…" : "Export DOCX"}
-            </button>
+            <div className="export-actions">
+              <button
+                type="button"
+                disabled={
+                  changingDocument ||
+                  reordering ||
+                  !!renamingChapterId ||
+                  replacementRecoveryRequired
+                }
+                onClick={() => void exportWordManuscript()}
+              >
+                {exportingDocx ? "Exporting DOCX…" : "Export DOCX"}
+              </button>
+              <button
+                type="button"
+                disabled={exportingEpub}
+                onClick={() => void exportEbook()}
+              >
+                {exportingEpub ? "Exporting EPUB…" : "Export EPUB"}
+              </button>
+            </div>
           }
           publicationAction={
             <button

@@ -67,3 +67,4 @@ Operational documents:
 - [Authoring workspace](workspace-demo.md)
 - [GitHub tracking register](planning/github-tracking.md)
 - [Public Community release checklist](planning/public-release-checklist.md)
+- [Local EPUB export](epub-export.md)
