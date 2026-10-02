@@ -134,6 +134,13 @@ The two initial tests verify loading the shared TypeScript entry and resolving
 the built workspace dependency through its separate consumer. They validate the
 test infrastructure; application behaviour tests arrive with their issues.
 
+## DOCX export (#125)
+
+Core exporter tests independently inspect ZIP/XML and round-trip through the
+isolated importer; desktop tests cover save consistency, native review, overwrite
+and IPC boundaries. The offline Electron scenario tests the real Export panel
+and pending-edit flush. See the [export verification record](../docs/docx-export.md#verification).
+
 ## Standard project fixtures
 
 Issue #113 uses `synthetic-images.json` for tiny, deterministic PNG/JPEG bytes

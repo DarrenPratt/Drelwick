@@ -158,6 +158,10 @@ beforeEach(async () => {
       return () => menuListeners.delete(callback);
     }),
     project: {
+      exportDocx: vi.fn().mockResolvedValue({
+        ok: true,
+        value: { created: true, revision: "revision", warnings: [] },
+      }),
       getPublication: vi.fn(),
       savePublication: vi.fn(),
       selectPublicationCover: vi.fn(),
@@ -1328,6 +1332,38 @@ describe("chapter editor persistence", () => {
     expect(editor().isEditable).toBe(true);
     expect(saveStatus()).toBe("Unsaved changes");
     expect(container.textContent).toContain("Preview was cancelled");
+  });
+
+  it("exports DOCX only after saving the current editor revision", async () => {
+    await openChapter();
+    await editText("Fresh DOCX prose");
+    await click("Export");
+    await click("Export DOCX");
+    const exported = vi.mocked(window.drelwick.project.exportDocx);
+    expect(exported).toHaveBeenCalledWith({ projectId: workspace.projectId });
+    expect(saveChapter.mock.calls.at(-1)?.[0].document).toEqual(
+      editor().getJSON(),
+    );
+    expect(saveChapter.mock.invocationCallOrder.at(-1)).toBeLessThan(
+      exported.mock.invocationCallOrder[0]!,
+    );
+    expect(editor().isEditable).toBe(true);
+    expect(container.textContent).toContain("Editable DOCX exported");
+  });
+
+  it("preserves unsaved editor prose and cancels DOCX export when flushing fails", async () => {
+    await openChapter();
+    await editText("Keep this unsaved DOCX prose");
+    saveChapter.mockResolvedValueOnce({
+      ok: false,
+      error: { code: "FAILED", message: "Save failed" },
+    });
+    await click("Export");
+    await click("Export DOCX");
+    expect(window.drelwick.project.exportDocx).not.toHaveBeenCalled();
+    expect(editor().getText()).toBe("Keep this unsaved DOCX prose");
+    expect(editor().isEditable).toBe(true);
+    expect(saveStatus()).toBe("Unsaved changes");
   });
 
   it("explicitly refreshes through autosave and retains the preview and editor after a render failure", async () => {

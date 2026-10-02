@@ -23,6 +23,7 @@ export interface WorkspaceLayoutProps {
   bookPreviewAction?: ReactNode;
   bookDesign?: ReactNode;
   publicationAction?: ReactNode;
+  exportAction?: ReactNode;
 }
 
 /** Presentation shell only: mock controls never call persistence or export APIs. */
@@ -37,6 +38,7 @@ export function WorkspaceLayout({
   bookPreviewAction,
   bookDesign,
   publicationAction,
+  exportAction,
 }: WorkspaceLayoutProps) {
   const [panel, setPanel] = useState<Panel | null>("preview");
   const [navigationOpen, setNavigationOpen] = useState(
@@ -173,7 +175,7 @@ export function WorkspaceLayout({
           >
             <Icon name="export" />
             <span>Export</span>
-            <span className="mode-mock">Mock</span>
+            {!exportAction && <span className="mode-mock">Mock</span>}
           </button>
         </div>
       </header>
@@ -263,7 +265,9 @@ export function WorkspaceLayout({
                     ? "Presentation"
                     : panel === "details" && publicationAction
                       ? "Publication"
-                      : "Feature mock"}
+                      : panel === "export" && exportAction
+                        ? "Local DOCX"
+                        : "Feature mock"}
               </span>
             </div>
             <button
@@ -345,35 +349,49 @@ export function WorkspaceLayout({
                   </div>
                 </div>
               ))}
-            {panel === "export" && (
-              <div className="tool-intro">
-                <h3>From manuscript to book.</h3>
-                <p>
-                  Planned local exports. Your manuscript will remain your
-                  original.
-                </p>
-                {[
-                  ["EPUB", "A reflowable ebook for digital readers"],
-                  ["Print PDF", "A carefully typeset print interior"],
-                  ["DOCX", "An editable copy of your manuscript"],
-                ].map(([name, description]) => (
-                  <div className="export-option" key={name}>
-                    <Icon name="page" />
-                    <div>
-                      <strong>{name}</strong>
-                      <p>{description}</p>
+            {panel === "export" &&
+              (exportAction ? (
+                <div className="tool-intro">
+                  <h3>Local publishing exports</h3>
+                  <p>
+                    Export from one saved manuscript revision. Pending edits are
+                    saved first and the project remains authoritative.
+                  </p>
+                  {exportAction}
+                  <p>
+                    EPUB is reflowable and DOCX preserves manuscript content,
+                    not exact page layout.
+                  </p>
+                </div>
+              ) : (
+                <div className="tool-intro">
+                  <h3>From manuscript to book.</h3>
+                  <p>
+                    Planned local exports. Your manuscript will remain your
+                    original.
+                  </p>
+                  {[
+                    ["EPUB", "A reflowable ebook for digital readers"],
+                    ["Print PDF", "A carefully typeset print interior"],
+                    ["DOCX", "An editable copy of your manuscript"],
+                  ].map(([name, description]) => (
+                    <div className="export-option" key={name}>
+                      <Icon name="page" />
+                      <div>
+                        <strong>{name}</strong>
+                        <p>{description}</p>
+                      </div>
+                      <span className="mock-tag">Planned</span>
                     </div>
-                    <span className="mock-tag">Planned</span>
-                  </div>
-                ))}
-                <button disabled className="primary-button planned-export">
-                  Export unavailable
-                </button>
-                <p className="mock-explanation">
-                  This is a layout mock. No file will be created.
-                </p>
-              </div>
-            )}
+                  ))}
+                  <button disabled className="primary-button planned-export">
+                    Export unavailable
+                  </button>
+                  <p className="mock-explanation">
+                    This is a layout mock. No file will be created.
+                  </p>
+                </div>
+              ))}
             {panel === "search" && (
               <div className="tool-intro">
                 <h3>Find the right words.</h3>
@@ -431,7 +449,9 @@ export function WorkspaceLayout({
                   ? "Book design"
                   : name === "preview" && bookPreviewAction
                     ? "Open book preview panel"
-                    : `${panelNames[name]} (mock)`
+                    : name === "export" && exportAction
+                      ? "Export your book"
+                      : `${panelNames[name]} (mock)`
             }
             title={
               name === "details" && publicationAction
@@ -440,7 +460,9 @@ export function WorkspaceLayout({
                   ? "Book design"
                   : name === "preview" && bookPreviewAction
                     ? "Book preview"
-                    : `${panelNames[name]} · mock`
+                    : name === "export" && exportAction
+                      ? "Export your book"
+                      : `${panelNames[name]} · mock`
             }
             aria-pressed={panel === name}
             onClick={() => setPanel(panel === name ? null : name)}
