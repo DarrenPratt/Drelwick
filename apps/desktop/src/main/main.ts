@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { writeFileSync } from "node:fs";
 import {
   IPC,
   SHUTDOWN_REQUEST_CHANNEL,
@@ -45,6 +46,23 @@ const recoveryPending = () =>
 
 function createApplicationWindow(): void {
   mainWindow = createMainWindow();
+  const packageSmokeFile = process.env["DRELWICK_PACKAGE_SMOKE_FILE"];
+  if (packageSmokeFile) {
+    mainWindow.webContents.once("did-finish-load", () => {
+      void mainWindow?.webContents
+        .executeJavaScript("Boolean(window.drelwick)", true)
+        .then((preloadLoaded) => {
+          writeFileSync(
+            packageSmokeFile,
+            preloadLoaded ? "renderer-and-preload-ok" : "preload-missing",
+            "utf8",
+          );
+        })
+        .catch(() => {
+          writeFileSync(packageSmokeFile, "renderer-load-failed", "utf8");
+        });
+    });
+  }
   mainWindow.on("closed", () => {
     mainWindow = undefined;
   });

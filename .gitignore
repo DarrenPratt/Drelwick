@@ -430,6 +430,7 @@ FodyWeavers.xsd
 *.msp
 
 # Drelwick workspace build outputs
+apps/desktop/package-smoke-*/
 .pnpm-store/
 dist/
 coverage/

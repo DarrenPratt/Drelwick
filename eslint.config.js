@@ -17,6 +17,8 @@ export default defineConfig([
     "**/generated/**",
     "**/playwright-report/**",
     "**/test-results/**",
+    "**/release/**",
+    "**/package-smoke-*/**",
   ]),
   {
     files: ["**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
