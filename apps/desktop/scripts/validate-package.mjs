@@ -135,6 +135,7 @@ if (!userDataDirectory.startsWith(join(desktopDirectory, "package-smoke-"))) {
 const smokeFile = join(userDataDirectory, "package-smoke-result.txt");
 const quotePowerShell = (value) => `'${value.replaceAll("'", "''")}'`;
 let child;
+let launchError;
 let windowsProcessId;
 try {
   if (process.platform === "win32") {
@@ -152,11 +153,14 @@ try {
   } else {
     child = spawn(executablePath, [`--user-data-dir=${userDataDirectory}`], {
       cwd: applicationDirectory,
-      stdio: ["ignore", "ignore", "ignore"],
+      stdio: ["ignore", "ignore", "inherit"],
       env: {
         ...process.env,
         DRELWICK_PACKAGE_SMOKE_FILE: smokeFile,
       },
+    });
+    child.once("error", (error) => {
+      launchError = error;
     });
   }
 
@@ -164,6 +168,12 @@ try {
     const deadline = Date.now() + 15_000;
     while (Date.now() < deadline) {
       if (existsSync(smokeFile)) return readFileSync(smokeFile, "utf8");
+      if (launchError) throw launchError;
+      if (child && (child.exitCode !== null || child.signalCode !== null)) {
+        throw new Error(
+          `Packaged application exited before loading: ${child.exitCode ?? child.signalCode}`,
+        );
+      }
       await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
     }
     throw new Error("Packaged renderer did not complete its smoke marker");

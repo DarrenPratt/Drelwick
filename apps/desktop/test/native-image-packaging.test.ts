@@ -7,7 +7,10 @@ const desktop = fileURLToPath(new URL("..", import.meta.url));
 const require = createRequire(import.meta.url);
 const requireFromBuilder = createRequire(require.resolve("electron-builder"));
 type Mapping = { from?: string; to?: string; filter: string[] };
-type Config = { files: (string | Mapping)[] };
+type Config = {
+  files: (string | Mapping)[];
+  linux: { executableName: string };
+};
 const { getConfig } = requireFromBuilder(
   "app-builder-lib/out/util/config/config.js",
 ) as {
@@ -42,6 +45,7 @@ const { getNodeModuleFileMatcher, FileMatcher } = requireFromBuilder(
 
 it("copies native image packages exactly once even when dependency collection finds them", async () => {
   const config = await getConfig(desktop, "electron-builder.yml", undefined);
+  expect(config.linux.executableName).toBe("drelwick");
   await includeNativeImages({ packager: { config } });
   const firstPass = structuredClone(config.files);
   await includeNativeImages({ packager: { config } });

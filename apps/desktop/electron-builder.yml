@@ -49,6 +49,7 @@ mac:
   target:
     - dmg
 linux:
+  executableName: drelwick
   maintainer: Darren Pratt
   icon: assets/icons/app.png
   category: Office

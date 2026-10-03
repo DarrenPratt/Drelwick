@@ -70,6 +70,10 @@ Each explicitly mapped native package is excluded from automatic dependency
 copying. Linux can otherwise discover the same libvips package through both
 paths, causing duplicate hard links during ASAR staging. The hook is idempotent
 and a regression test checks both copy filters using the pinned builder.
+Linux explicitly names its executable `drelwick`, matching the runtime validator
+instead of deriving a name from the scoped workspace package name. On Unix,
+launch errors and early exits are reported immediately, with native stderr kept
+visible for the isolated, manuscript-free smoke run.
 
 The validation script checks the ASAR inventory for required entries and
 development-only paths, then launches the packaged executable and verifies:
