@@ -32,11 +32,15 @@ module.exports = async ({ packager }) => {
       !metadata.cpu?.includes(process.arch)
     )
       continue;
-    packager.config.files.push({
-      from: dirname(manifest),
-      to: `node_modules/${name}`,
-      filter: ["**/*"],
-    });
+    const destination = `node_modules/${name}`;
+    // electron-builder.yml excludes these from automatic dependency copying.
+    if (!packager.config.files.some((entry) => entry.to === destination)) {
+      packager.config.files.push({
+        from: dirname(manifest),
+        to: destination,
+        filter: ["**/*"],
+      });
+    }
     nativePackages++;
   }
   if (nativePackages === 0)

@@ -66,6 +66,10 @@ The `beforePack` hook explicitly includes installed Sharp native packages.
 Without this mapping the pinned builder omitted those optional image-processing
 binaries in this workspace and the packaged main process failed to load.
 Build on the target host and architecture with its frozen dependencies installed.
+Each explicitly mapped native package is excluded from automatic dependency
+copying. Linux can otherwise discover the same libvips package through both
+paths, causing duplicate hard links during ASAR staging. The hook is idempotent
+and a regression test checks both copy filters using the pinned builder.
 
 The validation script checks the ASAR inventory for required entries and
 development-only paths, then launches the packaged executable and verifies:

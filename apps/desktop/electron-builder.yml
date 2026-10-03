@@ -24,6 +24,7 @@ files:
   - "!node_modules/**/test/**"
   - "!node_modules/**/tests/**"
   - "!node_modules/**/fixtures/**"
+  - "!node_modules/@img/sharp-*{,/**/*}"
 asar: true
 beforePack: scripts/include-native-images.cjs
 asarUnpack:
