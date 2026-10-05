@@ -1,6 +1,7 @@
 # Local EPUB export
 
-Drelwick Community generates a reflowable EPUB locally, targeting **EPUB 3.3**.
+Drelwick Community generates a reflowable EPUB locally, targeting **EPUB 3.0**
+package metadata for broad EPUBCheck and reader compatibility.
 The current candidate fails official EPUBCheck; see the
 [release-validation findings](publishing-release-validation.md#epubcheck-executed-failed).
 Do not claim EPUB conformance until those defects are repaired and revalidated.

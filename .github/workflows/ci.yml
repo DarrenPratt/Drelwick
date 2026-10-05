@@ -49,6 +49,47 @@ jobs:
         run: pnpm check:workspace
       - name: Linux source-built offline publishing workflow
         run: xvfb-run -a pnpm exec playwright test tests/e2e/desktop.spec.ts --grep "complete.*DOCX to EPUB"
+      - name: Official EPUBCheck
+        env:
+          EPUBCHECK_VERSION: "5.4.0"
+        run: |
+          set -euo pipefail
+          candidate="$(find test-results -type f -name published.epub -print -quit)"
+          test -n "$candidate"
+          curl --fail --silent --show-error --location \
+            "https://github.com/w3c/epubcheck/releases/download/v${EPUBCHECK_VERSION}/epubcheck-${EPUBCHECK_VERSION}.zip" \
+            --output /tmp/epubcheck.zip
+          mkdir -p /tmp/epubcheck
+          unzip -q /tmp/epubcheck.zip -d /tmp/epubcheck
+          java -version
+          java -jar "/tmp/epubcheck/epubcheck-${EPUBCHECK_VERSION}/epubcheck.jar" "$candidate"
+
+  macos-publishing:
+    name: macOS source-built publishing validation
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Set up pnpm and dependency cache
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          run_install: false
+          cache: true
+          cache_dependency_path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build workspace
+        run: pnpm build
+      - name: macOS source-built offline publishing workflow
+        run: pnpm exec playwright test tests/e2e/desktop.spec.ts --grep "complete.*DOCX to EPUB"
 
   packaging:
     name: Linux packaging validation

@@ -42,7 +42,7 @@ const book = {
 };
 
 describe("EPUB export", () => {
-  it("creates an EPUB 3.3 container with safe semantic resources", () => {
+  it("creates an EPUB 3.0 container with required publication metadata", () => {
     const output = generateEpub({
       book,
       assets: new Map(),
@@ -68,7 +68,10 @@ describe("EPUB export", () => {
     expect(content).toContain('lang="fr-CA"');
     expect(content).not.toContain("data-");
     const opf = new TextDecoder().decode(files["OEBPS/package.opf"]);
-    expect(opf).toContain('version="3.3"');
+    expect(opf).toContain('version="3.0"');
+    expect(opf).toMatch(
+      /<meta property="dcterms:modified">\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z<\/meta>/,
+    );
     expect(opf).toContain("spine");
     expect(opf).toContain("fr-CA");
   });
@@ -250,7 +253,7 @@ describe("EPUB export", () => {
     expect(
       [...opf.matchAll(/<itemref idref="([^"]+)"/g)].map((m) => m[1]),
     ).toEqual(
-      chapters.map((chapter) => `${chapter.id.replace(/-/g, "")}-xhtml`),
+      chapters.map((chapter) => `id-${chapter.id.replace(/-/g, "")}-xhtml`),
     );
     for (const [index, chapter] of chapters.entries()) {
       const content = new TextDecoder().decode(

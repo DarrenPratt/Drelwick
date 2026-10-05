@@ -4,6 +4,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -1211,9 +1212,12 @@ for (const format of ["txt", "md", "html"]) {
           filePaths: [path],
         });
       }, source);
-      await page
-        .getByRole("button", { name: "Import manuscript", exact: true })
-        .click();
+      const importButton = page.getByRole("button", {
+        name: "Import manuscript",
+        exact: true,
+      });
+      await expect(importButton).toBeEnabled({ timeout: 30_000 });
+      await importButton.click();
       const preview = page.getByRole("dialog", { name: "Import manuscript" });
       await expect(
         preview.getByRole("heading", { name: "Imported metadata" }),
@@ -1535,13 +1539,25 @@ async function launchApplication(userDataDirectory: string) {
   expect(await application.evaluate(({ app }) => app.getName())).toBe(
     "Drelwick",
   );
+  const expectedUserDataDirectory = await realpath(userDataDirectory);
   expect(await application.evaluate(({ app }) => app.getPath("userData"))).toBe(
-    userDataDirectory,
+    expectedUserDataDirectory,
   );
   await expect(
     page.getByRole("heading", { name: "Your manuscript workspace" }),
   ).toBeVisible();
   return { application, page };
+}
+
+async function closePublishingApplication(
+  application: ElectronApplication,
+): Promise<void> {
+  if (process.platform === "darwin") {
+    application.process().kill("SIGKILL");
+    await application.close().catch(() => undefined);
+    return;
+  }
+  await application.close();
 }
 
 test("validates Windows authoring, autosave, formatting, ordering and restart", async () => {
@@ -1880,9 +1896,12 @@ test("reviews DOCX warnings and chapter mapping, then imports, edits, saves and 
         filePaths: [path],
       });
     }, source);
-    await page
-      .getByRole("button", { name: "Import manuscript", exact: true })
-      .click();
+    const importButton = page.getByRole("button", {
+      name: "Import manuscript",
+      exact: true,
+    });
+    await expect(importButton).toBeEnabled({ timeout: 30_000 });
+    await importButton.click();
     const preview = page.getByRole("dialog", { name: "Import manuscript" });
     await expect(
       preview.getByRole("heading", { name: "Imported metadata" }),
@@ -2041,16 +2060,19 @@ test("completes the offline DOCX to EPUB publishing workflow and independently i
         filePaths: [path],
       });
     }, source);
-    await page
-      .getByRole("button", { name: "Import manuscript", exact: true })
-      .click();
+    const importButton = page.getByRole("button", {
+      name: "Import manuscript",
+      exact: true,
+    });
+    await expect(importButton).toBeEnabled({ timeout: 30_000 });
+    await importButton.click();
     const review = page.getByRole("dialog", { name: "Import manuscript" });
     await expect(
       review.getByRole("heading", { name: "Imported metadata" }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 30_000 });
     await expect(
       review.getByRole("heading", { name: "Conversion warnings" }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 30_000 });
     const warningDecisions = review.getByRole("checkbox");
     expect(await warningDecisions.count()).toBeGreaterThan(0);
     for (const checkbox of await warningDecisions.all()) await checkbox.check();
@@ -2144,7 +2166,7 @@ test("completes the offline DOCX to EPUB publishing workflow and independently i
     await themePreview
       .getByRole("button", { name: "Close preview", exact: true })
       .click();
-    await application.close();
+    await closePublishingApplication(application);
     application = undefined;
     const restarted = await launchApplication(join(scratch, "user-data"));
     application = restarted.application;
@@ -2274,7 +2296,7 @@ test("completes the offline DOCX to EPUB publishing workflow and independently i
       expect(log).not.toContain("Dedicated offline.");
     }
   } finally {
-    await application?.close();
+    if (application) await closePublishingApplication(application);
     await rm(scratch, {
       recursive: true,
       force: true,
