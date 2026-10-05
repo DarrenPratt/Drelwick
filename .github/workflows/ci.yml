@@ -80,4 +80,5 @@ jobs:
           sudo chown root:root apps/desktop/release/linux-unpacked/chrome-sandbox
           sudo chmod 4755 apps/desktop/release/linux-unpacked/chrome-sandbox
       - name: Validate unpacked Linux application with sandbox enabled
+        timeout-minutes: 2
         run: xvfb-run -a pnpm --filter @drelwick/desktop exec node scripts/validate-package.mjs

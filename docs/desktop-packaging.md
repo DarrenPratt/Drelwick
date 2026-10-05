@@ -27,6 +27,9 @@ inventory, starts the packaged executable, and verifies a smoke marker written
 only after the bundled renderer has loaded and confirmed the preload API. The
 validation script uses an isolated temporary user-data directory and removes it
 when it exits.
+On Unix it force-stops that manuscript-free smoke process and waits for its exit
+before removing the profile; Electron's normal graceful-shutdown handling can
+otherwise leave the validator running after successful validation.
 
 The output directory is `apps/desktop/release/`. The Windows `package` command
 places the two same-host artifacts in `release/portable/` and `release/nsis/`

@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 
 import { extractFile, listPackage } from "@electron/asar";
+import stopSmokeProcess from "./stop-smoke-process.cjs";
 
 const desktopDirectory = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const platformDirectory = {
@@ -191,7 +192,9 @@ try {
       `Stop-Process -Id ${windowsProcessId} -Force`,
     ]);
   } else {
-    child?.kill();
+    // This isolated smoke process has no manuscript to save. Wait for its exit
+    // before removing its profile; Electron may intercept a graceful SIGTERM.
+    await stopSmokeProcess(child);
   }
   rmSync(userDataDirectory, {
     recursive: true,
