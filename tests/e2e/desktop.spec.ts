@@ -1546,6 +1546,17 @@ async function launchApplication(userDataDirectory: string) {
   return { application, page };
 }
 
+async function closePublishingApplication(
+  application: ElectronApplication,
+): Promise<void> {
+  if (process.platform === "darwin") {
+    application.process().kill("SIGKILL");
+    await application.close().catch(() => undefined);
+    return;
+  }
+  await application.close();
+}
+
 test("validates Windows authoring, autosave, formatting, ordering and restart", async () => {
   const testDirectory = await mkdtemp(join(tmpdir(), "drelwick-e2e-"));
   const projectDirectory = join(testDirectory, "project");
@@ -2146,7 +2157,7 @@ test("completes the offline DOCX to EPUB publishing workflow and independently i
     await themePreview
       .getByRole("button", { name: "Close preview", exact: true })
       .click();
-    await application.close();
+    await closePublishingApplication(application);
     application = undefined;
     const restarted = await launchApplication(join(scratch, "user-data"));
     application = restarted.application;
@@ -2276,7 +2287,7 @@ test("completes the offline DOCX to EPUB publishing workflow and independently i
       expect(log).not.toContain("Dedicated offline.");
     }
   } finally {
-    await application?.close();
+    if (application) await closePublishingApplication(application);
     await rm(scratch, {
       recursive: true,
       force: true,
