@@ -8,6 +8,7 @@ import {
 import { syntheticImage } from "../../../tests/helpers/synthetic-images.js";
 import {
   assembleBook,
+  generateEpub,
   CHAPTER_CREATION_LOCK,
   importImageAsset,
   saveChapter,
@@ -203,9 +204,11 @@ it("validates assets by content, retains captured bytes and locates missing/inva
     new Uint8Array(await syntheticImage()),
   );
   await rm(join(root, "assets", "images", asset.id, "asset.json"));
-  expect((await assembleBook(root)).book.assets).toEqual([
-    { status: "missing", id: asset.id },
-  ]);
+  const missing = await assembleBook(root);
+  expect(missing.book.assets).toEqual([{ status: "missing", id: asset.id }]);
+  expect(() => generateEpub(missing)).toThrowError(
+    expect.objectContaining({ code: "EPUB_CONTENT_INVALID" }),
+  );
 });
 it("rejects unsupported documents and unknown format versions without rewriting them", async () => {
   const root = await fixture();

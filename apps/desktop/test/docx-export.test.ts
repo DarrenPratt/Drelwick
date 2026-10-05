@@ -104,65 +104,74 @@ it("rechecks window authorization after a native dialog and preserves existing o
   ).rejects.toMatchObject({ code: "PROJECT_ACCESS_DENIED" });
   expect(await readFile(f.path, "utf8")).toBe("previous");
 });
-it("validates trusted frame, active project, payload and busy state; no renderer output path is accepted", async () => {
-  const f = await fixture();
-  const frame = { url: "file:///app/index.html" };
-  const webContents = { mainFrame: frame };
-  const w = {
-    isDestroyed: () => false,
-    webContents,
-  } as unknown as BrowserWindow;
-  const event = {
-    sender: webContents,
-    senderFrame: frame,
-  } as unknown as IpcMainInvokeEvent;
-  let finish!: () => void;
-  const exporter = vi.fn(async () => {
-    await new Promise<void>((r) => {
-      finish = r;
+it.each([IPC.DOCX_EXPORT, IPC.EPUB_EXPORT])(
+  "%s validates trusted frame, active project, payload and busy state; no renderer output path is accepted",
+  async (channel) => {
+    const f = await fixture();
+    const frame = { url: "file:///app/index.html" };
+    const webContents = { mainFrame: frame };
+    const w = {
+      isDestroyed: () => false,
+      webContents,
+    } as unknown as BrowserWindow;
+    const event = {
+      sender: webContents,
+      senderFrame: frame,
+    } as unknown as IpcMainInvokeEvent;
+    let finish!: () => void;
+    const exporter = vi.fn(async () => {
+      await new Promise<void>((r) => {
+        finish = r;
+      });
+      return { created: true, revision: "revision", warnings: [] };
     });
-    return { created: true, revision: "revision", warnings: [] };
-  });
-  const tasks = registerProjectHandlers(() => w, frame.url, {
-    selectExistingFolder: async () => f.projectPath,
-    open: openProject,
-    exportDocx: exporter,
-  });
-  const invoke = (channel: string, payload?: unknown, source = event) =>
-    (
-      handle.mock.calls.find(([c]) => c === channel)![1] as (
-        event: IpcMainInvokeEvent,
-        payload: unknown,
-      ) => Promise<unknown>
-    )(source, payload);
-  expect(
-    await invoke(IPC.DOCX_EXPORT, { projectId: f.projectId }),
-  ).toMatchObject({ ok: false, error: { code: "PROJECT_NOT_OPEN" } });
-  await invoke(IPC.PROJECT_OPEN);
-  expect(
-    await invoke(IPC.DOCX_EXPORT, { projectId: f.projectId, path: f.path }),
-  ).toMatchObject({ ok: false, error: { code: "PROJECT_INPUT_INVALID" } });
-  expect(
-    await invoke(IPC.DOCX_EXPORT, { projectId: f.projectId }, {
-      ...event,
-      senderFrame: { url: frame.url },
-    } as IpcMainInvokeEvent),
-  ).toMatchObject({ ok: false, error: { code: "PROJECT_ACCESS_DENIED" } });
-  const exporting = invoke(IPC.DOCX_EXPORT, { projectId: f.projectId });
-  await vi.waitFor(() => expect(exporter).toHaveBeenCalledOnce());
-  expect(
-    await invoke(IPC.DOCX_EXPORT, { projectId: f.projectId }),
-  ).toMatchObject({ ok: false, error: { code: "PROJECT_BUSY" } });
-  expect(exporter.mock.calls[0]).toEqual([
-    w,
-    f.projectPath,
-    f.projectId,
-    expect.any(Function),
-  ]);
-  finish();
-  expect(await exporting).toMatchObject({ ok: true, value: { created: true } });
-  await tasks.stopHistory();
-});
+    const tasks = registerProjectHandlers(() => w, frame.url, {
+      selectExistingFolder: async () => f.projectPath,
+      open: openProject,
+      exportDocx: exporter,
+      exportEpub: exporter,
+    });
+    const invoke = (channel: string, payload?: unknown, source = event) =>
+      (
+        handle.mock.calls.find(([c]) => c === channel)![1] as (
+          event: IpcMainInvokeEvent,
+          payload: unknown,
+        ) => Promise<unknown>
+      )(source, payload);
+    expect(await invoke(channel, { projectId: f.projectId })).toMatchObject({
+      ok: false,
+      error: { code: "PROJECT_NOT_OPEN" },
+    });
+    await invoke(IPC.PROJECT_OPEN);
+    expect(
+      await invoke(channel, { projectId: f.projectId, path: f.path }),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_INPUT_INVALID" } });
+    expect(
+      await invoke(channel, { projectId: f.projectId }, {
+        ...event,
+        senderFrame: { url: frame.url },
+      } as IpcMainInvokeEvent),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_ACCESS_DENIED" } });
+    const exporting = invoke(channel, { projectId: f.projectId });
+    await vi.waitFor(() => expect(exporter).toHaveBeenCalledOnce());
+    expect(await invoke(channel, { projectId: f.projectId })).toMatchObject({
+      ok: false,
+      error: { code: "PROJECT_BUSY" },
+    });
+    expect(exporter.mock.calls[0]).toEqual([
+      w,
+      f.projectPath,
+      f.projectId,
+      expect.any(Function),
+    ]);
+    finish();
+    expect(await exporting).toMatchObject({
+      ok: true,
+      value: { created: true },
+    });
+    await tasks.stopHistory();
+  },
+);
 it("flushes before export and refuses failed or newly dirtied revisions", async () => {
   const order: string[] = [];
   const publish = vi.fn(async () => {

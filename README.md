@@ -7,7 +7,7 @@ autosave, retained history snapshots and crash recovery. v0.1 testing, hardening
 and release validation remain open. Community DOCX, TXT, Markdown and HTML parsers,
 staged import API and author-facing review workflow are implemented. A shared semantic
 renderer, isolated saved-book preview and three persisted [Community book themes](docs/book-themes.md)
-are available; EPUB and print PDF remain planned work. See the [DOCX support matrix](docs/docx-import.md),
+are available; local EPUB export is implemented and print PDF remains planned work. See the [DOCX support matrix](docs/docx-import.md),
 [TXT/Markdown/HTML support matrix](docs/text-import.md) and
 [local publishing delivery plan](docs/planning/local-publishing-plan.md).
 
@@ -30,13 +30,16 @@ contributions remain blocked until #54 and the Licensing & Commercial Architectu
 milestone are complete. Community will build independently of the eventual private
 Pro product; basic authoring and publishing belong in Community. Pro is not
 currently available. Implemented local authoring/import/preview/backup workflows
-need no Drelwick account, backend or Pro checkout. Editable DOCX export is available through **Export → Export DOCX**. EPUB and basic
-PDF remain planned Community capabilities.
+need no Drelwick account, backend or Pro checkout. Editable DOCX export is available through **Export → Export DOCX**. EPUB export is
+available through **Export → Export EPUB**; basic PDF remains a planned Community
+capability.
 
-There are no public standalone installers yet. The development setup below
-builds from source; Windows runtime tests do not establish macOS/Linux or packaged
-release validation. Follow the [release evidence register](docs/planning/public-release-checklist.md)
-for current blockers. Preparation does not authorise publication.
+Local standalone packaging is configured through [Electron Builder](docs/desktop-packaging.md),
+but unsigned artifacts are validation outputs, not official releases. The development
+setup below still builds from source; Windows runtime tests and the configured Linux CI smoke test
+do not establish cross-platform packaged release validation. Follow the
+[release evidence register](docs/planning/public-release-checklist.md) for current
+blockers. Preparation does not authorise publication.
 
 Read the [Code of Conduct](CODE_OF_CONDUCT.md) and [security policy](SECURITY.md).
 Never report vulnerabilities in ordinary issues or PRs. Public security/conduct

@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import {
   _electron as electron,
   expect,
@@ -20,6 +21,91 @@ import {
 } from "@playwright/test";
 import { copyFixture } from "../helpers/fixture-projects.js";
 import { ebookProject } from "../helpers/ebook-project.js";
+
+const repositoryRoot = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
+const requireFromCore = createRequire(
+  resolve(repositoryRoot, "packages/core/package.json"),
+);
+const yauzl = requireFromCore("yauzl") as {
+  fromBuffer(
+    bytes: Buffer,
+    options: { lazyEntries: boolean },
+    callback: (error: Error | undefined, zip: ZipFileLike | undefined) => void,
+  ): void;
+};
+const sax = requireFromCore("sax") as {
+  parser(strict: boolean): SaxParserLike;
+};
+interface SaxParserLike {
+  onopentag: (node: {
+    name: string;
+    attributes: Record<string, string>;
+  }) => void;
+  ontext: (value: string) => void;
+  write(value: string): SaxParserLike;
+  close(): SaxParserLike;
+}
+interface ZipFileLike {
+  on(event: "error" | "end", listener: (...args: never[]) => void): void;
+  on(event: "entry", listener: (entry: ZipEntryLike) => void): void;
+  openReadStream(
+    entry: ZipEntryLike,
+    callback: (
+      error: Error | undefined,
+      stream: NodeJS.ReadableStream | undefined,
+    ) => void,
+  ): void;
+  readEntry(): void;
+}
+interface ZipEntryLike {
+  fileName: string;
+}
+
+async function readZipEntries(bytes: Uint8Array): Promise<Map<string, Buffer>> {
+  const zip = await new Promise<ZipFileLike>((resolve, reject) =>
+    yauzl.fromBuffer(
+      Buffer.from(bytes),
+      { lazyEntries: true },
+      (error, value) =>
+        error || !value
+          ? reject(error ?? new Error("Invalid ZIP"))
+          : resolve(value),
+    ),
+  );
+  const entries = new Map<string, Buffer>();
+  await new Promise<void>((resolve, reject) => {
+    zip.on("error", reject);
+    zip.on("end", resolve);
+    zip.on("entry", (entry) => {
+      zip.openReadStream(entry, (error, stream) => {
+        if (error || !stream) {
+          reject(error ?? new Error("Unable to read ZIP entry"));
+          return;
+        }
+        const chunks: Buffer[] = [];
+        stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+        stream.on("error", reject);
+        stream.on("end", () => {
+          entries.set(entry.fileName, Buffer.concat(chunks));
+          zip.readEntry();
+        });
+      });
+    });
+    zip.readEntry();
+  });
+  return entries;
+}
+
+function xmlText(bytes: Buffer): string[] {
+  const parser = sax.parser(true);
+  const text: string[] = [];
+  parser.ontext = (value) => text.push(value);
+  parser.write(bytes.toString("utf8")).close();
+  return text;
+}
 
 test("DOCX export flushes unsaved Unicode offline and preserves the project and declined destination", async () => {
   const fixture = await copyFixture("minimal-book");
@@ -1191,10 +1277,6 @@ for (const format of ["txt", "md", "html"]) {
 }
 import { syntheticImage } from "../helpers/synthetic-images.js";
 
-const repositoryRoot = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "../..",
-);
 const desktopDirectory = join(repositoryRoot, "apps", "desktop");
 
 test("finds live prose, reviews whole-manuscript replacement and reopens formatted results", async () => {
@@ -1911,6 +1993,286 @@ test("reviews DOCX warnings and chapter mapping, then imports, edits, saves and 
     await expect(restarted.page.getByRole("dialog")).not.toBeVisible();
     await expect(reopenedEditor).toHaveText(expected[2]!);
     expect(await readFile(source)).toEqual(bytes);
+  } finally {
+    await application?.close();
+    await rm(scratch, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 200,
+    });
+  }
+});
+
+test("completes the offline DOCX to EPUB publishing workflow and independently inspects both outputs", async () => {
+  test.setTimeout(120_000);
+  const scratch = await mkdtemp(join(tmpdir(), "drelwick-publishing-e2e-"));
+  const source = join(scratch, "fixture.docx");
+  const destination = join(scratch, "imported");
+  const cover = join(scratch, "cover.png");
+  const docxTarget = join(scratch, "published.docx");
+  const epubTarget = join(scratch, "published.epub");
+  const prose = `${unicode} edited locally`;
+  const sourceBytes = docx(
+    p("Opening") +
+      p("Chapter One", '<w:pStyle w:val="Heading1"/>') +
+      p(unicode) +
+      p("Chapter Two", '<w:pStyle w:val="Heading1"/>') +
+      p("Ending"),
+  );
+  let application: ElectronApplication | undefined;
+  try {
+    await writeFile(source, sourceBytes);
+    await writeFile(cover, await syntheticImage());
+    await mkdir(destination);
+
+    const launched = await launchApplication(join(scratch, "user-data"));
+    application = launched.application;
+    const page = launched.page;
+    await page.context().setOffline(true);
+    const requests: string[] = [];
+    page.context().on("request", (request) => {
+      if (/^(https?|wss?):/.test(request.url())) requests.push(request.url());
+    });
+    page.on("websocket", (socket) => requests.push(socket.url()));
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, source);
+    await page
+      .getByRole("button", { name: "Import manuscript", exact: true })
+      .click();
+    const review = page.getByRole("dialog", { name: "Import manuscript" });
+    await expect(
+      review.getByRole("heading", { name: "Imported metadata" }),
+    ).toBeVisible();
+    await expect(
+      review.getByRole("heading", { name: "Conversion warnings" }),
+    ).toBeVisible();
+    const warningDecisions = review.getByRole("checkbox");
+    expect(await warningDecisions.count()).toBeGreaterThan(0);
+    for (const checkbox of await warningDecisions.all()) await checkbox.check();
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, destination);
+    await review
+      .getByRole("button", { name: "Choose destination and import" })
+      .click();
+    await expect(review).not.toBeVisible();
+
+    const editor = page.locator(".ProseMirror");
+    await expect(editor).toHaveText("Opening");
+    await editor.fill(prose);
+    await page
+      .getByRole("button", { name: "Save chapter", exact: true })
+      .click();
+    await expect(page.getByLabel("Chapter save status")).toHaveText(
+      "All changes saved",
+    );
+
+    await page
+      .getByRole("button", {
+        name: "Publication details and pages",
+        exact: true,
+      })
+      .click();
+    const publication = page.getByRole("dialog", {
+      name: "Publication details and pages",
+    });
+    await publication
+      .getByLabel("Publication title", { exact: true })
+      .fill("Offline Fixture");
+    await publication
+      .getByLabel("Publication author", { exact: true })
+      .fill("Synthetic Author");
+    await publication
+      .getByLabel("Publication language", { exact: true })
+      .fill("en-GB");
+    await publication
+      .getByRole("button", { name: "Add dedication page", exact: true })
+      .click();
+    await publication.locator(".ProseMirror").fill("Dedicated offline.");
+    await publication
+      .getByRole("button", { name: "Add author page", exact: true })
+      .click();
+    await publication
+      .locator(".ProseMirror")
+      .fill("About the synthetic author.");
+    await publication
+      .getByRole("button", { name: "Save publication", exact: true })
+      .click();
+    await expect(
+      publication.getByRole("status").filter({ hasText: "Publication saved." }),
+    ).toBeVisible();
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, cover);
+    await publication
+      .getByRole("button", { name: "Select ebook cover", exact: true })
+      .click();
+    await expect(
+      publication.getByAltText("Selected ebook cover"),
+    ).toBeVisible();
+    await publication
+      .getByRole("button", { name: "Close publication", exact: true })
+      .click();
+
+    await page
+      .getByRole("button", { name: "Book preview", exact: true })
+      .click();
+    const themePreview = page.getByRole("dialog", {
+      name: "Book preview",
+      exact: true,
+    });
+    await themePreview
+      .getByLabel("Book theme", { exact: true })
+      .selectOption("literary");
+    await expect(
+      themePreview.getByLabel("Book theme", { exact: true }),
+    ).toHaveValue("literary");
+    await expect(
+      themePreview.getByRole("status").filter({ hasText: "Theme saved" }),
+    ).toBeVisible();
+    await themePreview
+      .getByRole("button", { name: "Close preview", exact: true })
+      .click();
+    await application.close();
+    application = undefined;
+    const restarted = await launchApplication(join(scratch, "user-data"));
+    application = restarted.application;
+    const reopened = restarted.page;
+    await reopened.context().setOffline(true);
+    reopened.context().on("request", (request) => {
+      if (/^(https?|wss?):/.test(request.url())) requests.push(request.url());
+    });
+    reopened.on("websocket", (socket) => requests.push(socket.url()));
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, destination);
+    await reopened
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    await expect(reopened.locator(".ProseMirror")).toHaveText(prose);
+
+    await application.evaluate(
+      ({ dialog }, targets) => {
+        dialog.showSaveDialog = (async (...args: unknown[]) => {
+          const options = args.at(-1) as { title?: string };
+          return {
+            canceled: false,
+            filePath: String(options.title).includes("Word")
+              ? targets.docx
+              : targets.epub,
+          };
+        }) as typeof dialog.showSaveDialog;
+        dialog.showMessageBox = async () => ({
+          response: 1,
+          checkboxChecked: false,
+        });
+      },
+      { docx: docxTarget, epub: epubTarget },
+    );
+    await reopened.getByRole("button", { name: "Export", exact: true }).click();
+    await reopened
+      .getByRole("button", { name: "Export DOCX", exact: true })
+      .click();
+    await expect(
+      reopened.getByText("Editable DOCX exported.", { exact: false }),
+    ).toBeVisible();
+    await reopened
+      .getByRole("button", { name: "Export EPUB", exact: true })
+      .click();
+    await expect(
+      reopened.getByText("EPUB ebook exported.", { exact: true }),
+    ).toBeVisible();
+
+    const { DocxManuscriptImporter } =
+      await import("../../packages/core/dist/index.js");
+    const imported = await new DocxManuscriptImporter().parse(
+      await readFile(docxTarget),
+      new AbortController().signal,
+    );
+    expect(imported).toContain(prose);
+    expect(imported).toContain("Dedicated offline.");
+    expect(imported).toContain("About the synthetic author.");
+
+    const epub = await readZipEntries(await readFile(epubTarget));
+    // Retain the actual UI-produced candidate for EPUBCheck and reader review.
+    await cp(epubTarget, test.info().outputPath("published.epub"));
+    await cp(docxTarget, test.info().outputPath("published.docx"));
+    expect(epub.has("mimetype")).toBe(true);
+    expect(epub.has("META-INF/container.xml")).toBe(true);
+    expect(epub.has("OEBPS/package.opf")).toBe(true);
+    expect(epub.has("OEBPS/nav.xhtml")).toBe(true);
+    const opf = epub.get("OEBPS/package.opf")!;
+    const nav = epub.get("OEBPS/nav.xhtml")!;
+    expect(opf.toString("utf8")).toContain("Offline Fixture");
+    expect(opf.toString("utf8")).toContain("Synthetic Author");
+    expect(opf.toString("utf8")).toContain("en-GB");
+    const manifest = new Map<string, string>();
+    const spine: string[] = [];
+    const packageParser = sax.parser(true);
+    packageParser.onopentag = ({ name, attributes }) => {
+      if (name === "item") manifest.set(attributes.id!, attributes.href!);
+      if (name === "itemref") spine.push(attributes.idref!);
+    };
+    packageParser.write(opf.toString("utf8")).close();
+    expect(
+      spine.map((id) =>
+        xmlText(epub.get(`OEBPS/${manifest.get(id)}`)!).filter((s) => s.trim()),
+      ),
+    ).toEqual([
+      ["Ebook cover", "Ebook cover"],
+      ["Dedication", "Dedication", "Dedicated offline."],
+      ["Opening", "Opening", prose],
+      ["Chapter One", "Chapter One", "Chapter One", unicode],
+      ["Chapter Two", "Chapter Two", "Chapter Two", "Ending"],
+      ["About the author", "About the author", "About the synthetic author."],
+    ]);
+    expect(xmlText(nav).filter((s) => s.trim())).toEqual([
+      "Contents",
+      "Contents",
+      "Opening",
+      "Chapter One",
+      "Chapter Two",
+      "About the author",
+    ]);
+    expect(xmlText(nav)).toEqual(
+      expect.arrayContaining(["Contents", "Opening", "About the author"]),
+    );
+    expect(
+      [...epub.keys()].some((name) => name.startsWith("OEBPS/images/")),
+    ).toBe(true);
+    expect(epub.get("OEBPS/styles/book.css")?.toString("utf8")).toContain(
+      ".chapter-title",
+    );
+    expect(epub.get("OEBPS/styles/book.css")?.toString("utf8")).toContain(
+      "font-family: serif",
+    );
+    expect(
+      [...epub.keys()].filter((name) => name.endsWith(".xhtml")).length,
+    ).toBeGreaterThanOrEqual(4);
+    expect(await readFile(source)).toEqual(sourceBytes);
+    expect(requests).toEqual([]);
+    const logDirectory = join(join(scratch, "user-data"), "logs");
+    const logFiles = await readdir(logDirectory);
+    expect(logFiles.length).toBeGreaterThan(0);
+    for (const name of logFiles) {
+      const log = await readFile(join(logDirectory, name), "utf8");
+      expect(log).not.toContain(prose);
+      expect(log).not.toContain("Dedicated offline.");
+    }
   } finally {
     await application?.close();
     await rm(scratch, {

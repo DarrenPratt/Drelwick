@@ -1,0 +1,58 @@
+appId: com.drelwick.desktop
+productName: Drelwick
+artifactName: Drelwick-${version}-${os}-${arch}.${ext}
+directories:
+  output: release
+  buildResources: assets
+files:
+  - dist/**
+  - assets/icons/**
+  - package.json
+  - "!**/*.map"
+  - "!**/*.d.ts"
+  - "!**/test/**"
+  - "!**/tests/**"
+  - "!**/fixtures/**"
+  - "!**/.history/**"
+  - "!**/*.log"
+  - "!**/.env*"
+  - "!**/.git/**"
+  - "!**/coverage/**"
+  - "!**/playwright-report/**"
+  - "!**/test-results/**"
+  - "!node_modules/**/src/**"
+  - "!node_modules/**/test/**"
+  - "!node_modules/**/tests/**"
+  - "!node_modules/**/fixtures/**"
+  - "!node_modules/@img/sharp-*{,/**/*}"
+asar: true
+beforePack: scripts/include-native-images.cjs
+asarUnpack:
+  - "node_modules/@img/sharp-*/**"
+  - "**/*.node"
+  - "**/*.dll"
+  - "**/*.so*"
+  - "**/*.dylib"
+  - "**/ffmpeg.dll"
+  - "**/libGLESv2.dll"
+  - "**/vk_swiftshader.dll"
+extraMetadata:
+  main: dist/main/main.js
+win:
+  icon: assets/icons/app.ico
+  signAndEditExecutable: false
+  target:
+    - portable
+    - nsis
+mac:
+  icon: assets/icons/app.png
+  target:
+    - dmg
+linux:
+  executableName: drelwick
+  maintainer: Darren Pratt
+  icon: assets/icons/app.png
+  category: Office
+  target:
+    - AppImage
+    - deb

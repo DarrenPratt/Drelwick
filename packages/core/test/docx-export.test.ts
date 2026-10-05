@@ -298,7 +298,10 @@ it("captures front/body/back order, includes hidden matter, metadata, cover and 
     expect.objectContaining({ code: "DOCX_EXPORT_IMAGE" }),
   );
   await rm(join(projectPath, "assets", "images", asset.id, "original.png"));
-  expect(generateDocx(captured).bytes).toEqual(output.bytes);
+  // ZIP timestamps may cross a clock tick; captured content must stay identical.
+  expect(await parts(generateDocx(captured).bytes)).toEqual(
+    await parts(output.bytes),
+  );
   const missing = await assembleBook(projectPath);
   expect(() => generateDocx(missing)).toThrowError(
     expect.objectContaining({ code: "DOCX_EXPORT_IMAGE" }),

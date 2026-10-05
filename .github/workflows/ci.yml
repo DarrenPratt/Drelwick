@@ -47,3 +47,38 @@ jobs:
         run: pnpm build
       - name: Workspace smoke check
         run: pnpm check:workspace
+      - name: Linux source-built offline publishing workflow
+        run: xvfb-run -a pnpm exec playwright test tests/e2e/desktop.spec.ts --grep "complete.*DOCX to EPUB"
+
+  packaging:
+    name: Linux packaging validation
+    runs-on: ubuntu-latest
+    needs: quality
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Set up pnpm and dependency cache
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          run_install: false
+          cache: true
+          cache_dependency_path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build unpacked Linux application
+        run: pnpm --filter @drelwick/desktop package:dir
+      - name: Configure Chromium sandbox helper on the disposable runner
+        run: |
+          sudo chown root:root apps/desktop/release/linux-unpacked/chrome-sandbox
+          sudo chmod 4755 apps/desktop/release/linux-unpacked/chrome-sandbox
+      - name: Validate unpacked Linux application with sandbox enabled
+        timeout-minutes: 2
+        run: xvfb-run -a pnpm --filter @drelwick/desktop exec node scripts/validate-package.mjs

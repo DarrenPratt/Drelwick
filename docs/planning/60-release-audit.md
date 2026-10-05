@@ -11,19 +11,19 @@ professional legal review, owner signoff or publication authority. The
 Reviewed live issue bodies/comments and corresponding repository evidence rather
 than treating checkbox state or closure as implementation proof.
 
-| Issue                  | Live status            | Repository evidence and release consequence                                                                                                                                                                          |
-| ---------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| #52 feature boundary   | Open                   | Design/addendum/local-publishing plan reserve ordinary authoring/import/export/EPUB/basic PDF/backup for CORE. Broader feature review and unimplemented exports remain open.                                         |
-| #53 Community licence  | Open                   | Owner selected AGPL-3.0-only. This change prepares the verbatim GNU text, central copyright notice and seven manifest licence fields. Legal review/final approval remain pending.                                    |
-| #54 contributor rights | Open                   | CONTRIBUTING, strategy and draft CLA requirements exist. Final individual/corporate terms, acceptance implementation and legal review are absent. External contributions stay closed.                                |
-| #55 package boundary   | Closed; PR #196 merged | Six-workspace inventory, negative architecture tests and graph scan enforce the one-way dependency. Community standalone checks pass without Pro.                                                                    |
-| #56 classification     | Closed                 | Four product labels, implementation form and development definitions exist. All inspected existing feature issues have exactly one product label. Maintainers classify incoming requests during triage.              |
-| #57 extensions         | Closed; design only    | Architecture/review define Community-owned contracts, scoped capabilities and version negotiation. SDK/host/runtime are deferred; no executable plugin support or private Pro hook is advertised.                    |
-| #58 project format     | Closed; PR #198 merged | Public specification, synthetic `public-example`, production-schema/archive/migration tests and independent recovery helper exist. Reference data is reserved, not an invented implemented schema.                   |
-| #59 branding           | Closed; PR #199 merged | Policy/review distinguish source rights, names/artwork, truthful compatibility and official builds. Closure provides no legal-review evidence: PR #199 explicitly records review and artwork permissions as pending. |
-| #51 reliability        | Open                   | Windows source-runtime checklist and current E2E evidence exist. Owner no-known-data-loss signoff and standalone/platform evidence remain open.                                                                      |
-| #107 packaging         | Open                   | No Electron Builder dependency/configuration, package script, installer or release artifact. `pnpm build` produces development output only.                                                                          |
-| #127 local publishing  | Open                   | Import/edit/preview/backup exist. #125 manuscript DOCX export and #126 EPUB generation/validation are absent; no complete offline publishing candidate can be certified.                                             |
+| Issue                  | Live status            | Repository evidence and release consequence                                                                                                                                                                           |
+| ---------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #52 feature boundary   | Open                   | Design/addendum/local-publishing plan reserve ordinary authoring/import/export/EPUB/basic PDF/backup for CORE. Broader feature review and unimplemented exports remain open.                                          |
+| #53 Community licence  | Open                   | Owner selected AGPL-3.0-only. This change prepares the verbatim GNU text, central copyright notice and seven manifest licence fields. Legal review/final approval remain pending.                                     |
+| #54 contributor rights | Open                   | CONTRIBUTING, strategy and draft CLA requirements exist. Final individual/corporate terms, acceptance implementation and legal review are absent. External contributions stay closed.                                 |
+| #55 package boundary   | Closed; PR #196 merged | Six-workspace inventory, negative architecture tests and graph scan enforce the one-way dependency. Community standalone checks pass without Pro.                                                                     |
+| #56 classification     | Closed                 | Four product labels, implementation form and development definitions exist. All inspected existing feature issues have exactly one product label. Maintainers classify incoming requests during triage.               |
+| #57 extensions         | Closed; design only    | Architecture/review define Community-owned contracts, scoped capabilities and version negotiation. SDK/host/runtime are deferred; no executable plugin support or private Pro hook is advertised.                     |
+| #58 project format     | Closed; PR #198 merged | Public specification, synthetic `public-example`, production-schema/archive/migration tests and independent recovery helper exist. Reference data is reserved, not an invented implemented schema.                    |
+| #59 branding           | Closed; PR #199 merged | Policy/review distinguish source rights, names/artwork, truthful compatibility and official builds. Closure provides no legal-review evidence: PR #199 explicitly records review and artwork permissions as pending.  |
+| #51 reliability        | Open                   | Windows source-runtime checklist and current E2E evidence exist. Owner no-known-data-loss signoff and standalone/platform evidence remain open.                                                                       |
+| #107 packaging         | Open                   | Electron Builder configuration, reproducible package scripts and Windows portable/NSIS artifacts now exist. Clean-install, packaged runtime and macOS/Linux artifact evidence remain platform-specific release gates. |
+| #127 local publishing  | Open                   | Import/edit/preview/backup and the #125/#126 export implementations exist; complete offline import -> edit -> reopen -> DOCX/EPUB workflow evidence is still required.                                                |
 
 The licensing milestone remains open (five closed and four open issues at
 inspection). #61 Pro integration awaits executable Community interfaces and
@@ -199,8 +199,9 @@ review; no completed packaged-distribution audit was found. Themes use generic/l
 font families. Logo/screenshots and synthetic assets need applicable rights review;
 Contributor Covenant retains its own attribution/licence rather than an AGPL label.
 
-Darren Pratt owns the initial redistribution review. #107 must provide actual
-portable/NSIS and later platform artifacts, followed by checks for required runtime
+Darren Pratt owns the initial redistribution review. #107 provides Windows
+portable/NSIS artifacts and ASAR inspection; later platform artifacts must be
+built on their target hosts, followed by checks for required runtime
 files/notices/source materials and absence of development files/secrets. Uncertain
 compatibility or obligations require professional advice. **No packaged artifact,
 notice completeness, LGPL compliance or legal compatibility is certified here.**
@@ -217,7 +218,7 @@ For this change, `pnpm test:e2e` passed **15 Windows source-runtime tests**, cov
 DOCX/text import, offline spelling/themes/preview, authoring/autosave, forced-exit
 recovery, organisation and chapter history. The older preview E2E failure recorded
 in #196 did not reproduce. This is not installer/cross-platform verification or
-the absent EPUB/DOCX export pipeline required by #127.
+the complete offline publishing workflow required by #127.
 
 Final local frozen install, lint, format check, strict typecheck, **938 tests in
 80 files**, build and workspace smoke all passed with Node **24.18.0** and pnpm
@@ -249,8 +250,8 @@ they were not recreated. No runtime source, persistence or branding change was
 needed to resume. The existing rename was independently confirmed as merged
 PR #181; the local remote now uses the verified Drelwick repository location.
 
-Live dependency bodies/comments were re-read. #52, #53, #54, #51, #107, #125,
-#126 and #127 remain open; #55, #56, #57 and #58 remain closed with the implementation
+Live dependency bodies/comments were re-read. #52, #53, #54, #51, #107 and
+#127 remain open; #125 and #126 are implemented and have been closed separately. #55, #56, #57 and #58 remain closed with the implementation
 or design evidence described above. #59 is closed following PR #199, but neither
 the issue nor that PR supplies professional review or artwork approval. Its PR
 explicitly says that legal review remains pending. R11 therefore remains blocked;
@@ -291,8 +292,9 @@ preserved outside the checkout. Fresh lint and formatting checks pass after the 
 all 345 local links/anchors, issue-form YAML, seven manifest licences, GNU licence
 bytes and Covenant section comparisons. The refreshed 530-record licence inventory
 (78 production records) is unchanged. The final prepared-tree scan retains only
-the same three synthetic UUID alerts. The PR receives its own hosted CI. No standalone
-packaging or DOCX/EPUB export test can run before those implementations exist.
+the same three synthetic UUID alerts. The PR receives its own hosted CI. Standalone packaging is now configured,
+while focused DOCX and EPUB export tests execute locally; #127 still owns
+end-to-end offline publishing validation.
 
 ## Remaining decisions and handoff
 
@@ -302,7 +304,7 @@ separately; approve contributor recipient/custody/process; review actual depende
 distribution and packaged artifacts; resolve remaining dependency vulnerabilities
 and the supported Electron migration; complete reliability/feature decisions;
 approve reviewed artwork terms and official channels. Missing features remain
-with #107/#125/#126/#127 and later Community work.
+with #107/#127 and later Community work; #126's implementation is complete.
 
 Professional review: #53 Community-Pro/plugin/dual-licensing compatibility;
 #54 individual/employee/corporate ownership and final CLA/acceptance;

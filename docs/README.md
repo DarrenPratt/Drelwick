@@ -68,3 +68,6 @@ Operational documents:
 - [GitHub tracking register](planning/github-tracking.md)
 - [Public Community release checklist](planning/public-release-checklist.md)
 - [Local EPUB export](epub-export.md)
+- [Offline DOCX-to-EPUB release validation](publishing-release-validation.md)
+- [Desktop packaging](desktop-packaging.md)
+- [BookEditor recovery review](planning/bookeditor-recovery.md)
