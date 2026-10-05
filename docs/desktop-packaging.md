@@ -90,13 +90,22 @@ distribution decision.
 
 Electron Builder should be run on the target operating system for reliable
 native artifacts. The configured `Linux packaging validation` CI job builds an
-unpacked Linux application and runs `package:validate`; it does not build or
+unpacked Linux application, configures its Chromium sandbox helper, and runs the
+package validator against that same build; it does not build or
 validate AppImage/deb installers. The job has not been executed as part of this
 local recovery. All packaging commands explicitly disable publishing. Windows portable
 and NSIS output require Windows validation, and macOS DMG output requires macOS
 validation. A Windows build must not be described as macOS or Linux runtime
 evidence, and the current Linux CI check must not be described as Windows or
 macOS evidence.
+
+On Linux hosts that require Chromium's setuid sandbox, the unpacked build's
+`chrome-sandbox` helper must be owned by root with mode `4755` before validation.
+The disposable CI runner configures only that generated helper after
+`package:dir`, then invokes `node scripts/validate-package.mjs` without rebuilding
+and resetting those permissions. Local maintainers need an equivalently
+configured host. The application itself runs as the ordinary user with sandboxing
+enabled; no `--no-sandbox` flag or system-wide sandbox-policy change is used.
 
 No signing, notarisation, app-store packaging, auto-update, release upload or
 publishing credentials are configured. Electron Builder may read standard

@@ -73,5 +73,11 @@ jobs:
           cache_dependency_path: pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Build and validate unpacked Linux application
-        run: xvfb-run -a pnpm --filter @drelwick/desktop package:validate
+      - name: Build unpacked Linux application
+        run: pnpm --filter @drelwick/desktop package:dir
+      - name: Configure Chromium sandbox helper on the disposable runner
+        run: |
+          sudo chown root:root apps/desktop/release/linux-unpacked/chrome-sandbox
+          sudo chmod 4755 apps/desktop/release/linux-unpacked/chrome-sandbox
+      - name: Validate unpacked Linux application with sandbox enabled
+        run: xvfb-run -a pnpm --filter @drelwick/desktop exec node scripts/validate-package.mjs
