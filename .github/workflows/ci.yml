@@ -86,6 +86,8 @@ jobs:
           cache_dependency_path: pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Build workspace
+        run: pnpm build
       - name: macOS source-built offline publishing workflow
         run: pnpm exec playwright test tests/e2e/desktop.spec.ts --grep "complete.*DOCX to EPUB"
 
