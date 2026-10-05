@@ -11,7 +11,7 @@ import {
 import type { AssembledBook } from "./book-assembly.js";
 import { ApplicationError } from "@drelwick/shared";
 
-export const EPUB_VERSION = "3.3";
+export const EPUB_VERSION = "3.0";
 export const EPUB_MEDIA_TYPE = "application/epub+zip";
 
 export interface EpubPackage {
@@ -33,7 +33,7 @@ const safeId = (value: string) => value.replace(/-/g, "").toLowerCase();
 const imageExtension = (mediaType: string) =>
   mediaType === "image/png" ? "png" : mediaType === "image/jpeg" ? "jpg" : null;
 const xml = (value: string) => escapeXml(value);
-const resourceId = (path: string) => path.replace(/[^A-Za-z0-9]/g, "-");
+const resourceId = (path: string) => `id-${path.replace(/[^A-Za-z0-9]/g, "-")}`;
 
 function ensureSafePath(path: string): void {
   if (
@@ -106,7 +106,8 @@ function packageDocument(
   const identifierMeta = identifierScheme
     ? `<meta refines="#pub-id" property="identifier-type" scheme="onix:codelist5">${xml(identifierScheme)}</meta>`
     : "";
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<package xmlns="http://www.idpf.org/2007/opf" version="${EPUB_VERSION}" unique-identifier="pub-id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="pub-id">${xml(identifier)}</dc:identifier><dc:title>${xml(metadata.title)}</dc:title><dc:creator>${xml(metadata.author)}</dc:creator><dc:language>${xml(metadata.language)}</dc:language>${metadata.description ? `<dc:description>${xml(metadata.description)}</dc:description>` : ""}${identifierMeta}</metadata><manifest>${manifest}</manifest><spine>${spine}</spine></package>\n`;
+  const modified = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<package xmlns="http://www.idpf.org/2007/opf" version="${EPUB_VERSION}" unique-identifier="pub-id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/"><dc:identifier id="pub-id">${xml(identifier)}</dc:identifier><dc:title>${xml(metadata.title)}</dc:title><dc:creator>${xml(metadata.author)}</dc:creator><dc:language>${xml(metadata.language)}</dc:language><meta property="dcterms:modified">${modified}</meta>${metadata.description ? `<dc:description>${xml(metadata.description)}</dc:description>` : ""}${identifierMeta}</metadata><manifest>${manifest}</manifest><spine>${spine}</spine></package>\n`;
 }
 
 function preflight(assembled: AssembledBook): void {
@@ -130,7 +131,7 @@ function preflight(assembled: AssembledBook): void {
   }
 }
 
-/** Pure local EPUB 3.3 packaging from one captured project revision. */
+/** Pure local EPUB 3.0 packaging from one captured project revision. */
 export function generateEpub(assembled: AssembledBook): EpubPackage {
   preflight(assembled);
   const { book, assets, presentation } = assembled;
