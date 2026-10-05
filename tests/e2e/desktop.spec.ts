@@ -4,6 +4,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -1535,8 +1536,9 @@ async function launchApplication(userDataDirectory: string) {
   expect(await application.evaluate(({ app }) => app.getName())).toBe(
     "Drelwick",
   );
+  const expectedUserDataDirectory = await realpath(userDataDirectory);
   expect(await application.evaluate(({ app }) => app.getPath("userData"))).toBe(
-    userDataDirectory,
+    expectedUserDataDirectory,
   );
   await expect(
     page.getByRole("heading", { name: "Your manuscript workspace" }),
