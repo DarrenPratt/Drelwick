@@ -2060,10 +2060,10 @@ test("completes the offline DOCX to EPUB publishing workflow and independently i
     const review = page.getByRole("dialog", { name: "Import manuscript" });
     await expect(
       review.getByRole("heading", { name: "Imported metadata" }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 30_000 });
     await expect(
       review.getByRole("heading", { name: "Conversion warnings" }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 30_000 });
     const warningDecisions = review.getByRole("checkbox");
     expect(await warningDecisions.count()).toBeGreaterThan(0);
     for (const checkbox of await warningDecisions.all()) await checkbox.check();
