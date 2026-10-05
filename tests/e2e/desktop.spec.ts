@@ -1212,9 +1212,12 @@ for (const format of ["txt", "md", "html"]) {
           filePaths: [path],
         });
       }, source);
-      await page
-        .getByRole("button", { name: "Import manuscript", exact: true })
-        .click();
+      const importButton = page.getByRole("button", {
+        name: "Import manuscript",
+        exact: true,
+      });
+      await expect(importButton).toBeEnabled({ timeout: 30_000 });
+      await importButton.click();
       const preview = page.getByRole("dialog", { name: "Import manuscript" });
       await expect(
         preview.getByRole("heading", { name: "Imported metadata" }),
