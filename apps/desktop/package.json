@@ -2,6 +2,7 @@
   "name": "@drelwick/desktop",
   "productName": "Drelwick",
   "description": "Local-first book authoring and publishing",
+  "homepage": "https://github.com/DarrenPratt/Drelwick",
   "author": "Darren Pratt",
   "version": "0.0.0",
   "private": true,

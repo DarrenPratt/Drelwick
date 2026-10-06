@@ -58,6 +58,8 @@ Electron Builder target selection and artifact naming are defined in
 `com.drelwick.desktop`, the product name is `Drelwick`, and the version comes
 from `apps/desktop/package.json`. The output directory is deliberately outside
 `dist/`, so stale development output is not mistaken for a package.
+The desktop manifest's `homepage` points to the repository and supplies the
+project URL required by the Debian package builder.
 
 ## Inclusion and runtime paths
 
