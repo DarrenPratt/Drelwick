@@ -17,6 +17,7 @@ import {
 import { createAutosaveCoordinator } from "@drelwick/core/autosave";
 import {
   IPC,
+  defaultPrintSettings,
   type ProjectOperationResult,
   type SafeLogger,
 } from "@drelwick/shared";
@@ -535,4 +536,69 @@ it("history IPC validates authorization, IDs, confirmation and uses current-cont
   expect(
     await invoke(IPC.HISTORY_RESTORE, { ...restore, confirmed: true }),
   ).toMatchObject({ ok: false, error: { code: "CHAPTER_NOT_FOUND" } });
+});
+
+it("authorizes print settings through active-project IPC and rejects unsafe/stale requests", async () => {
+  const f = await fixture();
+  const { invoke, event, logger, settleHistory } = setup(f.root);
+  try {
+    const projectId = (await openProject(f.root)).project.projectId;
+    expect(await invoke(IPC.PRINT_GET, { projectId })).toMatchObject({
+      ok: false,
+    });
+    expect(await invoke(IPC.PROJECT_OPEN)).toMatchObject({ ok: true });
+    const loaded = await invoke(IPC.PRINT_GET, { projectId });
+    expect(loaded).toMatchObject({
+      ok: true,
+      value: { settings: defaultPrintSettings() },
+    });
+    if (!loaded.ok) throw new Error("Expected print settings");
+    const revision = (loaded.value as { revision: string }).revision;
+    const request = {
+      projectId,
+      expectedRevision: revision,
+      settings: { ...defaultPrintSettings(), chapterStart: "recto" },
+    };
+    const before = await readFile(f.path);
+    expect(
+      await invoke(IPC.PRINT_SAVE, request, {
+        ...event,
+        senderFrame: { url: "file:///untrusted" },
+      } as IpcMainInvokeEvent),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_ACCESS_DENIED" } });
+    expect(
+      await invoke(IPC.PRINT_SAVE, { ...request, projectPath: f.root }),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_INPUT_INVALID" } });
+    expect(
+      await invoke(IPC.PRINT_SAVE, {
+        ...request,
+        projectId: "00000000-0000-4000-8000-000000000999",
+      }),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_NOT_OPEN" } });
+    expect(
+      await invoke(IPC.PRINT_SAVE, {
+        ...request,
+        settings: {
+          ...request.settings,
+          trim: { preset: "custom", width: Infinity, height: 228600 },
+        },
+      }),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_INPUT_INVALID" } });
+    expect(await invoke(IPC.PRINT_SAVE, request)).toMatchObject({
+      ok: true,
+      value: { settings: { chapterStart: "recto" } },
+    });
+    expect(await invoke(IPC.PRINT_SAVE, request)).toMatchObject({
+      ok: false,
+      error: { code: "PRINT_CONFIGURATION_STALE" },
+    });
+    expect(await invoke(IPC.PRINT_GET, { projectId })).toMatchObject({
+      ok: true,
+      value: { settings: { chapterStart: "recto" } },
+    });
+    expect(await readFile(f.path)).toEqual(before);
+    expect(logger.error).not.toHaveBeenCalled();
+  } finally {
+    await settleHistory();
+  }
 });

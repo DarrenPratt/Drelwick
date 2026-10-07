@@ -34,6 +34,7 @@ example-project/
 │   └── <chapter-id>.json                 required for each manifest reference
 ├── publication.json                     optional: publishing metadata and matter
 ├── presentation.json                    optional: selected book theme
+├── print.json                           optional: physical book layout settings
 ├── assets/
 │   └── images/<asset-id>/
 │       ├── asset.json                    required for this managed image
@@ -52,7 +53,7 @@ example-project/
 
 All listed JSON is UTF-8; image originals are binary PNG/JPEG. `project.json`,
 `book.json`, the v2 descriptor, referenced chapter files, and present publication,
-presentation and image components are authoritative for their respective data.
+presentation, print and image components are authoritative for their respective data.
 The cache, history and migration workspaces are not the current manuscript.
 History and recovery copies can nevertheless contain the only remaining copy of
 earlier or interrupted work: retain them when recovering a damaged project.
@@ -548,7 +549,7 @@ and SHA-256 hashes are verified on restore. This detects damage; it is not an
 authenticated signature against someone replacing both files and the inventory.
 
 Included roots, when present, are `project.json`, `book.json`, `format.json`,
-`presentation.json`, `publication.json` and legacy `cover.jpg`. Regular files are
+`presentation.json`, `publication.json`, `print.json` and legacy `cover.jpg`. Regular files are
 included recursively under `manuscript/`, `frontmatter/`, `backmatter/`, `assets/`,
 `reference/`, `styles/` and, if requested, `.history/` (default true). Empty
 directories need not be represented; restore creates standard project directories.
@@ -704,3 +705,22 @@ cross-check and an ordinary-tool recovery exercise. Later persistent additions
 must update this specification and its example tests; prospective reference,
 Pro metadata, provider, custom-style and future publishing schemas are not part
 of the current format.
+
+## Print configuration component (#128)
+
+Optional root `print.json` has strict `schemaVersion: 1`, `projectId` matching the
+manifest UUID, and `settings` validated by `PrintSettingsSchema`. All physical
+lengths are integer micrometres, distinct from the persisted `unit` display
+preference (`in` or `mm`). The settings contain trim preset/custom width/height,
+mirrored inside/outside/top/bottom margins plus additional gutter, chapter starts,
+semantic left/right headers and page-number instructions. See the complete
+[values, defaults, bounds and semantics](print-settings.md).
+
+Absence means deterministic 6 × 9-inch defaults without a rewrite. The project,
+book and chapter versions remain unchanged. Print settings do not alter
+`presentation.json`, `publication.json`, ebook configuration or manuscript files.
+Portable backups retain this file. Unknown fields or unsupported component
+versions fail closed for print operations rather than being discarded. To recover
+settings independently, preserve the JSON and read lengths as micrometres
+(divide by 1,000 for mm or 25,400 for inches). Retain `.tmp` evidence and any prior
+backup before manual repair. No manuscript recovery depends on this component.

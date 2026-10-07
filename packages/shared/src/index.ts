@@ -1,3 +1,8 @@
+import {
+  PrintSaveRequestSchema,
+  type PrintConfigurationState,
+} from "./print-contracts.js";
+export * from "./print-contracts.js";
 import { z } from "zod";
 import type { DocxExportReceipt } from "./docx-contracts.js";
 import type { EpubExportReceipt } from "./epub-contracts.js";
@@ -109,6 +114,8 @@ export const IPC = {
   PUBLICATION_GET: "publication:get",
   PUBLICATION_SAVE: "publication:save",
   PUBLICATION_COVER: "publication:cover",
+  PRINT_GET: "book:print-get",
+  PRINT_SAVE: "book:print-save",
   BOOK_THEME_GET: "book:theme-get",
   BOOK_THEME_SET: "book:theme-set",
   BOOK_PREVIEW: "book:preview",
@@ -248,6 +255,8 @@ export type ProjectOperationResult<T> =
   | { ok: false; error: { code: string; message: string } };
 
 export const IpcRequestSchemas = {
+  [IPC.PRINT_GET]: z.object({ projectId: z.string().uuid() }).strict(),
+  [IPC.PRINT_SAVE]: PrintSaveRequestSchema,
   [IPC.SPELLING_GET]: z.undefined(),
   [IPC.SPELLING_UPDATE]: SpellingUpdateSchema,
   [IPC.SPELLING_CHECK]: SpellingCheckSchema,
@@ -419,6 +428,12 @@ export interface DrelwickApi {
     selectPublicationCover(
       input: z.infer<typeof PublicationCoverRequestSchema>,
     ): Promise<ProjectOperationResult<PublicationState | null>>;
+    getPrintConfiguration(input: {
+      projectId: string;
+    }): Promise<ProjectOperationResult<PrintConfigurationState>>;
+    savePrintConfiguration(
+      input: z.infer<typeof PrintSaveRequestSchema>,
+    ): Promise<ProjectOperationResult<PrintConfigurationState>>;
     getBookTheme(input: {
       projectId: string;
     }): Promise<ProjectOperationResult<BookThemeSelection>>;

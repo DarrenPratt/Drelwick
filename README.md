@@ -76,6 +76,10 @@ or **Cancel startup** before editing. See [manuscript recovery](docs/manuscript-
 [project creation UI](docs/project-creation-ui.md) and
 [project opening UI](docs/project-open-ui.md).
 
+Use **Book design → Print settings** to save local trim size, mirrored margins,
+gutter, chapter starts, headers and page numbers. See [Community print settings](docs/print-settings.md).
+These settings prepare a book for later print output; pagination/PDF remain planned.
+
 Use **Export → Export DOCX** to save an editable Word manuscript locally. Pending
 edits must save successfully first. Review fidelity warnings and choose a native
 destination; replacing an existing file requires confirmation. This is manuscript
