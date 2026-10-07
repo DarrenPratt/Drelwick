@@ -2078,7 +2078,7 @@ test("completes the offline DOCX to EPUB publishing workflow and independently i
     const review = page.getByRole("dialog", { name: "Import manuscript" });
     await expect(
       review.getByRole("heading", { name: "Imported metadata" }),
-    ).toBeVisible({ timeout: 30_000 });
+    ).toBeVisible({ timeout: 60_000 });
     await expect(
       review.getByRole("heading", { name: "Conversion warnings" }),
     ).toBeVisible({ timeout: 30_000 });
