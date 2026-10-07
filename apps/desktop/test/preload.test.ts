@@ -63,6 +63,12 @@ describe("preload API", () => {
     expect(invoke).toHaveBeenLastCalledWith("publication:get", {
       projectId: "123e4567-e89b-42d3-a456-426614174000",
     });
+    await api.project.getPrintConfiguration({
+      projectId: "123e4567-e89b-42d3-a456-426614174000",
+    });
+    expect(invoke).toHaveBeenLastCalledWith("book:print-get", {
+      projectId: "123e4567-e89b-42d3-a456-426614174000",
+    });
     await api.project.getBookTheme({
       projectId: "123e4567-e89b-42d3-a456-426614174000",
     });

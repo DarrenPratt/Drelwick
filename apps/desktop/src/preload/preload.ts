@@ -59,6 +59,9 @@ const api: DrelwickApi = {
     savePublication: (input) => ipcRenderer.invoke(IPC.PUBLICATION_SAVE, input),
     selectPublicationCover: (input) =>
       ipcRenderer.invoke(IPC.PUBLICATION_COVER, input),
+    getPrintConfiguration: (input) => ipcRenderer.invoke(IPC.PRINT_GET, input),
+    savePrintConfiguration: (input) =>
+      ipcRenderer.invoke(IPC.PRINT_SAVE, input),
     getBookTheme: (input) => ipcRenderer.invoke(IPC.BOOK_THEME_GET, input),
     setBookTheme: (input) => ipcRenderer.invoke(IPC.BOOK_THEME_SET, input),
     previewBook: (input) => ipcRenderer.invoke(IPC.BOOK_PREVIEW, input),

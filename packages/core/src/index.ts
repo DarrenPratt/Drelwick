@@ -658,3 +658,5 @@ export async function createProject(
 }
 
 export * from "./chapter-organisation.js";
+
+export * from "./print-configuration.js";

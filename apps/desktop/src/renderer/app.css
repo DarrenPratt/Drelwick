@@ -1796,3 +1796,17 @@ button svg {
   max-height: 12rem;
   overflow: auto;
 }
+
+.print-settings-dialog {
+  width: min(720px, 94vw);
+}
+.print-settings-dialog select {
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  font: inherit;
+}
+.print-settings-dialog select:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}

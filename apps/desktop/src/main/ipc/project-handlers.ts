@@ -11,6 +11,8 @@ import {
   savePublication,
   replacePublicationCover,
   loadBookTheme,
+  loadPrintConfiguration,
+  savePrintConfiguration,
   saveBookTheme,
   importImageAsset,
   readImageAsset,
@@ -555,6 +557,72 @@ export function registerProjectHandlers(
       } finally {
         busy = false;
         statusFinished?.();
+      }
+    });
+  }
+
+  for (const channel of [IPC.PRINT_GET, IPC.PRINT_SAVE] as const) {
+    ipcMain.handle(channel, async (event, payload: unknown) => {
+      await previewStatusSettled;
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      const parsed = IpcRequestSchemas[channel].safeParse(payload);
+      if (!parsed.success)
+        return failure(
+          "PROJECT_INPUT_INVALID",
+          "Invalid print settings. Check dimensions, margins and content area.",
+        );
+      if (!activeProjectPath || parsed.data.projectId !== activeProjectId)
+        return failure(
+          "PROJECT_NOT_OPEN",
+          "Reopen the project before accessing print settings.",
+        );
+      if (busy)
+        return failure(
+          "PROJECT_BUSY",
+          "Wait for the current project operation and retry.",
+        );
+      busy = true;
+      try {
+        await history.settleProject(activeProjectPath);
+        const value =
+          channel === IPC.PRINT_GET
+            ? await loadPrintConfiguration(
+                activeProjectPath,
+                parsed.data.projectId,
+              )
+            : await savePrintConfiguration({
+                projectPath: activeProjectPath,
+                ...IpcRequestSchemas[IPC.PRINT_SAVE].parse(payload),
+              });
+        if (!trusted(event))
+          return failure(
+            "PROJECT_ACCESS_DENIED",
+            "Project access is not permitted.",
+          );
+        return {
+          ok: true,
+          value,
+          ...("warning" in value ? { warning: value.warning } : {}),
+        };
+      } catch (error) {
+        if (
+          error instanceof ApplicationError &&
+          error.code === "PRINT_CONFIGURATION_STALE"
+        )
+          return failure(
+            error.code,
+            "Print settings changed since opening. Keep a note of your draft, close and reopen settings before retrying.",
+          );
+        return failure(
+          "PRINT_CONFIGURATION_FAILED",
+          "Unable to access print settings. Existing settings and manuscript files were preserved. Check project access or recovery files before retrying.",
+        );
+      } finally {
+        busy = false;
       }
     });
   }
