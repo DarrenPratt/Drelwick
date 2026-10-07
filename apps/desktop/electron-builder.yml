@@ -5,11 +5,17 @@ directories:
   output: release
   buildResources: assets
 files:
-  - dist/**
-  - assets/icons/**
+  - dist/main/**/*.js
+  - dist/preload/preload.cjs
+  - dist/renderer/index.html
+  - dist/renderer/assets/**
+  - assets/icons/app.ico
+  - assets/icons/app.png
   - package.json
   - "!**/*.map"
   - "!**/*.d.ts"
+  - "!**/*.d.cts"
+  - "!**/*.d.mts"
   - "!**/test/**"
   - "!**/tests/**"
   - "!**/fixtures/**"
@@ -20,7 +26,15 @@ files:
   - "!**/coverage/**"
   - "!**/playwright-report/**"
   - "!**/test-results/**"
-  - "!node_modules/**/src/**"
+  # Our workspace packages execute dist; third-party src can be runtime code.
+  - "!node_modules/@drelwick/*/src/**"
+  - "!node_modules/@drelwick/*/scripts/**"
+  - "!node_modules/@drelwick/*/tsconfig*.json"
+  - "!node_modules/@drelwick/*/vitest.config.*"
+  # Reviewed pinned dependencies execute dist or root JS, never these sources.
+  - "!node_modules/@tiptap/*/src/**"
+  - "!node_modules/prosemirror-*/src/**"
+  - "!node_modules/{entities,sharp,zod}/src/**"
   - "!node_modules/**/test/**"
   - "!node_modules/**/tests/**"
   - "!node_modules/**/fixtures/**"
@@ -45,6 +59,7 @@ win:
     - portable
     - nsis
 mac:
+  identity: null
   icon: assets/icons/app.png
   target:
     - dmg

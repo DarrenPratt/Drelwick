@@ -11,7 +11,7 @@ type Config = {
   files: (string | Mapping)[];
   linux: { executableName: string };
 };
-const { getConfig } = requireFromBuilder(
+const { getConfig, validateConfiguration } = requireFromBuilder(
   "app-builder-lib/out/util/config/config.js",
 ) as {
   getConfig(
@@ -19,6 +19,10 @@ const { getConfig } = requireFromBuilder(
     path: string,
     overrides: undefined,
   ): Promise<Config>;
+  validateConfiguration(
+    config: Config,
+    logger: { isEnabled: boolean },
+  ): Promise<void>;
 };
 const includeNativeImages =
   require("../scripts/include-native-images.cjs") as (context: {
@@ -88,4 +92,38 @@ it("copies native image packages exactly once even when dependency collection fi
       isDirectory: () => false,
     }),
   ).toBe(true);
+});
+
+it("resolves all platform targets and preserves dependency runtime source", async () => {
+  const config = await getConfig(desktop, "electron-builder.yml", undefined);
+  await validateConfiguration(config, { isEnabled: false });
+  const collected = getNodeModuleFileMatcher(
+    desktop,
+    join(desktop, "release"),
+    (value) => value,
+    {},
+    { config, debugLogger: { isEnabled: false } },
+  ).createFilter();
+  const stat = { isDirectory: () => false };
+  expect(
+    collected(join(desktop, "node_modules/runtime-library/src/index.js"), stat),
+  ).toBe(true);
+  expect(
+    collected(join(desktop, "node_modules/@drelwick/core/src/index.ts"), stat),
+  ).toBe(false);
+  expect(
+    collected(
+      join(desktop, "node_modules/@drelwick/core/dist/docx-parser.bundle.js"),
+      stat,
+    ),
+  ).toBe(true);
+  expect(
+    collected(join(desktop, "node_modules/dictionary-en/index.dic"), stat),
+  ).toBe(true);
+  expect(
+    collected(
+      join(desktop, "node_modules/runtime-library/tests/example.js"),
+      stat,
+    ),
+  ).toBe(false);
 });
