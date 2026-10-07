@@ -1553,8 +1553,13 @@ async function closePublishingApplication(
   application: ElectronApplication,
 ): Promise<void> {
   if (process.platform === "darwin") {
-    application.process().kill("SIGKILL");
-    await application.close().catch(() => undefined);
+    // Exercise Drelwick's save/clean-session handshake before restarting.
+    // SIGKILL leaves recovery pending; closing the last window does not quit macOS.
+    const closed = application.waitForEvent("close", { timeout: 15_000 });
+    await application.evaluate(({ app }) => {
+      setTimeout(() => app.quit(), 100);
+    });
+    await closed;
     return;
   }
   await application.close();
@@ -2172,6 +2177,11 @@ test("completes the offline DOCX to EPUB publishing workflow and independently i
       .click();
     await closePublishingApplication(application);
     application = undefined;
+    expect(
+      JSON.parse(
+        await readFile(join(scratch, "user-data", "session.json"), "utf8"),
+      ).cleanShutdown,
+    ).toBe(true);
     const restarted = await launchApplication(join(scratch, "user-data"));
     application = restarted.application;
     const reopened = restarted.page;
