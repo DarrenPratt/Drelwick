@@ -228,8 +228,11 @@ on every run. Actions are pinned to commit SHAs, checkout credentials are not
 persisted, and the workflow token has only read access to repository contents.
 New PR commits cancel obsolete runs. The desktop end-to-end suite is available
 through `pnpm test:e2e`; adding it to the hosted workflow remains part of the
-separate CI implementation issue. Platform packaging will be added with its
-implementation issue.
+separate CI implementation issue. The packaging matrix builds Windows
+portable/NSIS, macOS DMG and Linux AppImage/deb artifacts, then inspects and
+smoke-launches unpacked applications without publishing. See
+[desktop packaging](docs/desktop-packaging.md) for local commands, unsigned-build
+behaviour and platform validation limits.
 
 Branch protection requires the GitHub Actions check named `Quality checks`
 and an up-to-date branch, including for administrators. Keep that required name
