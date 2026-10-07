@@ -47,6 +47,13 @@ Electron Builder target selection and artifact naming are defined in
 from `apps/desktop/package.json`. The output directory is deliberately outside
 `dist/`, so stale development output is not mistaken for a package.
 
+`apps/desktop/package.json` is the authoritative application/package version
+source. The workspace root manifest has its own private workspace version, but
+Electron Builder is invoked from the desktop package and reads the desktop
+manifest; it does not use the root version. Artifact names therefore use the
+desktop package version, for example `Drelwick-0.0.0-win-x64.exe` for the
+current development version.
+
 ## Inclusion and runtime paths
 
 Packaging starts with `pnpm --filter @drelwick/desktop... build`, which rebuilds
@@ -95,8 +102,9 @@ Electron Builder should be run on the target operating system for reliable
 native artifacts. The configured `Linux packaging validation` CI job builds an
 unpacked Linux application, configures its Chromium sandbox helper, and runs the
 package validator against that same build; it does not build or
-validate AppImage/deb installers. The job has not been executed as part of this
-local recovery. All packaging commands explicitly disable publishing. Windows portable
+validate AppImage/deb installers. The job passed on CI run
+`37345022876` (Linux packaging validation job `111883727910`). All packaging
+commands explicitly disable publishing. Windows portable
 and NSIS output require Windows validation, and macOS DMG output requires macOS
 validation. A Windows build must not be described as macOS or Linux runtime
 evidence, and the current Linux CI check must not be described as Windows or
@@ -114,7 +122,7 @@ No signing, notarisation, app-store packaging, auto-update, release upload or
 publishing credentials are configured. Electron Builder may read standard
 platform signing variables when a maintainer deliberately supplies them (for
 example `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`,
-`APPLE_TEAM_ID` and `APPLE notarisation` settings), but this repository does not
+`APPLE_TEAM_ID` and Apple notarisation settings), but this repository does not
 set or require them. Never add credentials to the repository or CI logs.
 
 Unsigned artifacts from local builds and CI are validation artifacts only. The
@@ -133,3 +141,39 @@ profile. On macOS, open the DMG and perform the equivalent first-launch and
 renderer checks. On Linux, test both the AppImage and `.deb` installation on
 supported distributions. These checks are release validation, not publication
 approval.
+
+## Current validation evidence
+
+The following evidence was recorded from the current checkout on Windows
+(Node.js 24, pnpm 10.34.5, Electron Builder 26.0.12, x64) and from the
+successful Linux CI job above. “Built” means the target artifact or unpacked
+application was actually generated. “Runtime tested” is limited to the exact
+runtime described; it does not imply clean-install, installer, signing or
+cross-platform support.
+
+| Platform | Target               | Configured | Built      | Runtime tested                                                      |
+| -------- | -------------------- | ---------- | ---------- | ------------------------------------------------------------------- |
+| Windows  | NSIS installer       | PASS       | PASS       | NOT TESTED (unsigned installer was not installed)                   |
+| Windows  | Portable executable  | PASS       | PASS       | NOT TESTED (unsigned executable launch was blocked by local policy) |
+| macOS    | DMG                  | PASS       | NOT TESTED | NOT TESTED                                                          |
+| Linux    | AppImage             | PASS       | NOT TESTED | NOT TESTED                                                          |
+| Linux    | `.deb`               | PASS       | NOT TESTED | NOT TESTED                                                          |
+| Linux    | Unpacked application | PASS       | PASS (CI)  | PASS (CI smoke validator)                                           |
+
+Windows package artifacts from the local run were:
+
+| Artifact                                                   | Size              | SHA-256                                                            |
+| ---------------------------------------------------------- | ----------------- | ------------------------------------------------------------------ |
+| `apps/desktop/release/portable/Drelwick-0.0.0-win-x64.exe` | 95,379,669 bytes  | `CDA9B23DC7FDFC108E10681BEC42D2CD71D359E821DC86B16663E8BF174AC400` |
+| `apps/desktop/release/nsis/Drelwick-0.0.0-win-x64.exe`     | 105,999,765 bytes | `D4F8F5F70C32F0996A8E689E34AD9C5584EF758B0BB9A1BAE389CFEAEBAD5B03` |
+
+The unpacked Windows application was inspected with
+`pnpm --filter @drelwick/desktop package:validate`. It contained the compiled
+main process, preload, renderer index, icons, production dependencies and
+unpacked Sharp native libraries; no repository source, tests, fixtures,
+coverage, reports, environment files or manuscript/project data were present.
+The validator launched that packaged application and observed the
+`renderer-and-preload-ok` smoke marker. The portable and NSIS container files
+were generated successfully, but their clean install/launch behavior remains
+unvalidated because the local Windows Application Control policy blocks
+unsigned executable launch.
