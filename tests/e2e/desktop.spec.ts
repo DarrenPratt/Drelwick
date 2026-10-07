@@ -2025,7 +2025,11 @@ test("reviews DOCX warnings and chapter mapping, then imports, edits, saves and 
 
 test("completes the offline DOCX to EPUB publishing workflow and independently inspects both outputs", async () => {
   test.setTimeout(120_000);
-  const scratch = await mkdtemp(join(tmpdir(), "drelwick-publishing-e2e-"));
+  // macOS tmpdir() can use /var -> /private/var. Picker mocks must use the
+  // canonical test-owned directory: import deliberately rejects symlink paths.
+  const scratch = await realpath(
+    await mkdtemp(join(tmpdir(), "drelwick-publishing-e2e-")),
+  );
   const source = join(scratch, "fixture.docx");
   const destination = join(scratch, "imported");
   const cover = join(scratch, "cover.png");
