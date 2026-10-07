@@ -52,6 +52,7 @@ const knownProjectRoots = new Set([
   "book.json",
   "format.json",
   "presentation.json",
+  "print.json",
   "publication.json",
   "cover.jpg",
 ]);

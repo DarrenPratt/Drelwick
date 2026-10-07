@@ -23,3 +23,5 @@ export * from "./publication.js";
 export * from "./manuscript-import.js";
 export * from "./replacement-journal.js";
 export * from "./spelling-settings.js";
+
+export * from "./print-configuration.js";

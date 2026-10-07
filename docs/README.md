@@ -19,6 +19,8 @@ The [local publishing delivery plan](planning/local-publishing-plan.md) updates 
 
 Operational documents:
 
+- [Community print settings, dimensions and font requirements](print-settings.md)
+
 - [Editable Community DOCX export and support matrix](docx-export.md)
 
 - [Pro integration readiness and public API blockers](planning/61-pro-readiness.md)

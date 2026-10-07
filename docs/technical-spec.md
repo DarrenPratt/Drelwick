@@ -1828,66 +1828,32 @@ Example:
 
 # 52. Print Settings
 
-```typescript
-interface PrintSettings {
-  trim: {
-    width: string;
-    height: string;
-  };
+Implemented by #128 as optional version-1 `print.json`. The persistent envelope
+is owned by `packages/project-model`; `packages/shared` exposes the renderer-safe
+`PrintSettingsSchema`, DTOs, unit conversions and mirrored geometry helper.
+`packages/core` owns path validation, defaulting, stale-revision checks, the
+project lock and atomic persistence. Desktop uses restricted validated IPC.
 
-  margins: {
-    top: string;
-    bottom: string;
-    inside: string;
-    outside: string;
-  };
+The model stores integer micrometres for trim width/height, mirrored
+inside/outside/top/bottom margins and additional gutter. Unit preference is
+`in` or `mm`; it does not change physical dimensions. Chapter starts, semantic
+verso/recto headers and footer page-number behavior remain independent of
+manuscript and ebook configuration. Missing components default without writes;
+unknown/newer data blocks print operations without replacement. No existing
+project schema bump or destructive migration is required.
 
-  chapters: {
-    startOnRecto: boolean;
-    hidePageNumberOnOpening: boolean;
-  };
-
-  headers: {
-    enabled: boolean;
-  };
-
-  pageNumbers: {
-    enabled: boolean;
-  };
-}
-```
+See [implemented settings, limits, semantics, fonts and recovery](print-settings.md).
+The paged-CSS/PDF examples in subsequent sections remain future guidance for #129,
+not evidence of implemented pagination.
 
 ---
 
 # 53. Trim Presets
 
-```typescript
-const trimPresets = {
-  "5x8": {
-    width: "5in",
-    height: "8in",
-  },
-
-  "5.25x8": {
-    width: "5.25in",
-    height: "8in",
-  },
-
-  "5.5x8.5": {
-    width: "5.5in",
-    height: "8.5in",
-  },
-
-  "6x9": {
-    width: "6in",
-    height: "9in",
-  },
-};
-```
-
-Do not hard-code publishing-platform rules into the general trim model.
-
-Those should live in separate validation presets.
+Implemented Community presets: 5 × 8, 5.25 × 8, 5.5 × 8.5 and 6 × 9 inches,
+plus A5 (148 × 210 mm), with custom dimensions. `PRINT_TRIM_PRESETS` is the
+single typed catalogue; persisted preset dimensions must match it exactly.
+No publishing-platform rules are embedded in the general trim model.
 
 ---
 

@@ -142,8 +142,8 @@ copies prose or invokes another semantic renderer.
 
 - #124 consumes the selected theme and ebook CSS for the [reflowable preview](ebook-preview.md).
 - #126 can package the shared XHTML and ebook CSS; `requiredAssets` is empty today.
-- #128 owns physical book layout (trim, gutters, headers and page configuration),
-  separately from typography. #129 owns pagination/print rendering/PDF.
+- #128 implements [physical book configuration](print-settings.md) (trim, gutters,
+  headers and page numbers), separately from typography. #129 owns pagination/print rendering/PDF.
 - #133 may evolve the versioned presentation vocabulary after its design/security
   decisions. This change accepts no custom/imported CSS, theme packages, arbitrary
   fonts, dynamic modules, plugins or user-defined themes.

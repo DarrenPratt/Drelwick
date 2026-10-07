@@ -28,8 +28,9 @@ if (!platformDirectory) {
 
 const applicationDirectory = resolve(
   desktopDirectory,
-  "release",
-  platformDirectory,
+  process.argv
+    .find((argument) => argument.startsWith("--app-dir="))
+    ?.slice("--app-dir=".length) ?? join("release", platformDirectory),
 );
 const resourcesDirectory =
   process.platform === "darwin"
@@ -65,6 +66,17 @@ const requiredEntries = [
   "dist/preload/preload.cjs",
   "dist/renderer/index.html",
   "assets/icons/app.png",
+  "node_modules/@drelwick/core/dist/index.js",
+  "node_modules/@drelwick/core/dist/docx-parser.bundle.js",
+  "node_modules/@drelwick/core/dist/text-parser.bundle.js",
+  "node_modules/@drelwick/project-model/dist/index.js",
+  "node_modules/@drelwick/renderer/dist/index.js",
+  "node_modules/@drelwick/shared/dist/index.js",
+  "dist/main/spelling-worker.js",
+  "node_modules/dictionary-en/index.aff",
+  "node_modules/dictionary-en/index.dic",
+  "node_modules/dictionary-en-gb/index.aff",
+  "node_modules/dictionary-en-gb/index.dic",
 ];
 for (const entry of requiredEntries) {
   if (!normalizedEntries.includes(entry))
@@ -83,7 +95,6 @@ for (const entry of nativeImageFiles) {
 }
 
 const forbiddenFragments = [
-  "/src/",
   "/test/",
   "/tests/",
   "/fixtures/",
@@ -91,10 +102,16 @@ const forbiddenFragments = [
   "/coverage/",
   "/playwright-report/",
   "/test-results/",
+  "/.history/",
+  "/manuscript/",
+  "/package-smoke-",
   ".env",
 ];
-const forbiddenEntries = normalizedEntries.filter((entry) =>
-  forbiddenFragments.some((fragment) => `/${entry}`.includes(fragment)),
+const forbiddenEntries = normalizedEntries.filter(
+  (entry) =>
+    forbiddenFragments.some((fragment) => `/${entry}`.includes(fragment)) ||
+    /^node_modules\/@drelwick\/[^/]+\/(src|scripts)\//.test(entry) ||
+    /\.(map|d\.[cm]?ts)$/.test(entry),
 );
 if (forbiddenEntries.length > 0) {
   throw new Error(
@@ -107,6 +124,27 @@ const packageJson = JSON.parse(
 );
 if (packageJson.main !== "dist/main/main.js") {
   throw new Error(`Unexpected packaged main entry: ${packageJson.main}`);
+}
+const sourceManifest = JSON.parse(
+  readFileSync(join(desktopDirectory, "package.json"), "utf8"),
+);
+if (packageJson.version !== sourceManifest.version) {
+  throw new Error("Packaged version differs from the desktop manifest");
+}
+const rendererHtml = extractFile(
+  archivePath,
+  join("dist", "renderer", "index.html"),
+).toString("utf8");
+const rendererAssets = [
+  ...rendererHtml.matchAll(/(?:src|href)="\.\/(assets\/[^"?#]+)"/g),
+];
+if (!rendererAssets.some((match) => match[1].endsWith(".js"))) {
+  throw new Error("Packaged renderer has no bundled script");
+}
+for (const [, asset] of rendererAssets) {
+  if (!normalizedEntries.includes(`dist/renderer/${asset}`)) {
+    throw new Error(`Missing renderer asset: ${asset}`);
+  }
 }
 if (packageJson.devDependencies) {
   throw new Error(

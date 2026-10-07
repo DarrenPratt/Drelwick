@@ -30,6 +30,12 @@ the [tracking register](planning/github-tracking.md#pre-release-product-identity
 
 ## Implemented format
 
+Issue #128 adds optional version-1 `print.json`, separate from manuscript, ebook
+and theme configuration. Missing settings use deterministic defaults without a
+write or manifest migration; explicit saves atomically replace this component.
+Unknown/newer configuration is preserved and blocks print operations. Portable
+backups include it. See [print settings](print-settings.md).
+
 Issue #123 adds optional version-1 `publication.json` for publication metadata,
 semantic matter pages, independent inclusion flags and the managed cover UUID.
 Existing chapter/manifest/book versions and bytes are preserved. Its additive

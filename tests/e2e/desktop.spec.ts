@@ -1553,8 +1553,13 @@ async function closePublishingApplication(
   application: ElectronApplication,
 ): Promise<void> {
   if (process.platform === "darwin") {
-    application.process().kill("SIGKILL");
-    await application.close().catch(() => undefined);
+    // Exercise Drelwick's save/clean-session handshake before restarting.
+    // SIGKILL leaves recovery pending; closing the last window does not quit macOS.
+    const closed = application.waitForEvent("close", { timeout: 15_000 });
+    await application.evaluate(({ app }) => {
+      setTimeout(() => app.quit(), 100);
+    });
+    await closed;
     return;
   }
   await application.close();
@@ -2025,7 +2030,11 @@ test("reviews DOCX warnings and chapter mapping, then imports, edits, saves and 
 
 test("completes the offline DOCX to EPUB publishing workflow and independently inspects both outputs", async () => {
   test.setTimeout(120_000);
-  const scratch = await mkdtemp(join(tmpdir(), "drelwick-publishing-e2e-"));
+  // macOS tmpdir() can use /var -> /private/var. Picker mocks must use the
+  // canonical test-owned directory: import deliberately rejects symlink paths.
+  const scratch = await realpath(
+    await mkdtemp(join(tmpdir(), "drelwick-publishing-e2e-")),
+  );
   const source = join(scratch, "fixture.docx");
   const destination = join(scratch, "imported");
   const cover = join(scratch, "cover.png");
@@ -2168,6 +2177,11 @@ test("completes the offline DOCX to EPUB publishing workflow and independently i
       .click();
     await closePublishingApplication(application);
     application = undefined;
+    expect(
+      JSON.parse(
+        await readFile(join(scratch, "user-data", "session.json"), "utf8"),
+      ).cleanShutdown,
+    ).toBe(true);
     const restarted = await launchApplication(join(scratch, "user-data"));
     application = restarted.application;
     const reopened = restarted.page;
@@ -2638,6 +2652,161 @@ test("Chapter History preserves unsaved B before restoring rich OLD and remains 
       recursive: true,
       force: true,
       maxRetries: 10,
+      retryDelay: 200,
+    });
+  }
+});
+
+test("Community print settings persist offline and preserve manuscript and ebook files", async () => {
+  const fixture = await copyFixture("public-example");
+  const scratch = await mkdtemp(join(tmpdir(), "drelwick-print-settings-"));
+  let application: ElectronApplication | undefined;
+  try {
+    const paths = [
+      "project.json",
+      "book.json",
+      "publication.json",
+      "presentation.json",
+      ...(await readdir(join(fixture.projectPath, "manuscript"))).map(
+        (name) => `manuscript/${name}`,
+      ),
+    ];
+    const before = await Promise.all(
+      paths.map((path) => readFile(join(fixture.projectPath, path))),
+    );
+    const userData = join(scratch, "user-data");
+    const launched = await launchApplication(userData);
+    application = launched.application;
+    const page = launched.page;
+    await page.context().setOffline(true);
+    const requests: string[] = [];
+    await page.route(/^https?:/, async (route) => {
+      requests.push(route.request().url());
+      await route.abort();
+    });
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, fixture.projectPath);
+    await page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    await expect(page.locator(".ProseMirror")).toBeEditable();
+    await page
+      .getByRole("button", { name: "Book design", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Print settings", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog", {
+      name: "Print settings",
+      exact: true,
+    });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByLabel("Trim width (in)")).toHaveValue("6");
+    await dialog.getByLabel("Trim size", { exact: true }).selectOption("a5");
+    await dialog.getByLabel("Measurement units").selectOption("mm");
+    await expect(dialog.getByLabel("Trim width (mm)")).toHaveValue("148");
+    await dialog.getByLabel("Chapter starts").selectOption("recto");
+    await dialog
+      .getByLabel("Left-hand page header")
+      .selectOption("chapter-title");
+    await dialog
+      .getByLabel("Page number position")
+      .selectOption("footer-outside");
+    await dialog
+      .getByRole("button", { name: "Save print settings", exact: true })
+      .click();
+    await expect(dialog.getByRole("status")).toContainText(
+      "Print settings saved.",
+    );
+    const printPath = join(fixture.projectPath, "print.json");
+    const saved = await readFile(printPath);
+    await dialog
+      .getByLabel("Trim size", { exact: true })
+      .selectOption("custom");
+    await dialog.getByLabel("Trim width (mm)").fill("0");
+    await dialog
+      .getByRole("button", { name: "Save print settings", exact: true })
+      .click();
+    await expect(dialog.getByRole("alert")).toContainText("at least");
+    expect(await readFile(printPath)).toEqual(saved);
+    await dialog.getByLabel("Trim width (mm)").fill("155");
+    await writeFile(`${printPath}.tmp`, "synthetic retained evidence");
+    await dialog
+      .getByRole("button", { name: "Save print settings", exact: true })
+      .click();
+    await expect(dialog.getByRole("alert")).toContainText("preserved");
+    await expect(dialog.getByLabel("Trim width (mm)")).toHaveValue("155");
+    expect(await readFile(printPath)).toEqual(saved);
+    await rm(`${printPath}.tmp`);
+    await dialog
+      .getByRole("button", { name: "Save print settings", exact: true })
+      .click();
+    await expect(dialog.getByRole("status")).toContainText(
+      "Print settings saved.",
+    );
+    await dialog.screenshot({
+      path: test.info().outputPath("print-settings.png"),
+    });
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    expect(
+      await Promise.all(
+        paths.map((path) => readFile(join(fixture.projectPath, path))),
+      ),
+    ).toEqual(before);
+    expect(requests).toEqual([]);
+    await closePublishingApplication(application);
+    application = undefined;
+    const restarted = await launchApplication(userData);
+    application = restarted.application;
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, fixture.projectPath);
+    await restarted.page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    await restarted.page
+      .getByRole("button", { name: "Book design", exact: true })
+      .click();
+    await restarted.page
+      .getByRole("button", { name: "Print settings", exact: true })
+      .click();
+    const reopened = restarted.page.getByRole("dialog", {
+      name: "Print settings",
+      exact: true,
+    });
+    await expect(reopened.getByLabel("Trim width (mm)")).toHaveValue("155");
+    await expect(reopened.getByLabel("Chapter starts")).toHaveValue("recto");
+    await expect(reopened.getByLabel("Left-hand page header")).toHaveValue(
+      "chapter-title",
+    );
+    await expect(reopened.getByLabel("Page number position")).toHaveValue(
+      "footer-outside",
+    );
+    await reopened.getByRole("button", { name: "Close", exact: true }).click();
+    expect(
+      await Promise.all(
+        paths.map((path) => readFile(join(fixture.projectPath, path))),
+      ),
+    ).toEqual(before);
+  } finally {
+    if (application) {
+      await application.evaluate(({ BrowserWindow }) => {
+        for (const window of BrowserWindow.getAllWindows()) window.destroy();
+      });
+      await application.close();
+    }
+    await fixture.cleanup();
+    await rm(scratch, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
       retryDelay: 200,
     });
   }

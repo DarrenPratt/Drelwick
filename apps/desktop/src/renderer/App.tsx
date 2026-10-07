@@ -1,3 +1,5 @@
+import { PrintSettingsDialog } from "./PrintSettingsDialog.js";
+import type { PrintConfigurationState } from "@drelwick/shared";
 import { exportSavedDocx } from "./docx-export.js";
 import { exportSavedEpub } from "./epub-export.js";
 import {
@@ -52,6 +54,9 @@ import {
 } from "./document-state.js";
 
 export function App() {
+  const [printConfiguration, setPrintConfiguration] =
+    useState<PrintConfigurationState | null>(null);
+  const [loadingPrint, setLoadingPrint] = useState(false);
   const [publication, setPublication] = useState<PublicationState | null>(null);
   const [loadingPublication, setLoadingPublication] = useState(false);
   const [bookPreview, setBookPreview] = useState<BookPreview | null>(null);
@@ -136,6 +141,8 @@ export function App() {
   const autosave = useRef<AutosaveCoordinator | null>(null);
   const saveSource = useRef<"autosave" | "manual">("autosave");
   const changingDocument =
+    printConfiguration !== null ||
+    loadingPrint ||
     publication !== null ||
     loadingPublication ||
     savingTheme ||
@@ -1109,6 +1116,34 @@ export function App() {
     }
   }
 
+  async function editPrintSettings() {
+    if (!project || pending.current || changingDocument) return;
+    pending.current = true;
+    setLoadingPrint(true);
+    setError("");
+    searchEditor?.setEditable(false, false);
+    let opened = false;
+    try {
+      const result = await window.drelwick.project.getPrintConfiguration({
+        projectId: project.projectId,
+      });
+      if (result.ok) {
+        setPrintConfiguration(result.value);
+        opened = true;
+      } else setError(result.error.message);
+    } catch {
+      setError(
+        "Unable to open print settings. Your manuscript remains unchanged.",
+      );
+    } finally {
+      setLoadingPrint(false);
+      if (!opened) {
+        pending.current = false;
+        searchEditor?.setEditable(true, false);
+      }
+    }
+  }
+
   async function editPublication() {
     if (!project || pending.current || changingDocument) return;
     pending.current = true;
@@ -1420,6 +1455,12 @@ export function App() {
                 Choose a preset for this book, then open Book preview to see it.
               </p>
               {themeSelector}
+              <button
+                disabled={changingDocument}
+                onClick={() => void editPrintSettings()}
+              >
+                Print settings
+              </button>
             </div>
           }
           key={project.projectId}
@@ -1939,6 +1980,17 @@ export function App() {
           onClose={() => {
             setBookPreview(null);
             searchEditor?.commands.focus();
+          }}
+        />
+      )}
+      {printConfiguration && project && (
+        <PrintSettingsDialog
+          initial={printConfiguration}
+          projectId={project.projectId}
+          onClose={() => {
+            setPrintConfiguration(null);
+            pending.current = false;
+            searchEditor?.setEditable(true, false);
           }}
         />
       )}

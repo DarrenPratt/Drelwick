@@ -158,6 +158,8 @@ beforeEach(async () => {
       return () => menuListeners.delete(callback);
     }),
     project: {
+      getPrintConfiguration: vi.fn(),
+      savePrintConfiguration: vi.fn(),
       exportDocx: vi.fn().mockResolvedValue({
         ok: true,
         value: { created: true, revision: "revision", warnings: [] },
