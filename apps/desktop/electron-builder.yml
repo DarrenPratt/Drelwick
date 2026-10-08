@@ -39,6 +39,7 @@ files:
   - "!node_modules/**/tests/**"
   - "!node_modules/**/fixtures/**"
   - "!node_modules/@img/sharp-*{,/**/*}"
+  - "!node_modules/@napi-rs/canvas-*{,/**/*}"
 asar: true
 beforePack: scripts/include-native-images.cjs
 asarUnpack:

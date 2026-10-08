@@ -13,6 +13,7 @@ import type {
 } from "./types.js";
 export * from "./types.js";
 export * from "./themes.js";
+export * from "./print.js";
 
 /** Deliberate publishing vocabulary. Dispatch below is exhaustive over these keys. */
 export const SEMANTIC_NODES = [

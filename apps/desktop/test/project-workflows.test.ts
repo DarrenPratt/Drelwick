@@ -158,6 +158,7 @@ beforeEach(async () => {
       return () => menuListeners.delete(callback);
     }),
     project: {
+      previewPrint: vi.fn(),
       getPrintConfiguration: vi.fn(),
       savePrintConfiguration: vi.fn(),
       exportDocx: vi.fn().mockResolvedValue({
@@ -1337,6 +1338,34 @@ describe("chapter editor persistence", () => {
     expect(editor().getText()).toBe("Latest unsaved prose");
     expect(editor().isEditable).toBe(true);
     expect(saveStatus()).toBe("Unsaved changes");
+    expect(container.textContent).toContain("Preview was cancelled");
+  });
+
+  it("flushes before print rendering and cancels after a failed save", async () => {
+    await openChapter();
+    await editText("Print draft");
+    const print = vi.mocked(window.drelwick.project.previewPrint);
+    print.mockResolvedValue({
+      ok: false,
+      error: {
+        code: "PRINT_PREVIEW_FAILED",
+        message: "Synthetic render failure",
+      },
+    });
+    await click("Print preview");
+    expect(print).toHaveBeenCalledWith({ projectId: workspace.projectId });
+    expect(saveChapter.mock.invocationCallOrder.at(-1)).toBeLessThan(
+      print.mock.invocationCallOrder[0]!,
+    );
+    expect(editor().isEditable).toBe(true);
+    await editText("Retained print draft");
+    saveChapter.mockResolvedValueOnce({
+      ok: false,
+      error: { code: "FAILED", message: "Save failed" },
+    });
+    await click("Print preview");
+    expect(print).toHaveBeenCalledOnce();
+    expect(editor().getText()).toBe("Print draftRetained print draft");
     expect(container.textContent).toContain("Preview was cancelled");
   });
 

@@ -1525,9 +1525,16 @@ test("imports local images, edits semantics and reopens a portable project offli
   }
 });
 
-async function launchApplication(userDataDirectory: string) {
+async function launchApplication(
+  userDataDirectory: string,
+  executablePath?: string,
+) {
   const application = await electron.launch({
-    args: [desktopDirectory, `--user-data-dir=${userDataDirectory}`],
+    ...(executablePath ? { executablePath } : {}),
+    args: [
+      ...(executablePath ? [] : [desktopDirectory]),
+      `--user-data-dir=${userDataDirectory}`,
+    ],
     cwd: desktopDirectory,
     env: {
       ...process.env,
@@ -2652,6 +2659,84 @@ test("Chapter History preserves unsaved B before restoring rich OLD and remains 
       recursive: true,
       force: true,
       maxRetries: 10,
+      retryDelay: 200,
+    });
+  }
+});
+
+test("PDF-backed print preview displays full-book facing pages offline and preserves the previous PDF on failure", async () => {
+  const fixture = await copyFixture("multi-chapter-book");
+  const scratch = await mkdtemp(join(tmpdir(), "drelwick-pdf-preview-"));
+  let application: ElectronApplication | undefined;
+  try {
+    const launched = await launchApplication(
+      join(scratch, "profile"),
+      process.env["DRELWICK_PRINT_TEST_EXECUTABLE"],
+    );
+    application = launched.application;
+    const page = launched.page;
+    await page.context().setOffline(true);
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, fixture.projectPath);
+    await page
+      .getByRole("button", { name: "Open project", exact: true })
+      .click();
+    await expect(page.locator(".ProseMirror")).toBeEditable();
+    await page
+      .getByRole("button", { name: "Book preview", exact: true })
+      .first()
+      .click();
+    // The workspace panel and action share a label; switch to its print action.
+    const ebookDialog = page.getByRole("button", {
+      name: "Close preview",
+      exact: true,
+    });
+    await ebookDialog.click();
+    await page
+      .getByRole("button", { name: "Print preview", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog", {
+      name: "Print preview",
+      exact: true,
+    });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator("canvas")).toHaveCount(1);
+    await expect
+      .poll(() =>
+        dialog
+          .locator("canvas")
+          .evaluate((canvas) => (canvas as HTMLCanvasElement).width),
+      )
+      .toBeGreaterThan(300);
+    await dialog.getByRole("button", { name: "Next pages" }).click();
+    await expect(dialog.locator("canvas")).toHaveCount(2);
+    await dialog.screenshot({
+      path: test.info().outputPath("pdf-facing-pages.png"),
+    });
+    await writeFile(
+      join(fixture.projectPath, "print.json.tmp"),
+      "synthetic recovery evidence",
+    );
+    await dialog.getByRole("button", { name: "Refresh print preview" }).click();
+    await expect(dialog.getByRole("alert")).toContainText("Unable to render");
+    await expect(dialog.locator("canvas")).toHaveCount(2);
+    await dialog.getByRole("button", { name: "Close print preview" }).click();
+  } finally {
+    if (application) {
+      await application.evaluate(({ BrowserWindow }) => {
+        for (const window of BrowserWindow.getAllWindows()) window.destroy();
+      });
+      await application.close();
+    }
+    await fixture.cleanup();
+    await rm(scratch, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
       retryDelay: 200,
     });
   }

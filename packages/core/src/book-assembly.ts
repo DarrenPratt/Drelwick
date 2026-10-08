@@ -18,8 +18,11 @@ import {
 import type { BookPresentation } from "@drelwick/project-model";
 import { PUBLICATION_INCLUSION } from "@drelwick/shared";
 import { readPublication, PUBLICATION_FILE } from "./publication.js";
+import { readPrintConfiguration } from "./print-configuration.js";
+import type { PrintConfigurationState } from "@drelwick/shared";
 
 export interface AssembledBook {
+  print?: PrintConfigurationState;
   presentation: BookPresentation;
   book: BookRevision;
   /** Captured validated originals, not paths to files that could change later. */
@@ -35,6 +38,7 @@ const failure = (code: string) =>
 export async function assembleBook(
   projectPath: string,
   options: {
+    print?: boolean;
     /** Internal deterministic test seam, never exposed over IPC. */
     checkpoint?: (chapterId: string) => Promise<void>;
   } = {},
@@ -47,9 +51,21 @@ export async function assembleBook(
     throw failure("PROJECT_BUSY");
   }
   try {
+    const started = Date.now();
+    let capturedSize = 0;
+    const checkPrintBudget = () => {
+      if (
+        options.print &&
+        (capturedSize > 64 * 1024 * 1024 || Date.now() - started > 30_000)
+      )
+        throw failure("PRINT_RESOURCE_LIMIT");
+    };
     const captured = new Map<string, Buffer>();
     const capture = async (path: string) => {
+      checkPrintBudget();
       const bytes = await boundedRead(path, 64 * 1024 * 1024);
+      capturedSize += bytes.byteLength;
+      checkPrintBudget();
       captured.set(path, bytes);
       return bytes;
     };
@@ -67,6 +83,9 @@ export async function assembleBook(
       projectPath,
       session.project.projectId,
     );
+    const print = options.print
+      ? await readPrintConfiguration(projectPath, session.project.projectId)
+      : undefined;
     if (presentation.bytes)
       captured.set(
         join(projectPath, BOOK_PRESENTATION_FILE),
@@ -181,6 +200,8 @@ export async function assembleBook(
           descriptor: { id, mediaType, width, height, byteSize, sha256 },
         });
         assets.set(id, new Uint8Array(bytes));
+        capturedSize += bytes.byteLength;
+        checkPrintBudget();
         captured.set(
           join(
             projectPath,
@@ -194,7 +215,8 @@ export async function assembleBook(
       } catch (error) {
         if (
           error instanceof ApplicationError &&
-          error.code === "BOOK_REVISION_CHANGED"
+          (error.code === "BOOK_REVISION_CHANGED" ||
+            error.code === "PRINT_RESOURCE_LIMIT")
         )
           throw error;
         let status: "missing" | "invalid" = "invalid";
@@ -212,6 +234,7 @@ export async function assembleBook(
       }
     }
     for (const [path, bytes] of captured) {
+      checkPrintBudget();
       if (!(await boundedRead(path, 64 * 1024 * 1024)).equals(bytes))
         throw failure("BOOK_REVISION_CHANGED");
     }
@@ -243,7 +266,14 @@ export async function assembleBook(
       JSON.stringify(latestPresentation.settings)
     )
       throw failure("BOOK_REVISION_CHANGED");
+    if (
+      print &&
+      (await readPrintConfiguration(projectPath, session.project.projectId))
+        .revision !== print.revision
+    )
+      throw failure("BOOK_REVISION_CHANGED");
     return {
+      ...(print ? { print } : {}),
       book: { ...value, revision },
       assets,
       presentation: presentation.settings,

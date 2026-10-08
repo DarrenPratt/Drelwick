@@ -19,6 +19,7 @@ The [local publishing delivery plan](planning/local-publishing-plan.md) updates 
 
 Operational documents:
 
+- [Local print pagination and PDF-backed preview](print-preview.md)
 - [Community print settings, dimensions and font requirements](print-settings.md)
 
 - [Editable Community DOCX export and support matrix](docx-export.md)

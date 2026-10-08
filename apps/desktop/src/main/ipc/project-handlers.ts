@@ -58,6 +58,8 @@ import {
 import { basename, dirname, join } from "node:path";
 import { exportDocx } from "../docx-export.js";
 import { exportEpub } from "../epub-export.js";
+import { preparePrintPreview } from "../print-render.js";
+import { createPrintSurface } from "../print-surface.js";
 
 interface HistoryTasks {
   scheduleSnapshot(input: {
@@ -74,6 +76,7 @@ interface HistoryTasks {
 }
 
 interface Dependencies {
+  previewPrint: typeof preparePrintPreview;
   exportDocx: typeof exportDocx;
   exportEpub: typeof exportEpub;
   selectImage(window: BrowserWindow): Promise<string | null>;
@@ -104,6 +107,7 @@ interface Dependencies {
 }
 
 const dependencies: Dependencies = {
+  previewPrint: preparePrintPreview,
   exportDocx,
   exportEpub,
   selectImage: async (window) => {
@@ -427,6 +431,56 @@ export function registerProjectHandlers(
       return failure(
         "EPUB_EXPORT_FAILED",
         "Unable to export a consistent manuscript. Save pending edits, resolve project recovery or missing assets, and retry.",
+      );
+    } finally {
+      busy = false;
+    }
+  });
+
+  ipcMain.handle(IPC.PRINT_PREVIEW, async (event, payload: unknown) => {
+    await previewStatusSettled;
+    if (!trusted(event))
+      return failure(
+        "PROJECT_ACCESS_DENIED",
+        "Project access is not permitted.",
+      );
+    const parsed = IpcRequestSchemas[IPC.PRINT_PREVIEW].safeParse(payload);
+    if (!parsed.success)
+      return failure("PROJECT_INPUT_INVALID", "Invalid print preview request.");
+    if (!activeProjectPath || parsed.data.projectId !== activeProjectId)
+      return failure(
+        "PROJECT_NOT_OPEN",
+        "Reopen the project before previewing.",
+      );
+    if (busy)
+      return failure(
+        "PROJECT_BUSY",
+        "Wait for the current project operation and retry.",
+      );
+    busy = true;
+    try {
+      await history.settleProject(activeProjectPath);
+      const value = await services.previewPrint(
+        activeProjectPath,
+        parsed.data.projectId,
+        createPrintSurface,
+      );
+      if (!trusted(event) || activeProjectId !== parsed.data.projectId)
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      return { ok: true, value };
+    } catch (error) {
+      const code =
+        error instanceof ApplicationError && /^PRINT_[A-Z_]+$/.test(error.code)
+          ? error.code
+          : "PRINT_PREVIEW_FAILED";
+      return failure(
+        code,
+        code === "PRINT_UNRESOLVED_FONT"
+          ? "This book contains characters outside the bundled print fonts. Print preview was stopped to avoid silent font substitution."
+          : "Unable to render print preview. Check print settings, images and recovery files, then retry. Your manuscript is unchanged.",
       );
     } finally {
       busy = false;

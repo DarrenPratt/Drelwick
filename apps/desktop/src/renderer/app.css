@@ -1810,3 +1810,32 @@ button svg {
   outline: 2px solid currentColor;
   outline-offset: 2px;
 }
+.print-preview-dialog {
+  width: min(1100px, 94vw);
+  max-height: 94vh;
+}
+.print-preview-dialog button,
+.print-preview-dialog label {
+  margin: 0.4rem;
+}
+.print-pdf-pages {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  background: #555;
+  padding: 1rem;
+}
+.print-pdf-pages > * {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.print-pdf-pages canvas {
+  width: 100%;
+  height: auto;
+  background: white;
+}
+.print-pdf-pages figcaption {
+  color: white;
+  text-align: center;
+}

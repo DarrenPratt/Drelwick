@@ -67,7 +67,14 @@ interface HistoryTestTasks {
   shutdown(): Promise<void>;
 }
 
-function setup(path: string, save = saveChapter, history?: HistoryTestTasks) {
+function setup(
+  path: string,
+  save = saveChapter,
+  history?: HistoryTestTasks,
+  previewPrint?: NonNullable<
+    Parameters<typeof registerProjectHandlers>[2]
+  >["previewPrint"],
+) {
   handle.mockReset();
   const frame = { url: "file:///app/index.html" };
   const webContents = { mainFrame: frame };
@@ -90,6 +97,7 @@ function setup(path: string, save = saveChapter, history?: HistoryTestTasks) {
     saveChapter: save,
     logger,
     ...(history ? { history } : {}),
+    ...(previewPrint ? { previewPrint } : {}),
   });
   const invoke = (
     channel: string,
@@ -129,6 +137,51 @@ const document = {
     { type: "blockquote", content: [{ type: "paragraph" }] },
   ],
 };
+
+it("restricts print preview to the active trusted project and never logs render failures", async () => {
+  const f = await fixture();
+  const preview = vi
+    .fn()
+    .mockRejectedValue(new Error("PRIVATE MANUSCRIPT CONTENT"));
+  const { invoke, event, logger, settleHistory } = setup(
+    f.root,
+    saveChapter,
+    undefined,
+    preview,
+  );
+  try {
+    const projectId = (await openProject(f.root)).project.projectId;
+    expect(await invoke(IPC.PRINT_PREVIEW, { projectId })).toMatchObject({
+      ok: false,
+      error: { code: "PROJECT_NOT_OPEN" },
+    });
+    await invoke(IPC.PROJECT_OPEN);
+    expect(
+      await invoke(IPC.PRINT_PREVIEW, { projectId, projectPath: f.root }),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_INPUT_INVALID" } });
+    expect(
+      await invoke(IPC.PRINT_PREVIEW, { projectId }, {
+        ...event,
+        senderFrame: { url: event.senderFrame!.url },
+      } as IpcMainInvokeEvent),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_ACCESS_DENIED" } });
+    expect(preview).not.toHaveBeenCalled();
+    const result = await invoke(IPC.PRINT_PREVIEW, { projectId });
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "PRINT_PREVIEW_FAILED" },
+    });
+    expect(JSON.stringify(result)).not.toContain("PRIVATE");
+    expect(preview).toHaveBeenCalledWith(
+      f.root,
+      projectId,
+      expect.any(Function),
+    );
+    expect(logger.error).not.toHaveBeenCalled();
+  } finally {
+    await settleHistory();
+  }
+});
 
 it("authorizes replacement, validates payloads, preserves marks and never logs search content", async () => {
   const { root, chapterId } = await fixture();

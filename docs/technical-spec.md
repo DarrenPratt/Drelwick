@@ -1843,7 +1843,11 @@ unknown/newer data blocks print operations without replacement. No existing
 project schema bump or destructive migration is required.
 
 See [implemented settings, limits, semantics, fonts and recovery](print-settings.md).
-The paged-CSS/PDF examples in subsequent sections remain future guidance for #129,
+Issue #129 implements the [local PDF pipeline and preview](print-preview.md) using
+Electron's bundled Chromium for section fragmentation, PDF assembly for running
+matter and PDF.js for the actual PDF preview. This refines the original
+single-document/Playwright-adapter proposal without a second layout path.
+The paged-CSS/PDF examples in subsequent sections remain broader design guidance,
 not evidence of implemented pagination.
 
 ---

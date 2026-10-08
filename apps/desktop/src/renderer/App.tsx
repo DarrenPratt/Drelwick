@@ -1,4 +1,6 @@
 import { PrintSettingsDialog } from "./PrintSettingsDialog.js";
+import { lazy, Suspense } from "react";
+import type { PrintPreview } from "@drelwick/shared";
 import type { PrintConfigurationState } from "@drelwick/shared";
 import { exportSavedDocx } from "./docx-export.js";
 import { exportSavedEpub } from "./epub-export.js";
@@ -53,7 +55,14 @@ import {
   type DocumentState,
 } from "./document-state.js";
 
+const PrintPreviewDialog = lazy(() =>
+  import("./PrintPreviewDialog.js").then((module) => ({
+    default: module.PrintPreviewDialog,
+  })),
+);
+
 export function App() {
+  const [printPreview, setPrintPreview] = useState<PrintPreview | null>(null);
   const [printConfiguration, setPrintConfiguration] =
     useState<PrintConfigurationState | null>(null);
   const [loadingPrint, setLoadingPrint] = useState(false);
@@ -167,6 +176,7 @@ export function App() {
     setThemeSelection(null);
     setThemeMessage("");
     setBookPreview(null);
+    setPrintPreview(null);
   }
   useEffect(() => {
     let active = true;
@@ -1267,7 +1277,7 @@ export function App() {
     }
   }
 
-  async function previewBook() {
+  async function previewBook(print = false) {
     if (
       !project ||
       pending.current ||
@@ -1295,6 +1305,14 @@ export function App() {
         setError(
           "Unable to save pending edits. Preview was cancelled; your edits remain in the editor.",
         );
+        return;
+      }
+      if (print) {
+        const result = await window.drelwick.project.previewPrint({
+          projectId: project.projectId,
+        });
+        if (result.ok) setPrintPreview(result.value);
+        else setError(result.error.message);
         return;
       }
       const result = await window.drelwick.project.previewBook({
@@ -1482,6 +1500,18 @@ export function App() {
                 onClick={() => void previewBook()}
               >
                 {previewing ? "Preparing preview…" : "Book preview"}
+              </button>
+              <button
+                disabled={
+                  changingDocument ||
+                  previewing ||
+                  reordering ||
+                  !!renamingChapterId ||
+                  replacementRecoveryRequired
+                }
+                onClick={() => void previewBook(true)}
+              >
+                Print preview
               </button>
             </div>
           }
@@ -1967,6 +1997,17 @@ export function App() {
           )}
           {recentProjects}
         </main>
+      )}
+      {printPreview && (
+        <Suspense fallback={<p>Loading PDF viewer…</p>}>
+          <PrintPreviewDialog
+            preview={printPreview}
+            onClose={() => setPrintPreview(null)}
+            onRefresh={() => void previewBook(true)}
+            refreshing={previewing}
+            error={error}
+          />
+        </Suspense>
       )}
       {bookPreview && (
         <BookPreviewDialog

@@ -65,6 +65,7 @@ const api: DrelwickApi = {
     getBookTheme: (input) => ipcRenderer.invoke(IPC.BOOK_THEME_GET, input),
     setBookTheme: (input) => ipcRenderer.invoke(IPC.BOOK_THEME_SET, input),
     previewBook: (input) => ipcRenderer.invoke(IPC.BOOK_PREVIEW, input),
+    previewPrint: (input) => ipcRenderer.invoke(IPC.PRINT_PREVIEW, input),
     exportDocx: (input) => ipcRenderer.invoke(IPC.DOCX_EXPORT, input),
     exportEpub: (input) => ipcRenderer.invoke(IPC.EPUB_EXPORT, input),
     simulateBookPreview: (input) =>

@@ -45,4 +45,39 @@ module.exports = async ({ packager }) => {
   }
   if (nativePackages === 0)
     throw new Error("Installed Sharp native image dependencies are missing");
+
+  // PDF.js's Node inspection adapter requires canvas geometry primitives.
+  // Like Sharp, its installed optional native package must be copied explicitly.
+  const fromDesktop = createRequire(join(__dirname, "../package.json"));
+  const canvasManifest = fromDesktop.resolve("@napi-rs/canvas/package.json");
+  const fromCanvas = createRequire(canvasManifest);
+  const canvas = JSON.parse(readFileSync(canvasManifest, "utf8"));
+  let canvasPackages = 0;
+  for (const name of Object.keys(canvas.optionalDependencies)) {
+    if (!name.startsWith("@napi-rs/canvas-")) continue;
+    let manifest;
+    try {
+      manifest = fromCanvas.resolve(`${name}/package.json`);
+    } catch (error) {
+      if (error.code === "MODULE_NOT_FOUND") continue;
+      throw error;
+    }
+    const metadata = JSON.parse(readFileSync(manifest, "utf8"));
+    if (
+      !metadata.os?.includes(process.platform) ||
+      !metadata.cpu?.includes(process.arch)
+    )
+      continue;
+    const destination = `node_modules/${name}`;
+    if (!packager.config.files.some((entry) => entry.to === destination)) {
+      packager.config.files.push({
+        from: dirname(manifest),
+        to: destination,
+        filter: ["**/*"],
+      });
+    }
+    canvasPackages++;
+  }
+  if (canvasPackages === 0)
+    throw new Error("Installed PDF inspection native dependencies are missing");
 };
