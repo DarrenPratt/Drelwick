@@ -72,6 +72,11 @@ does not implement print layout or change later licensing/Pro decisions.
 
 ## Implementation guidance
 
+Issue #129 implements local Chromium pagination and a PDF-backed full-book/facing
+preview, consuming #128 settings and #121 semantic assembly/rendering. See
+[the pipeline, typography limits and acceptance evidence](../print-preview.md).
+Final destination export/preflight remains #130; release/platform validation is #131.
+
 Treat document conversion as a potentially lossy transformation with explicit warnings and testable content preservation. Import into staged new projects; never modify the source DOCX. Persist schema changes through recoverable migrations. Flush pending edits before snapshots, bulk replacements, backup and export, or fail explicitly without claiming success.
 
 Use synthetic and redistributable fixtures for Unicode, long books, complex formatting and malformed archives. Gate output on independent EPUB/PDF/DOCX inspection and appropriate reader/platform checks. Do not log author prose, search strings or document payloads.

@@ -164,3 +164,26 @@ export const PrintSaveRequestSchema = z
   .strict();
 
 export type PrintSaveRequest = z.infer<typeof PrintSaveRequestSchema>;
+
+export interface PrintPage {
+  chapterId: string;
+  side: "recto" | "verso";
+  blank: boolean;
+  folio: string;
+}
+export interface PrintDiagnostic {
+  code:
+    | "overflow"
+    | "clipping"
+    | "unexpected-blank"
+    | "unresolved-asset"
+    | "unresolved-font";
+  chapterId: string;
+  page?: number;
+}
+export interface PrintPreview {
+  revision: string;
+  pdf: Uint8Array;
+  pages: PrintPage[];
+  diagnostics: PrintDiagnostic[];
+}

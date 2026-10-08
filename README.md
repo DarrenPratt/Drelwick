@@ -7,7 +7,7 @@ autosave, retained history snapshots and crash recovery. v0.1 testing, hardening
 and release validation remain open. Community DOCX, TXT, Markdown and HTML parsers,
 staged import API and author-facing review workflow are implemented. A shared semantic
 renderer, isolated saved-book preview and three persisted [Community book themes](docs/book-themes.md)
-are available; local EPUB export is implemented and print PDF remains planned work. See the [DOCX support matrix](docs/docx-import.md),
+are available; local EPUB export and [PDF-backed print preview](docs/print-preview.md) are implemented. Final PDF export remains planned work. See the [DOCX support matrix](docs/docx-import.md),
 [TXT/Markdown/HTML support matrix](docs/text-import.md) and
 [local publishing delivery plan](docs/planning/local-publishing-plan.md).
 
@@ -78,7 +78,8 @@ or **Cancel startup** before editing. See [manuscript recovery](docs/manuscript-
 
 Use **Book design → Print settings** to save local trim size, mirrored margins,
 gutter, chapter starts, headers and page numbers. See [Community print settings](docs/print-settings.md).
-These settings prepare a book for later print output; pagination/PDF remain planned.
+Use **Book preview → Print preview** for local pagination and facing pages drawn
+from the production PDF. Final PDF export and preflight remain planned under #130.
 
 Use **Export → Export DOCX** to save an editable Word manuscript locally. Pending
 edits must save successfully first. Review fidelity warnings and choose a native

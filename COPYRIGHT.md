@@ -19,7 +19,8 @@ approved CLA and acceptance process described in [CONTRIBUTING.md](CONTRIBUTING.
 DCO certification alone does not supply commercial relicensing rights.
 
 Third-party code, data and documents retain their own licences and notices,
-including [spelling resources](docs/attributions/spelling/README.md) and
+including [spelling resources](docs/attributions/spelling/README.md),
+[print fonts and PDF libraries](docs/attributions/print/README.md) and
 [Contributor Covenant](CODE_OF_CONDUCT.md#attribution). This central notice does
 not replace those grants or imply ownership of dependencies. The
 [redistribution review](docs/planning/60-release-audit.md#dependencies-and-distribution)

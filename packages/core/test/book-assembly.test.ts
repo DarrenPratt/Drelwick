@@ -15,6 +15,8 @@ import {
   openProject,
   writeJsonAtomically,
   replaceManuscript,
+  loadPrintConfiguration,
+  savePrintConfiguration,
 } from "../src/index.js";
 import { renderBook } from "@drelwick/renderer";
 const copies: FixtureCopy[] = [];
@@ -26,6 +28,48 @@ async function fixture() {
   copies.push(copy);
   return copy.projectPath;
 }
+it("captures print settings under the book lock, rechecks external changes, and keeps ebook assembly independent", async () => {
+  const root = await fixture();
+  const original = await assembleBook(root);
+  const projectId = original.book.projectId;
+  const initial = await loadPrintConfiguration(root, projectId);
+  const captured = await assembleBook(root, { print: true });
+  expect(captured.print).toEqual(initial);
+  const settings = { ...initial.settings, chapterStart: "recto" as const };
+  await savePrintConfiguration({
+    projectPath: root,
+    projectId,
+    expectedRevision: initial.revision,
+    settings,
+  });
+  expect((await assembleBook(root)).book).toEqual(original.book);
+  expect(
+    (await assembleBook(root, { print: true })).print!.settings.chapterStart,
+  ).toBe("recto");
+  let changed = false;
+  await expect(
+    assembleBook(root, {
+      print: true,
+      checkpoint: async () => {
+        if (changed) return;
+        changed = true;
+        await writeFile(
+          join(root, "print.json"),
+          JSON.stringify({
+            schemaVersion: 1,
+            projectId,
+            settings: initial.settings,
+          }),
+        );
+      },
+    }),
+  ).rejects.toMatchObject({ code: "BOOK_REVISION_CHANGED" });
+  await writeFile(join(root, "print.json"), "invalid");
+  expect((await assembleBook(root)).book).toEqual(original.book);
+  await expect(assembleBook(root, { print: true })).rejects.toMatchObject({
+    code: "PRINT_CONFIGURATION_INVALID",
+  });
+});
 it("captures canonical order independently of filenames and repeats byte-identical output", async () => {
   const root = await fixture();
   const before = await readFile(join(root, "project.json"));

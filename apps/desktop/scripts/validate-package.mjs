@@ -73,6 +73,21 @@ const requiredEntries = [
   "node_modules/@drelwick/renderer/dist/index.js",
   "node_modules/@drelwick/shared/dist/index.js",
   "dist/main/spelling-worker.js",
+  "dist/main/print-render.js",
+  "dist/main/print-surface.js",
+  "node_modules/pdfjs-dist/legacy/build/pdf.mjs",
+  "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+  "node_modules/@napi-rs/canvas/package.json",
+  "node_modules/@fontsource/noto-serif/LICENSE",
+  "node_modules/@fontsource/noto-sans/LICENSE",
+  ...["noto-serif", "noto-sans"].flatMap((family) =>
+    [400, 700].flatMap((weight) =>
+      ["normal", "italic"].map(
+        (style) =>
+          `node_modules/@fontsource/${family}/files/${family}-latin-${weight}-${style}.woff`,
+      ),
+    ),
+  ),
   "node_modules/dictionary-en/index.aff",
   "node_modules/dictionary-en/index.dic",
   "node_modules/dictionary-en-gb/index.aff",
@@ -82,13 +97,18 @@ for (const entry of requiredEntries) {
   if (!normalizedEntries.includes(entry))
     throw new Error(`Missing packaged entry: ${entry}`);
 }
+const nativePdfFiles = normalizedEntries.filter((entry) =>
+  /^node_modules\/@napi-rs\/canvas-.*\.node$/.test(entry),
+);
+if (!nativePdfFiles.length)
+  throw new Error("Packaged PDF inspection native dependency is missing");
 const nativeImageFiles = normalizedEntries.filter((entry) =>
   /^node_modules\/@img\/sharp-.*\.(node|dll|dylib|so(?:\..*)?)$/.test(entry),
 );
 if (!nativeImageFiles.some((entry) => entry.endsWith(".node"))) {
   throw new Error("Packaged Sharp native image dependency is missing");
 }
-for (const entry of nativeImageFiles) {
+for (const entry of [...nativeImageFiles, ...nativePdfFiles]) {
   if (!existsSync(join(`${archivePath}.unpacked`, entry))) {
     throw new Error(`Native image library was not unpacked: ${entry}`);
   }

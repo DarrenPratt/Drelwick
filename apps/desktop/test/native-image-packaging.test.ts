@@ -47,7 +47,7 @@ const { getNodeModuleFileMatcher, FileMatcher } = requireFromBuilder(
   ) => { createFilter(): Filter };
 };
 
-it("copies native image packages exactly once even when dependency collection finds them", async () => {
+it("copies native image and PDF inspection packages exactly once even when dependency collection finds them", async () => {
   const config = await getConfig(desktop, "electron-builder.yml", undefined);
   expect(config.linux.executableName).toBe("drelwick");
   await includeNativeImages({ packager: { config } });
@@ -65,9 +65,18 @@ it("copies native image packages exactly once even when dependency collection fi
   const mappings = config.files.filter(
     (entry): entry is Mapping & { from: string; to: string } =>
       typeof entry !== "string" &&
-      Boolean(entry.from && entry.to?.startsWith("node_modules/@img/sharp-")),
+      Boolean(
+        entry.from &&
+        (entry.to?.startsWith("node_modules/@img/sharp-") ||
+          entry.to?.startsWith("node_modules/@napi-rs/canvas-")),
+      ),
   );
   expect(mappings.length).toBeGreaterThan(0);
+  expect(
+    mappings.some((mapping) =>
+      mapping.to.startsWith("node_modules/@napi-rs/canvas-"),
+    ),
+  ).toBe(true);
   for (const mapping of mappings) {
     const explicit = new FileMatcher(
       mapping.from,

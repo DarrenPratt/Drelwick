@@ -5,8 +5,8 @@ Save explicitly, or use the normal Save keyboard shortcut while the dialog is
 open. Failed saves retain the draft and previous valid file. Closing a dirty
 dialog requires confirmation. Project transitions and shutdown are blocked while
 the dialog is open. No account, network, Pro package or publisher profile is used.
-These are implemented settings for a later print consumer: pagination, print
-preview and PDF output are not implemented by #128.
+These settings feed the [local print pagination and PDF-backed preview](print-preview.md)
+implemented by #129. Final PDF export/preflight remains #130.
 
 ## Dimensions and defaults
 
@@ -62,15 +62,17 @@ page numbering. The current semantics describe left-bound books.
   section's sequence. Hidden numbers do not reset counting. Recto/verso decisions
   use physical page position, never odd/even displayed folios.
 
-These are persisted semantic instructions. #129 must consume them when it
-implements pagination; this dialog does not manufacture pages or claim rendered
-header/folio correctness.
+These persisted semantic instructions are consumed by #129's production PDF
+pipeline; the settings dialog itself does not manufacture pages.
 
 ## Fonts and embedding
 
 Typography reuses the existing [Community themes](book-themes.md); there is no
 second font picker or arbitrary font-file field. The current print-target CSS
-supports the theme's fixed local fallback chains:
+defines the theme's local fallback chains below. The deterministic PDF consumer
+substitutes bundled, licensed Noto Serif/Sans and rejects unsupported glyphs;
+see [the PDF font policy](print-preview.md#supported-pagination-and-typography).
+The original theme defaults are:
 
 - Classic: Georgia, Times New Roman, Liberation Serif, generic serif; 11pt body.
 - Modern: Segoe UI, Helvetica Neue, Arial, Liberation Sans, generic sans-serif;
@@ -86,8 +88,8 @@ permission. An output adapter must separately establish permission for the exact
 font files and the intended output, honor applicable embedding restrictions and
 retain required notices. If permission cannot be established, it must use an
 appropriately licensed alternative or report the limitation. #128 bundles no
-fonts and embeds none; PDF embedding behavior must be verified with #129's
-actual output pipeline. No remote font downloads are introduced.
+fonts and embeds none; #129 now uses licensed bundled alternatives and tests
+actual PDF font embedding. No remote font downloads are introduced.
 
 ## Versioning, persistence and recovery
 
@@ -101,7 +103,7 @@ The persistent envelope is `PrintConfigurationSchema` in project-model; the
 renderer-safe semantic vocabulary and validation are shared. Core exports
 `loadPrintConfiguration`, `readPrintConfiguration`, `savePrintConfiguration` and
 `PRINT_CONFIGURATION_FILE`; shared exports unit helpers and `printPageGeometry`.
-The read helper may be used under the shared project lock by a future print job
+The read helper is used under the shared project lock by print assembly
 to capture settings with its manuscript revision. It does not add print settings
 to the ebook revision or current ebook assembly path.
 
