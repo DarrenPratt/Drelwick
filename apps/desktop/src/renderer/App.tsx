@@ -1436,6 +1436,15 @@ export function App() {
               <div className="export-action">
                 <button
                   type="button"
+                  disabled={previewing || changingDocument}
+                  onClick={() => void previewBook(true)}
+                >
+                  Print PDF / preflight
+                </button>
+              </div>
+              <div className="export-action">
+                <button
+                  type="button"
                   disabled={
                     changingDocument ||
                     reordering ||
@@ -2002,6 +2011,7 @@ export function App() {
         <Suspense fallback={<p>Loading PDF viewer…</p>}>
           <PrintPreviewDialog
             preview={printPreview}
+            projectId={project!.projectId}
             onClose={() => setPrintPreview(null)}
             onRefresh={() => void previewBook(true)}
             refreshing={previewing}

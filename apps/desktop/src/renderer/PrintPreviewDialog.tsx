@@ -48,12 +48,14 @@ function PdfPage({ pdf, number }: { pdf: PDFDocumentProxy; number: number }) {
 
 export function PrintPreviewDialog({
   preview,
+  projectId,
   onClose,
   onRefresh,
   refreshing,
   error,
 }: {
   preview: PrintPreview;
+  projectId: string;
   onClose(): void;
   onRefresh(): void;
   refreshing: boolean;
@@ -64,6 +66,54 @@ export function PrintPreviewDialog({
     source: PrintPreview;
     pdf: PDFDocumentProxy;
   } | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState("");
+  const [acceptedRevision, setAcceptedRevision] = useState("");
+  const findings = preview.export?.findings ?? [];
+  const blocking =
+    !preview.export || findings.some((f) => f.severity === "error");
+  const warnings = findings.some((f) => f.severity === "warning");
+  useEffect(() => {
+    if (!exporting) return;
+    let active = true;
+    const timer = setInterval(() => {
+      void window.drelwick.project
+        .printExportStatus({ projectId })
+        .then((result) => {
+          if (active && result.ok && result.value)
+            setExportStatus(result.value);
+        })
+        .catch(() => {});
+    }, 300);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [exporting, projectId]);
+  async function exportPdf() {
+    setExporting(true);
+    setExportStatus("Checking preview revision and preflight...");
+    try {
+      const result = await window.drelwick.project.exportPrint({
+        projectId,
+        revision: preview.revision,
+        acceptWarnings: acceptedRevision === preview.revision,
+      });
+      setExportStatus(
+        result.ok
+          ? result.value.created
+            ? `PDF exported from revision ${result.value.revision.slice(0, 12)}.${result.value.cleanupWarning ? " Temporary-file cleanup failed; check the destination folder." : ""}`
+            : "PDF export cancelled. The previous destination is preserved."
+          : result.error.message,
+      );
+    } catch {
+      setExportStatus(
+        "PDF export failed. Retry after checking project and destination access.",
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
   const [failed, setFailed] = useState(false);
   const [facing, setFacing] = useState(true);
   const [page, setPage] = useState(1);
@@ -105,7 +155,7 @@ export function PrintPreviewDialog({
       aria-labelledby="print-preview-title"
       onCancel={(event) => {
         event.preventDefault();
-        if (!refreshing) onClose();
+        if (!refreshing && !exporting) onClose();
       }}
     >
       <h2 id="print-preview-title">Print preview</h2>
@@ -114,13 +164,14 @@ export function PrintPreviewDialog({
         {preview.pages.length} pages. Refresh to include later changes.
       </p>
       <p>
-        This is a layout preview; final export and publishing preflight are not
-        yet available.
+        Export saves these exact PDF pages after basic preflight. Changed
+        sources require refresh. Review the proof; automated checks cannot
+        detect every layout problem.
       </p>
-      <button onClick={onRefresh} disabled={refreshing}>
+      <button onClick={onRefresh} disabled={refreshing || exporting}>
         {refreshing ? "Rendering…" : "Refresh print preview"}
       </button>
-      <button onClick={onClose} disabled={refreshing}>
+      <button onClick={onClose} disabled={refreshing || exporting}>
         Close print preview
       </button>
       <label>
@@ -167,21 +218,79 @@ export function PrintPreviewDialog({
           {error || "The PDF could not be displayed. Retry the preview."}
         </p>
       )}
-      {!!preview.diagnostics.length && (
-        <div role="alert">
-          <p>Layout issues detected. Review these pages before publication.</p>
-          <ul>
-            {preview.diagnostics.map((diagnostic, index) => (
-              <li key={index}>
-                {diagnostic.code}
-                {diagnostic.page
-                  ? ` on page ${diagnostic.page}`
-                  : ` in section ${preview.pages.findIndex((page) => page.chapterId === diagnostic.chapterId) + 1}`}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <section aria-label="PDF preflight">
+        <h3>Basic preflight</h3>
+        <p>
+          {preview.pages.length} pages -{" "}
+          {blocking ? "Export blocked" : "No blocking findings"}
+        </p>
+        <ul>
+          {findings.map((finding, index) => (
+            <li key={index}>
+              <strong>
+                {finding.severity === "error" ? "Error" : "Warning"}:{" "}
+              </strong>
+              {finding.chapterId &&
+                `${preview.export?.chapters.find((c) => c.id === finding.chapterId)?.title ?? "Chapter"}: `}
+              {finding.setting && `${finding.setting}: `}
+              {finding.message}
+              {finding.page && (
+                <>
+                  {" "}
+                  <button onClick={() => setPage(finding.page!)}>
+                    Review page {finding.page}
+                  </button>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+        {warnings && (
+          <label>
+            <input
+              type="checkbox"
+              checked={acceptedRevision === preview.revision}
+              disabled={exporting}
+              onChange={(event) =>
+                setAcceptedRevision(
+                  event.target.checked ? preview.revision : "",
+                )
+              }
+            />
+            I reviewed the warnings for this revision
+          </label>
+        )}
+        <button
+          onClick={() => void exportPdf()}
+          disabled={
+            refreshing ||
+            exporting ||
+            failed ||
+            loaded?.source !== preview ||
+            blocking ||
+            (warnings && acceptedRevision !== preview.revision)
+          }
+        >
+          Export PDF
+        </button>
+        {exporting && (
+          <button
+            onClick={() => {
+              setExportStatus("Cancelling before publication...");
+              void window.drelwick.project
+                .cancelPrintExport({ projectId })
+                .catch(() =>
+                  setExportStatus(
+                    "Cancellation could not be sent; wait for the export result.",
+                  ),
+                );
+            }}
+          >
+            Cancel PDF export
+          </button>
+        )}
+        {exportStatus && <p role="status">{exportStatus}</p>}
+      </section>
       <div className="print-pdf-pages">
         {facing && first === 1 && <div aria-hidden="true" />}
         {loaded?.source === preview &&

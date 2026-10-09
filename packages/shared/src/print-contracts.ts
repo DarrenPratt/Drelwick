@@ -186,4 +186,34 @@ export interface PrintPreview {
   pdf: Uint8Array;
   pages: PrintPage[];
   diagnostics: PrintDiagnostic[];
+  export?: {
+    sourceRevision: string;
+    settings: PrintSettings;
+    title: string;
+    author: string;
+    language: string;
+    chapters: { id: string; title: string }[];
+    findings: PrintFinding[];
+  };
+}
+
+export interface PrintFinding {
+  code: string;
+  severity: "error" | "warning";
+  message: string;
+  chapterId?: string;
+  page?: number;
+  setting?: "margins" | "fonts" | "trim" | "metadata";
+}
+export const PrintExportRequestSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    revision: z.string().regex(/^[a-f0-9]{64}$/),
+    acceptWarnings: z.boolean(),
+  })
+  .strict();
+export interface PrintExportReceipt {
+  created: boolean;
+  revision: string;
+  cleanupWarning: boolean;
 }

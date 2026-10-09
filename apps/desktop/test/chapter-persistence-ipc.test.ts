@@ -74,6 +74,9 @@ function setup(
   previewPrint?: NonNullable<
     Parameters<typeof registerProjectHandlers>[2]
   >["previewPrint"],
+  exportPrint?: NonNullable<
+    Parameters<typeof registerProjectHandlers>[2]
+  >["exportPrint"],
 ) {
   handle.mockReset();
   const frame = { url: "file:///app/index.html" };
@@ -98,6 +101,7 @@ function setup(
     logger,
     ...(history ? { history } : {}),
     ...(previewPrint ? { previewPrint } : {}),
+    ...(exportPrint ? { exportPrint } : {}),
   });
   const invoke = (
     channel: string,
@@ -179,6 +183,85 @@ it("restricts print preview to the active trusted project and never logs render 
     );
     expect(logger.error).not.toHaveBeenCalled();
   } finally {
+    await settleHistory();
+  }
+});
+
+it("binds PDF export to the trusted preview and exposes authorized progress and cancellation", async () => {
+  const f = await fixture();
+  const preview = {
+    revision: "a".repeat(64),
+    pdf: new Uint8Array([1, 2]),
+    pages: [],
+    diagnostics: [],
+  };
+  let release: (() => void) | undefined;
+  const exporting = vi.fn<
+    NonNullable<
+      NonNullable<Parameters<typeof registerProjectHandlers>[2]>["exportPrint"]
+    >
+  >(async (_window, _path, cached, options) => {
+    expect(cached).toBe(preview);
+    options.progress("Checking temporary PDF");
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    expect(options.signal.aborted).toBe(true);
+    return { created: false, revision: cached.revision, cleanupWarning: false };
+  });
+  const { invoke, event, settleHistory } = setup(
+    f.root,
+    saveChapter,
+    undefined,
+    vi.fn(async () => preview),
+    exporting,
+  );
+  try {
+    await invoke(IPC.PROJECT_OPEN);
+    const projectId = (await openProject(f.root)).project.projectId;
+    const request = {
+      projectId,
+      revision: preview.revision,
+      acceptWarnings: false,
+    };
+    expect(await invoke(IPC.PRINT_EXPORT, request)).toMatchObject({
+      ok: false,
+      error: { code: "PDF_EXPORT_STALE" },
+    });
+    await invoke(IPC.PRINT_PREVIEW, { projectId });
+    expect(
+      await invoke(IPC.PRINT_EXPORT, { ...request, path: "unauthorized.pdf" }),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_INPUT_INVALID" } });
+    expect(
+      await invoke(IPC.PRINT_EXPORT, { ...request, revision: "b".repeat(64) }),
+    ).toMatchObject({ ok: false, error: { code: "PDF_EXPORT_STALE" } });
+    const foreign = {
+      ...event,
+      senderFrame: { url: event.senderFrame!.url },
+    } as IpcMainInvokeEvent;
+    expect(await invoke(IPC.PRINT_EXPORT, request, foreign)).toMatchObject({
+      ok: false,
+      error: { code: "PROJECT_ACCESS_DENIED" },
+    });
+    const running = invoke(IPC.PRINT_EXPORT, request);
+    expect(await invoke(IPC.PRINT_EXPORT_STATUS, { projectId })).toMatchObject({
+      ok: true,
+      value: "Checking temporary PDF",
+    });
+    expect(
+      await invoke(IPC.PRINT_EXPORT_CANCEL, { projectId }, foreign),
+    ).toMatchObject({ ok: false });
+    expect(await invoke(IPC.PRINT_EXPORT_CANCEL, { projectId })).toMatchObject({
+      ok: true,
+    });
+    release!();
+    expect(await running).toMatchObject({
+      ok: true,
+      value: { created: false },
+    });
+    expect(exporting).toHaveBeenCalledOnce();
+  } finally {
+    release?.();
     await settleHistory();
   }
 });

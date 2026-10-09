@@ -21,6 +21,7 @@ Operational documents:
 
 - [Local print pagination and PDF-backed preview](print-preview.md)
 - [Community print settings, dimensions and font requirements](print-settings.md)
+- [Local print PDF export, preflight and pending validation](print-export.md)
 
 - [Editable Community DOCX export and support matrix](docx-export.md)
 

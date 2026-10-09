@@ -1,5 +1,7 @@
 import {
   PrintSaveRequestSchema,
+  PrintExportRequestSchema,
+  type PrintExportReceipt,
   type PrintConfigurationState,
   type PrintPreview,
 } from "./print-contracts.js";
@@ -116,6 +118,9 @@ export const IPC = {
   PUBLICATION_SAVE: "publication:save",
   PUBLICATION_COVER: "publication:cover",
   PRINT_GET: "book:print-get",
+  PRINT_EXPORT: "book:print-export",
+  PRINT_EXPORT_CANCEL: "book:print-export-cancel",
+  PRINT_EXPORT_STATUS: "book:print-export-status",
   PRINT_PREVIEW: "book:print-preview",
   PRINT_SAVE: "book:print-save",
   BOOK_THEME_GET: "book:theme-get",
@@ -258,6 +263,13 @@ export type ProjectOperationResult<T> =
 
 export const IpcRequestSchemas = {
   [IPC.PRINT_GET]: z.object({ projectId: z.string().uuid() }).strict(),
+  [IPC.PRINT_EXPORT]: PrintExportRequestSchema,
+  [IPC.PRINT_EXPORT_CANCEL]: z
+    .object({ projectId: z.string().uuid() })
+    .strict(),
+  [IPC.PRINT_EXPORT_STATUS]: z
+    .object({ projectId: z.string().uuid() })
+    .strict(),
   [IPC.PRINT_PREVIEW]: z.object({ projectId: z.string().uuid() }).strict(),
   [IPC.PRINT_SAVE]: PrintSaveRequestSchema,
   [IPC.SPELLING_GET]: z.undefined(),
@@ -453,6 +465,15 @@ export interface DrelwickApi {
     previewBook(input: {
       projectId: string;
     }): Promise<ProjectOperationResult<BookPreview>>;
+    exportPrint(
+      input: z.infer<typeof PrintExportRequestSchema>,
+    ): Promise<ProjectOperationResult<PrintExportReceipt>>;
+    cancelPrintExport(input: {
+      projectId: string;
+    }): Promise<ProjectOperationResult<null>>;
+    printExportStatus(input: {
+      projectId: string;
+    }): Promise<ProjectOperationResult<string>>;
     previewPrint(input: {
       projectId: string;
     }): Promise<ProjectOperationResult<PrintPreview>>;

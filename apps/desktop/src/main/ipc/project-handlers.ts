@@ -44,6 +44,7 @@ import {
   noopLogger,
   safeErrorContext,
   type ProjectLocation,
+  type PrintPreview,
   type ProjectOperationResult,
   type ProjectWorkspace,
   type SafeLogger,
@@ -57,6 +58,7 @@ import {
 } from "../book-preview.js";
 import { basename, dirname, join } from "node:path";
 import { exportDocx } from "../docx-export.js";
+import { exportPrint } from "../print-export.js";
 import { exportEpub } from "../epub-export.js";
 import { preparePrintPreview } from "../print-render.js";
 import { createPrintSurface } from "../print-surface.js";
@@ -76,6 +78,7 @@ interface HistoryTasks {
 }
 
 interface Dependencies {
+  exportPrint: typeof exportPrint;
   previewPrint: typeof preparePrintPreview;
   exportDocx: typeof exportDocx;
   exportEpub: typeof exportEpub;
@@ -107,6 +110,7 @@ interface Dependencies {
 }
 
 const dependencies: Dependencies = {
+  exportPrint,
   previewPrint: preparePrintPreview,
   exportDocx,
   exportEpub,
@@ -265,6 +269,20 @@ export function registerProjectHandlers(
   let replacementCancellation: { cancelled: boolean } | undefined;
   let activeProjectPath: string | undefined;
   let activeProjectId: string | undefined;
+  let preparedPrint:
+    | {
+        preview: PrintPreview;
+        projectId: string;
+        owner: IpcMainInvokeEvent["senderFrame"];
+      }
+    | undefined;
+  let printExportJob:
+    | {
+        controller: AbortController;
+        phase: string;
+        owner: IpcMainInvokeEvent["senderFrame"];
+      }
+    | undefined;
   let preparedPreview: PreparedBookPreview | undefined;
   // Foreground preview actions wait for a read-only currency check rather than
   // failing when focus returns from the iframe and starts that check first.
@@ -437,6 +455,97 @@ export function registerProjectHandlers(
     }
   });
 
+  for (const channel of [
+    IPC.PRINT_EXPORT_STATUS,
+    IPC.PRINT_EXPORT_CANCEL,
+  ] as const) {
+    ipcMain.handle(channel, (event, payload: unknown) => {
+      const parsed = IpcRequestSchemas[channel].safeParse(payload);
+      if (
+        !trusted(event) ||
+        !parsed.success ||
+        parsed.data.projectId !== activeProjectId ||
+        (printExportJob && printExportJob.owner !== event.senderFrame)
+      )
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      if (channel === IPC.PRINT_EXPORT_CANCEL) {
+        printExportJob?.controller.abort();
+        return { ok: true, value: null };
+      }
+      return { ok: true, value: printExportJob?.phase ?? "" };
+    });
+  }
+  ipcMain.handle(IPC.PRINT_EXPORT, async (event, payload: unknown) => {
+    const parsed = IpcRequestSchemas[IPC.PRINT_EXPORT].safeParse(payload);
+    if (!trusted(event))
+      return failure(
+        "PROJECT_ACCESS_DENIED",
+        "Project access is not permitted.",
+      );
+    if (!parsed.success)
+      return failure("PROJECT_INPUT_INVALID", "Invalid PDF export request.");
+    if (!activeProjectPath || parsed.data.projectId !== activeProjectId)
+      return failure("PROJECT_NOT_OPEN", "Open the project before exporting.");
+    if (busy)
+      return failure(
+        "PROJECT_BUSY",
+        "Wait for the current operation and retry.",
+      );
+    const cached = preparedPrint;
+    if (
+      !cached ||
+      cached.owner !== event.senderFrame ||
+      cached.projectId !== activeProjectId ||
+      cached.preview.revision !== parsed.data.revision
+    )
+      return failure(
+        "PDF_EXPORT_STALE",
+        "Refresh and review print preview before exporting this revision.",
+      );
+    busy = true;
+    const job = {
+      controller: new AbortController(),
+      phase: "Preparing PDF export",
+      owner: event.senderFrame,
+    };
+    printExportJob = job;
+    try {
+      const value = await services.exportPrint(
+        getWindow()!,
+        activeProjectPath,
+        cached.preview,
+        {
+          authorized: () =>
+            !!trusted(event) &&
+            activeProjectId === cached.projectId &&
+            preparedPrint === cached,
+          signal: job.controller.signal,
+          acceptWarnings: parsed.data.acceptWarnings,
+          progress: (phase) => {
+            job.phase = phase;
+          },
+        },
+      );
+      return { ok: true, value };
+    } catch (error) {
+      if (
+        error instanceof ApplicationError &&
+        error.code.startsWith("PDF_EXPORT_")
+      )
+        return failure(error.code, error.message);
+      return failure(
+        "PDF_EXPORT_FAILED",
+        "PDF export failed. Check project resources, destination permissions and disk space, then refresh the preview. The previous export is preserved.",
+      );
+    } finally {
+      printExportJob = undefined;
+      busy = false;
+    }
+  });
+
   ipcMain.handle(IPC.PRINT_PREVIEW, async (event, payload: unknown) => {
     await previewStatusSettled;
     if (!trusted(event))
@@ -470,6 +579,11 @@ export function registerProjectHandlers(
           "PROJECT_ACCESS_DENIED",
           "Project access is not permitted.",
         );
+      preparedPrint = {
+        preview: value,
+        projectId: parsed.data.projectId,
+        owner: event.senderFrame,
+      };
       return { ok: true, value };
     } catch (error) {
       const code =
@@ -478,8 +592,13 @@ export function registerProjectHandlers(
           : "PRINT_PREVIEW_FAILED";
       return failure(
         code,
-        code === "PRINT_UNRESOLVED_FONT"
-          ? "This book contains characters outside the bundled print fonts. Print preview was stopped to avoid silent font substitution."
+        error instanceof ApplicationError &&
+          [
+            "PRINT_UNRESOLVED_FONT",
+            "PRINT_ASSET_OR_CONTENT_INVALID",
+            "PRINT_CONFIGURATION_INVALID",
+          ].includes(code)
+          ? error.message
           : "Unable to render print preview. Check print settings, images and recovery files, then retry. Your manuscript is unchanged.",
       );
     } finally {
@@ -1080,6 +1199,7 @@ export function registerProjectHandlers(
           if (grant) imported = undefined;
           location = undefined;
           activeProjectPath = opened.projectPath;
+          preparedPrint = undefined;
           activeProjectId = opened.project.projectId;
           preparedPreview = undefined;
           history.scheduleRetention({
@@ -1286,6 +1406,7 @@ export function registerProjectHandlers(
           );
         if (activeProjectPath) await history.closeProject(activeProjectPath);
         activeProjectPath = opened.projectPath;
+        preparedPrint = undefined;
         activeProjectId = opened.project.projectId;
         preparedPreview = undefined;
         history.scheduleRetention({
@@ -1353,6 +1474,7 @@ export function registerProjectHandlers(
       try {
         if (activeProjectPath) await history.closeProject(activeProjectPath);
         activeProjectPath = undefined;
+        preparedPrint = undefined;
         activeProjectId = undefined;
         preparedPreview = undefined;
         return { ok: true, value: null };
@@ -1510,6 +1632,7 @@ export function registerProjectHandlers(
         if (activeProjectPath) await history.closeProject(activeProjectPath);
         location = undefined;
         activeProjectPath = created.projectPath;
+        preparedPrint = undefined;
         activeProjectId = created.project.projectId;
         preparedPreview = undefined;
         history.scheduleRetention({

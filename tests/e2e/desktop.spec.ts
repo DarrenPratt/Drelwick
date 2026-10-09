@@ -2664,7 +2664,7 @@ test("Chapter History preserves unsaved B before restoring rich OLD and remains 
   }
 });
 
-test("PDF-backed print preview displays full-book facing pages offline and preserves the previous PDF on failure", async () => {
+test("PDF-backed print preview and atomic export work offline and preserve previous output on failure", async () => {
   const fixture = await copyFixture("multi-chapter-book");
   const scratch = await mkdtemp(join(tmpdir(), "drelwick-pdf-preview-"));
   let application: ElectronApplication | undefined;
@@ -2686,18 +2686,9 @@ test("PDF-backed print preview displays full-book facing pages offline and prese
       .getByRole("button", { name: "Open project", exact: true })
       .click();
     await expect(page.locator(".ProseMirror")).toBeEditable();
+    await page.getByRole("button", { name: "Export", exact: true }).click();
     await page
-      .getByRole("button", { name: "Book preview", exact: true })
-      .first()
-      .click();
-    // The workspace panel and action share a label; switch to its print action.
-    const ebookDialog = page.getByRole("button", {
-      name: "Close preview",
-      exact: true,
-    });
-    await ebookDialog.click();
-    await page
-      .getByRole("button", { name: "Print preview", exact: true })
+      .getByRole("button", { name: "Print PDF / preflight", exact: true })
       .click();
     const dialog = page.getByRole("dialog", {
       name: "Print preview",
@@ -2717,6 +2708,82 @@ test("PDF-backed print preview displays full-book facing pages offline and prese
     await dialog.screenshot({
       path: test.info().outputPath("pdf-facing-pages.png"),
     });
+    const destination = join(scratch, "proof.pdf");
+    await application.evaluate(({ dialog }, filePath) => {
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath });
+      dialog.showMessageBox = async () => ({
+        response: 0,
+        checkboxChecked: false,
+      });
+    }, destination);
+    await expect(
+      dialog.getByRole("button", { name: "Export PDF", exact: true }),
+    ).toBeEnabled();
+    await dialog
+      .getByRole("button", { name: "Export PDF", exact: true })
+      .click();
+    await expect(dialog.getByRole("status")).toContainText(
+      "PDF exported from revision",
+    );
+    const originalPdf = await readFile(destination);
+    const { getDocument } =
+      await import("../../apps/desktop/node_modules/pdfjs-dist/legacy/build/pdf.mjs");
+    const task = getDocument({
+      data: Uint8Array.from(originalPdf),
+      useSystemFonts: false,
+      isEvalSupported: false,
+    });
+    try {
+      const proof = await task.promise;
+      expect(proof.numPages).toBe(3);
+      const metadata = await proof.getMetadata();
+      expect(metadata.info).toMatchObject({
+        Title: "Three Ordered Chapters",
+        Author: "Drelwick Test Suite",
+      });
+      let prose = "";
+      for (let index = 1; index <= proof.numPages; index++) {
+        const sheet = await proof.getPage(index);
+        expect(sheet.view).toEqual([0, 0, 432, 648]);
+        prose += (await sheet.getTextContent()).items
+          .map((item) => ("str" in item ? item.str : ""))
+          .join(" ");
+      }
+      expect(prose).toContain("A deterministic beginning comes first.");
+      expect(prose).toContain("A measured middle follows.");
+      expect(prose).toContain("The synthetic journey ends here.");
+    } finally {
+      await task.destroy();
+    }
+    await test.info().attach("exported-proof.pdf", {
+      body: originalPdf,
+      contentType: "application/pdf",
+    });
+    await dialog
+      .getByRole("button", { name: "Export PDF", exact: true })
+      .click();
+    await expect(dialog.getByRole("status")).toContainText("cancelled");
+    expect(await readFile(destination)).toEqual(originalPdf);
+    const chapterPath = join(
+      fixture.projectPath,
+      "manuscript",
+      (await readdir(join(fixture.projectPath, "manuscript")))[0]!,
+    );
+    const chapterBefore = await readFile(chapterPath, "utf8");
+    const chapter = JSON.parse(chapterBefore) as {
+      content: { content: unknown[] };
+    };
+    chapter.content.content.push({
+      type: "paragraph",
+      content: [{ type: "text", text: "Later revision" }],
+    });
+    await writeFile(chapterPath, JSON.stringify(chapter));
+    await dialog
+      .getByRole("button", { name: "Export PDF", exact: true })
+      .click();
+    await expect(dialog.getByRole("status")).toContainText("changed");
+    expect(await readFile(destination)).toEqual(originalPdf);
+    await writeFile(chapterPath, chapterBefore);
     await writeFile(
       join(fixture.projectPath, "print.json.tmp"),
       "synthetic recovery evidence",
