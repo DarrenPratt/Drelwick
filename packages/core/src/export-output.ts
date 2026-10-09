@@ -139,7 +139,12 @@ export async function writeExportAtomically(
         const staged = new Uint8Array(bytes.length);
         let bytesRead = 0;
         while (bytesRead < staged.length) {
-          const read = await handle.read(staged, bytesRead, staged.length - bytesRead, bytesRead);
+          const read = await handle.read(
+            staged,
+            bytesRead,
+            staged.length - bytesRead,
+            bytesRead,
+          );
           if (!read.bytesRead) break;
           bytesRead += read.bytesRead;
         }

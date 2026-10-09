@@ -69,22 +69,41 @@ export async function inspectPrintPdf(
       if (object.get(PDFName.of("Subtype"))?.toString() === "/Type0") {
         const children = object.lookup(PDFName.of("DescendantFonts"));
         if (!(children instanceof PDFArray) || !children.size()) {
-          add("font-embedding", "PDF has an unresolved descendant font. Refresh the preview.");
+          add(
+            "font-embedding",
+            "PDF has an unresolved descendant font. Refresh the preview.",
+          );
           return;
         }
         for (let index = 0; index < children.size(); index++) {
           const child = children.lookup(index);
           if (child instanceof PDFDict) inspectFont(child);
-          else add("font-embedding", "PDF has an unresolved descendant font. Refresh the preview.");
+          else
+            add(
+              "font-embedding",
+              "PDF has an unresolved descendant font. Refresh the preview.",
+            );
         }
         return;
       }
       const descriptor = object.lookup(PDFName.of("FontDescriptor"));
-      if (!(descriptor instanceof PDFDict) || !["FontFile", "FontFile2", "FontFile3"].some(key => descriptor.lookup(PDFName.of(key)) instanceof PDFStream))
-        add("font-embedding", "PDF contains a font without an embedded font program. Restore bundled fonts and refresh.");
+      if (
+        !(descriptor instanceof PDFDict) ||
+        !["FontFile", "FontFile2", "FontFile3"].some(
+          (key) => descriptor.lookup(PDFName.of(key)) instanceof PDFStream,
+        )
+      )
+        add(
+          "font-embedding",
+          "PDF contains a font without an embedded font program. Restore bundled fonts and refresh.",
+        );
     };
     for (const [, object] of pdf.context.enumerateIndirectObjects()) {
-      if (!(object instanceof PDFDict) || object.get(PDFName.of("Type"))?.toString() !== "/Font") continue;
+      if (
+        !(object instanceof PDFDict) ||
+        object.get(PDFName.of("Type"))?.toString() !== "/Font"
+      )
+        continue;
       fonts++;
       inspectFont(object);
     }

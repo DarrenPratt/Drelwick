@@ -88,13 +88,13 @@ support remain unverified here. Existing render limits remain 2,000 pages,
 
 ## Acceptance coverage and validation status
 
-| Criterion | Implementation and tests added | Status |
-| --- | --- | --- |
-| Exact preview revision, dimensions, metadata, fonts/content | Main-process cached bytes, source identity, final PDF inspection; actual PDF unit fixture and offline E2E artifact inspection | Unverified |
-| Page count, resources, margins, clipping/overflow | Shared preflight, existing render diagnostics, blocking generation errors, corruption/geometry tests | Unverified |
-| Actionable errors/warnings | Preview preflight panel in Export centre, located findings, warning acknowledgement, progress/cancel UI | Unverified |
-| Local atomic destination, overwrite and cancellation | Shared export primitive; preservation, validation failure, destination race, stale revision, cancellation and restricted IPC tests | Unverified; new files use atomic no-clobber hard links |
-| Offline Community operation | Existing isolated Chromium renderer, no new dependencies; offline desktop workflow test | Unverified |
+| Criterion                                                   | Implementation and tests added                                                                                                     | Status                                                 |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Exact preview revision, dimensions, metadata, fonts/content | Main-process cached bytes, source identity, final PDF inspection; actual PDF unit fixture and offline E2E artifact inspection      | Unverified                                             |
+| Page count, resources, margins, clipping/overflow           | Shared preflight, existing render diagnostics, blocking generation errors, corruption/geometry tests                               | Unverified                                             |
+| Actionable errors/warnings                                  | Preview preflight panel in Export centre, located findings, warning acknowledgement, progress/cancel UI                            | Unverified                                             |
+| Local atomic destination, overwrite and cancellation        | Shared export primitive; preservation, validation failure, destination race, stale revision, cancellation and restricted IPC tests | Unverified; new files use atomic no-clobber hard links |
+| Offline Community operation                                 | Existing isolated Chromium renderer, no new dependencies; offline desktop workflow test                                            | Unverified                                             |
 
 New tests are in `packages/core/test/print-output.test.ts` and
 `apps/desktop/test/print-export.test.ts`, with IPC coverage in

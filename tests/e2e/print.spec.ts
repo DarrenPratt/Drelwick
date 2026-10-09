@@ -20,7 +20,10 @@ test("Chromium PDF pagination, recto, running matter, offline isolation and repe
   });
   try {
     const results = await application.evaluate(
-      async ({ BrowserWindow }, { renderer, surface, shared, core, destination, projectPath }) => {
+      async (
+        { BrowserWindow },
+        { renderer, surface, shared, core, destination, projectPath },
+      ) => {
         const load = (
           globalThis as unknown as {
             printImport(url: string): Promise<unknown>;
@@ -160,9 +163,18 @@ test("Chromium PDF pagination, recto, running matter, offline isolation and repe
         const before = BrowserWindow.getAllWindows().length;
         const first = await renderPrintRevision(snapshot, createPrintSurface);
         const second = await renderPrintRevision(snapshot, createPrintSurface);
-        const { inspectExportDestination, writeExportAtomically } = await load(core) as typeof import("../../packages/core/src/index.js");
-        const selected = await inspectExportDestination(destination, projectPath, "pdf");
-        await writeExportAtomically(selected, first.pdf, { format: "pdf", overwrite: false });
+        const { inspectExportDestination, writeExportAtomically } = (await load(
+          core,
+        )) as typeof import("../../packages/core/src/index.js");
+        const selected = await inspectExportDestination(
+          destination,
+          projectPath,
+          "pdf",
+        );
+        await writeExportAtomically(selected, first.pdf, {
+          format: "pdf",
+          overwrite: false,
+        });
 
         const { createRequire } = (await load(
           "node:module",
@@ -322,7 +334,9 @@ test("Chromium PDF pagination, recto, running matter, offline isolation and repe
     );
     expect(results.diagnostics).toEqual([]);
     expect(results.findings).toEqual([]);
-    expect(await readFile(join(scratch, "exported-long-book.pdf"))).toEqual(Buffer.from(results.pdf, "base64"));
+    expect(await readFile(join(scratch, "exported-long-book.pdf"))).toEqual(
+      Buffer.from(results.pdf, "base64"),
+    );
     expect(results.pages.length).toBeGreaterThan(5);
     expect(results.pages[0]!.folio).toBe("i");
     expect(results.pages[1]!.blank).toBe(true);

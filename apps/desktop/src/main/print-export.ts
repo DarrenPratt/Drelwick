@@ -123,9 +123,16 @@ export async function exportPrint(
       if (phase === "commit") {
         options.progress("Checking source before atomic publication");
         await current();
-        const latest = await inspectExportDestination(destination.path, projectPath, "pdf");
+        const latest = await inspectExportDestination(
+          destination.path,
+          projectPath,
+          "pdf",
+        );
         if (latest.existing !== destination.existing)
-          fail("CHANGED", "The destination changed after selection. Select it again and review overwrite confirmation.");
+          fail(
+            "CHANGED",
+            "The destination changed after selection. Select it again and review overwrite confirmation.",
+          );
       }
     },
   });
