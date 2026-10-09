@@ -25,8 +25,8 @@ The Electron adapter prints each chapter/matter section with bundled Chromium's
 `printToPDF`, using native CSS fragmentation. PDF-lib copies these exact pages,
 inserts intentional recto separators and adds embedded-font running matter.
 The returned PDF bytes are the production result, not an HTML approximation.
-PDF.js draws those bytes in the preview. #130 can atomically save this exact
-result and inspect its diagnostics without duplicating layout or re-rendering.
+PDF.js draws those bytes in the preview. #130 uses this exact result for [local PDF export and preflight](print-export.md)
+without duplicating layout or re-rendering; final validation remains pending.
 
 This refines the original single-HTML/Playwright proposal: Electron already
 ships Chromium on every target, while Playwright remains the test driver.
@@ -119,9 +119,9 @@ schemas, locked settings/book reads, shared semantic rendering, themes and IPC.
 The checked-in text/geometry golden and native execution evidence are Windows
 only. The behavioural tests can run on other targets; #131 owns platform/output
 release validation. The PDF preview has been visually inspected using its actual
-facing-page canvas output. #130 final export, atomic destination replacement and
-basic preflight, #133 advanced publishing, broader font coverage, and packaged
-three-platform print validation remain separate. No Pro, service or cloud work
+facing-page canvas output. #130 final export and preflight now have a working-tree
+implementation with [validation pending](print-export.md). #133 advanced publishing,
+broader font coverage and packaged three-platform validation remain separate. No Pro, service or cloud work
 is introduced.
 
 ![Actual PDF facing-page preview](screenshots/print-preview.png)

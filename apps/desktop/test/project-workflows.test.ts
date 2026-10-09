@@ -158,6 +158,9 @@ beforeEach(async () => {
       return () => menuListeners.delete(callback);
     }),
     project: {
+      exportPrint: vi.fn(),
+      cancelPrintExport: vi.fn(),
+      printExportStatus: vi.fn(),
       previewPrint: vi.fn(),
       getPrintConfiguration: vi.fn(),
       savePrintConfiguration: vi.fn(),

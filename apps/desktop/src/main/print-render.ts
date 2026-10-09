@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { assembleBook, type AssembledBook } from "@drelwick/core";
+import {
+  assembleBook,
+  printSourceRevision,
+  printPreflight,
+  type AssembledBook,
+} from "@drelwick/core";
 import {
   escapeXml,
   printRoman,
@@ -11,12 +16,15 @@ import {
 } from "@drelwick/renderer";
 import {
   ApplicationError,
+  PrintSettingsSchema,
   printPageGeometry,
   type PrintPreview,
 } from "@drelwick/shared";
 import { PDFDocument } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import type { getDocument as GetDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+
+import { inspectPrintPdf } from "./print-inspection.js";
 
 const require = createRequire(import.meta.url);
 const printFontFiles = {
@@ -55,10 +63,18 @@ export interface PrintSurface {
   ): Promise<{ pdf: Uint8Array; overflow: boolean; clipping: boolean }>;
   close(): void;
 }
-const failed = (code: string) =>
+const printFailureMessages: Record<string, string> = {
+  PRINT_UNRESOLVED_FONT:
+    "Blocking preflight error: characters are not supported by the bundled print fonts. Review this chapter and use supported characters.",
+  PRINT_ASSET_OR_CONTENT_INVALID:
+    "Blocking preflight error: missing image or unsupported content. Restore the local image or correct this chapter.",
+  PRINT_CONFIGURATION_INVALID:
+    "Blocking preflight error: invalid trim or margins. Correct Book design > Print settings and refresh.",
+};
+const failed = (code: string, location = "") =>
   new ApplicationError(
     code,
-    "Print preview could not be completed. Check print settings, local images and supported fonts, then retry. Your manuscript is unchanged.",
+    `${printFailureMessages[code] ?? "Print preview could not be completed. Check print settings, local images and supported fonts, then retry. Your manuscript is unchanged."}${location ? ` Chapter: ${location}.` : ""}`,
   );
 const hash = (data: string | Uint8Array) =>
   createHash("sha256").update(data).digest("hex");
@@ -74,7 +90,7 @@ export async function preparePrintPreview(
   return renderPrintRevision(snapshot, factory);
 }
 
-/** The sole PDF production pipeline. #130 can atomically write this exact result. */
+/** The sole PDF production pipeline; preview and export consume these exact bytes. */
 export async function renderPrintRevision(
   snapshot: AssembledBook,
   factory: () => PrintSurface,
@@ -101,7 +117,8 @@ export async function renderPrintRevision(
       deadline,
       (async () => {
         const settings = snapshot.print?.settings;
-        if (!settings) throw failed("PRINT_CONFIGURATION_INVALID");
+        if (!settings || !PrintSettingsSchema.safeParse(settings).success)
+          throw failed("PRINT_CONFIGURATION_INVALID");
         const theme = resolveBookTheme(snapshot.presentation.themeId).themeId;
         const fontFiles = printFontFiles[theme === "modern" ? "sans" : "serif"];
         const fonts = await Promise.all(
@@ -137,7 +154,11 @@ export async function renderPrintRevision(
               : undefined;
           },
         });
-        if (!rendered.ok) throw failed("PRINT_ASSET_OR_CONTENT_INVALID");
+        if (!rendered.ok)
+          throw failed(
+            "PRINT_ASSET_OR_CONTENT_INVALID",
+            rendered.diagnostics.find((d) => d.severity === "error")?.chapterId,
+          );
         if (
           !rendered.chapters.length ||
           rendered.chapters.length > PRINT_LIMITS.chapters ||
@@ -152,13 +173,18 @@ export async function renderPrintRevision(
         check();
         const pdf = await PDFDocument.create();
         pdf.registerFontkit(fontkit);
+        pdf.setTitle(snapshot.book.title);
+        pdf.setAuthor(snapshot.book.metadata?.author ?? "");
+        pdf.setLanguage(snapshot.book.language);
+        pdf.setCreator("Drelwick Community");
+        pdf.setProducer("Drelwick local Chromium print");
         const headerFont = await pdf.embedFont(fonts[0]!.bytes, {
           subset: true,
         });
         const result: PrintPreview = {
           revision: hash(
             JSON.stringify({
-              pipeline: 1,
+              pipeline: 2,
               chromium: process.versions.chrome,
               book: snapshot.book.revision,
               settings,
@@ -169,6 +195,18 @@ export async function renderPrintRevision(
           pdf: new Uint8Array(),
           pages: [],
           diagnostics: [],
+          export: {
+            sourceRevision: printSourceRevision(snapshot),
+            settings,
+            title: snapshot.book.title,
+            author: snapshot.book.metadata?.author ?? "",
+            language: snapshot.book.language,
+            chapters: snapshot.book.chapters.map(({ id, title }) => ({
+              id,
+              title,
+            })),
+            findings: [],
+          },
         };
         const checkedGlyphs = new Set<number>();
         const inspectFont = (text: string) => {
@@ -206,7 +244,7 @@ export async function renderPrintRevision(
               snapshot.book.metadata?.author ?? "",
             ].every(inspectFont)
           )
-            throw failed("PRINT_UNRESOLVED_FONT");
+            throw failed("PRINT_UNRESOLVED_FONT", chapter.id);
         }
         check();
         surface = factory();
@@ -405,6 +443,11 @@ export async function renderPrintRevision(
         check();
         if (result.pdf.byteLength > PRINT_LIMITS.bytes)
           throw failed("PRINT_RESOURCE_LIMIT");
+        result.export!.findings = [
+          ...printPreflight(result),
+          ...(await inspectPrintPdf(result)),
+        ];
+        check();
         return result;
       })(),
     ]);
