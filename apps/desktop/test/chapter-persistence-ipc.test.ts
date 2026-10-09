@@ -197,7 +197,9 @@ it("binds PDF export to the trusted preview and exposes authorized progress and 
   };
   let release: (() => void) | undefined;
   const exporting = vi.fn<
-    NonNullable<Parameters<typeof registerProjectHandlers>[2]>["exportPrint"]
+    NonNullable<
+      NonNullable<Parameters<typeof registerProjectHandlers>[2]>["exportPrint"]
+    >
   >(async (_window, _path, cached, options) => {
     expect(cached).toBe(preview);
     options.progress("Checking temporary PDF");
