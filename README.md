@@ -7,7 +7,9 @@ autosave, retained history snapshots and crash recovery. v0.1 testing, hardening
 and release validation remain open. Community DOCX, TXT, Markdown and HTML parsers,
 staged import API and author-facing review workflow are implemented. A shared semantic
 renderer, isolated saved-book preview and three persisted [Community book themes](docs/book-themes.md)
-are available; local EPUB export and [PDF-backed print preview](docs/print-preview.md) are implemented. Final PDF export remains planned work. See the [DOCX support matrix](docs/docx-import.md),
+are available; local EPUB export, [PDF-backed print preview](docs/print-preview.md)
+and [atomic PDF export with basic preflight](docs/print-export.md) are implemented.
+See the PDF review record for validation and platform limitations. See the [DOCX support matrix](docs/docx-import.md),
 [TXT/Markdown/HTML support matrix](docs/text-import.md) and
 [local publishing delivery plan](docs/planning/local-publishing-plan.md).
 
@@ -31,8 +33,7 @@ milestone are complete. Community will build independently of the eventual priva
 Pro product; basic authoring and publishing belong in Community. Pro is not
 currently available. Implemented local authoring/import/preview/backup workflows
 need no Drelwick account, backend or Pro checkout. Editable DOCX export is available through **Export → Export DOCX**. EPUB export is
-available through **Export → Export EPUB**; basic PDF remains a planned Community
-capability.
+available through **Export → Export EPUB**, and PDF through **Export → Print PDF / preflight**.
 
 Local standalone packaging is configured through [Electron Builder](docs/desktop-packaging.md),
 but unsigned artifacts are validation outputs, not official releases. The development
@@ -79,7 +80,8 @@ or **Cancel startup** before editing. See [manuscript recovery](docs/manuscript-
 Use **Book design → Print settings** to save local trim size, mirrored margins,
 gutter, chapter starts, headers and page numbers. See [Community print settings](docs/print-settings.md).
 Use **Book preview → Print preview** for local pagination and facing pages drawn
-from the production PDF. Final PDF export and preflight remain planned under #130.
+from the production PDF. **Export PDF** saves that exact revision after basic
+preflight and destination review; see [PDF export validation](docs/print-export.md).
 
 Use **Export → Export DOCX** to save an editable Word manuscript locally. Pending
 edits must save successfully first. Review fidelity warnings and choose a native

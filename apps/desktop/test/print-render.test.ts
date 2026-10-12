@@ -1,8 +1,13 @@
 import { expect, it, vi } from "vitest";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { defaultPrintSettings } from "@drelwick/shared";
+import { ApplicationError, defaultPrintSettings } from "@drelwick/shared";
+import { readFile } from "node:fs/promises";
 import type { AssembledBook } from "@drelwick/core";
 import { renderPrintRevision } from "../src/main/print-render.js";
+vi.mock("node:fs/promises", async (original) => {
+  const actual = await original<typeof import("node:fs/promises")>();
+  return { ...actual, readFile: vi.fn(actual.readFile) };
+});
 
 function snapshot(): AssembledBook {
   return {
@@ -121,12 +126,44 @@ it("refuses missing assets and unsupported font glyphs before opening Chromium",
   ];
   await expect(renderPrintRevision(source, factory)).rejects.toMatchObject({
     code: "PRINT_ASSET_OR_CONTENT_INVALID",
+    message: expect.stringContaining("Chapter: Chapter."),
   });
   source.book.chapters[0]!.document.content = [
     { type: "paragraph", content: [{ type: "text", text: "漢字" }] },
   ];
   await expect(renderPrintRevision(source, factory)).rejects.toMatchObject({
     code: "PRINT_UNRESOLVED_FONT",
+    message: expect.stringContaining("Chapter: Chapter."),
   });
   expect(factory).not.toHaveBeenCalled();
+});
+
+it("reports missing bundled fonts and decoded resource failures without exposing underlying payloads", async () => {
+  const factory = vi.fn();
+  vi.mocked(readFile).mockRejectedValueOnce(new Error("private payload"));
+  await expect(renderPrintRevision(snapshot(), factory)).rejects.toMatchObject({
+    code: "PRINT_FONT_LOAD_FAILED",
+    message: expect.stringContaining(
+      "Repair the local application installation",
+    ),
+  });
+  expect(factory).not.toHaveBeenCalled();
+  for (const code of [
+    "PRINT_FONT_LOAD_FAILED",
+    "PRINT_ASSET_OR_CONTENT_INVALID",
+  ]) {
+    const close = vi.fn();
+    await expect(
+      renderPrintRevision(snapshot(), () => ({
+        close,
+        render: async () => {
+          throw new ApplicationError(code, "private payload");
+        },
+      })),
+    ).rejects.toMatchObject({
+      code,
+      message: expect.stringMatching(/Chapter: Chapter\.$/),
+    });
+    expect(close).toHaveBeenCalledOnce();
+  }
 });

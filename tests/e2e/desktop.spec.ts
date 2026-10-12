@@ -513,15 +513,31 @@ test("reflowable ebook simulation navigates complete matter offline, preserves s
     await dialog.locator(".ebook-viewport").screenshot({
       path: test.info().outputPath("ebook-landscape-dark-large.png"),
     });
-    await frame
-      .getByRole("link", { name: "About the author", exact: true })
-      .click();
+    const aboutLink = frame.getByRole("link", {
+      name: "About the author",
+      exact: true,
+    });
+    // Establish focus inside the nested, scrolled iframe after the reader controls
+    // and screenshot moved focus/scroll in the outer dialog. Keep a real mouse
+    // click and verify its navigation; no forced click or script activation.
+    await aboutLink.focus();
+    await expect(aboutLink).toBeFocused();
+    await aboutLink.click();
     await expect
       .poll(() => frame.locator("body").evaluate(() => location.hash))
       .toBe(`#chapter-${fixture.data.pages[4]!.id}`);
     expect(
       await frame.locator("body").evaluate(() => window.scrollY),
     ).toBeGreaterThan(0);
+    const firstContentsLink = frame
+      .getByRole("navigation", { name: "Book contents" })
+      .getByRole("link")
+      .first();
+    const firstTarget = await firstContentsLink.getAttribute("href");
+    await firstContentsLink.press("Enter");
+    await expect
+      .poll(() => frame.locator("body").evaluate(() => location.href))
+      .toBe(firstTarget);
     expect(
       await Promise.all(fixture.paths.map((path) => readFile(path))),
     ).toEqual(fixture.bytes);
@@ -1337,10 +1353,19 @@ test("finds live prose, reviews whole-manuscript replacement and reopens formatt
     await find.getByLabel("Find text", { exact: true }).fill("silver");
     await find.getByLabel("Search scope").selectOption("manuscript");
     await expect(find).toContainText("0 of 3 matches");
+    // Live search above includes unsaved prose. Let its save settle before
+    // navigating away and capturing the replacement review's source revision.
+    await expect(
+      page.getByText("All changes saved", { exact: true }).first(),
+    ).toBeVisible();
     await find.getByRole("button", { name: "Next match" }).click();
     await expect(find).toContainText("1 of 3 matches");
     await find.getByRole("button", { name: "Previous match" }).click();
     await expect(find).toContainText("3 of 3 matches");
+    await expect(
+      page.getByRole("button", { name: /A Clear Ending/ }),
+    ).toHaveAttribute("aria-current", "page");
+    await expect(editor).toBeEditable();
     await find.getByLabel("Replacement text").fill("金色");
     await find.getByRole("button", { name: "Review replace all" }).click();
     await expect(find).toContainText(
@@ -2675,6 +2700,10 @@ test("PDF-backed print preview and atomic export work offline and preserve previ
     );
     application = launched.application;
     const page = launched.page;
+    const requests: string[] = [];
+    page.on("request", (request) => {
+      if (/^https?:/.test(request.url())) requests.push(request.url());
+    });
     await page.context().setOffline(true);
     await application.evaluate(({ dialog }, path) => {
       dialog.showOpenDialog = async () => ({
@@ -2686,6 +2715,16 @@ test("PDF-backed print preview and atomic export work offline and preserve previ
       .getByRole("button", { name: "Open project", exact: true })
       .click();
     await expect(page.locator(".ProseMirror")).toBeEditable();
+    const sourcePaths = [
+      "project.json",
+      "book.json",
+      ...(await readdir(join(fixture.projectPath, "manuscript"))).map((name) =>
+        join("manuscript", name),
+      ),
+    ].map((name) => join(fixture.projectPath, name));
+    const sourceBytes = await Promise.all(
+      sourcePaths.map((path) => readFile(path)),
+    );
     await page.getByRole("button", { name: "Export", exact: true }).click();
     await page
       .getByRole("button", { name: "Print PDF / preflight", exact: true })
@@ -2764,6 +2803,22 @@ test("PDF-backed print preview and atomic export work offline and preserve previ
       .click();
     await expect(dialog.getByRole("status")).toContainText("cancelled");
     expect(await readFile(destination)).toEqual(originalPdf);
+    expect(
+      await Promise.all(sourcePaths.map((path) => readFile(path))),
+    ).toEqual(sourceBytes);
+    expect(
+      (await readdir(scratch)).filter((name) => name.endsWith(".tmp")),
+    ).toEqual([]);
+    expect(requests).toEqual([]);
+    const logDirectory = join(scratch, "profile", "logs");
+    const logs = await readdir(logDirectory);
+    expect(logs.length).toBeGreaterThan(0);
+    for (const name of logs) {
+      const log = await readFile(join(logDirectory, name), "utf8");
+      expect(log).not.toContain("A deterministic beginning comes first.");
+      expect(log).not.toContain("A measured middle follows.");
+      expect(log).not.toContain("The synthetic journey ends here.");
+    }
     const chapterPath = join(
       fixture.projectPath,
       "manuscript",
@@ -2791,7 +2846,14 @@ test("PDF-backed print preview and atomic export work offline and preserve previ
     await dialog.getByRole("button", { name: "Refresh print preview" }).click();
     await expect(dialog.getByRole("alert")).toContainText("Unable to render");
     await expect(dialog.locator("canvas")).toHaveCount(2);
-    await dialog.getByRole("button", { name: "Close print preview" }).click();
+    // Remove the intentionally injected recovery blocker before reviewing settings.
+    await rm(join(fixture.projectPath, "print.json.tmp"));
+    await dialog
+      .getByRole("button", { name: "Review print settings", exact: true })
+      .click();
+    await expect(
+      page.getByRole("dialog", { name: "Print settings", exact: true }),
+    ).toBeVisible();
   } finally {
     if (application) {
       await application.evaluate(({ BrowserWindow }) => {

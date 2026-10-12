@@ -175,6 +175,33 @@ test("Chromium PDF pagination, recto, running matter, offline isolation and repe
           format: "pdf",
           overwrite: false,
         });
+        // A novel-sized output, separate from the small typography golden.
+        const longSource = structuredClone(snapshot);
+        longSource.book.chapters = [longSource.book.chapters[1]!];
+        longSource.book.chapters[0]!.title = "Long book";
+        longSource.book.chapters[0]!.document.content = Array.from(
+          { length: 1000 },
+          (_, index) =>
+            paragraph(
+              `Book paragraph ${index + 1}. ` +
+                "The traveller followed the river through the quiet valley. ".repeat(
+                  5,
+                ),
+            ),
+        );
+        const long = await renderPrintRevision(longSource, createPrintSurface);
+        await writeExportAtomically(
+          await inspectExportDestination(
+            `${destination}.long.pdf`,
+            projectPath,
+            "pdf",
+          ),
+          long.pdf,
+          {
+            format: "pdf",
+            overwrite: false,
+          },
+        );
 
         const { createRequire } = (await load(
           "node:module",
@@ -319,6 +346,9 @@ test("Chromium PDF pagination, recto, running matter, offline isolation and repe
           embeddedFonts,
           imageFailure,
           measured: measured.diagnostics.map((diagnostic) => diagnostic.code),
+          longPages: long.pages.length,
+          longFindings: long.export!.findings,
+          longPdf: Buffer.from(long.pdf).toString("base64"),
         };
       },
       {
@@ -334,6 +364,11 @@ test("Chromium PDF pagination, recto, running matter, offline isolation and repe
     );
     expect(results.diagnostics).toEqual([]);
     expect(results.findings).toEqual([]);
+    expect(results.longFindings).toEqual([]);
+    expect(results.longPages).toBeGreaterThan(100);
+    expect(
+      await readFile(join(scratch, "exported-long-book.pdf.long.pdf")),
+    ).toEqual(Buffer.from(results.longPdf, "base64"));
     expect(await readFile(join(scratch, "exported-long-book.pdf"))).toEqual(
       Buffer.from(results.pdf, "base64"),
     );
@@ -368,15 +403,27 @@ test("Chromium PDF pagination, recto, running matter, offline isolation and repe
         data: bytes,
         useSystemFonts: false,
         isEvalSupported: false,
+        fontExtraProperties: true,
       });
       try {
         const pdf = await task.promise;
         const pages = [];
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
+          await page.getOperatorList();
+          const content = await page.getTextContent();
+          for (const item of content.items) {
+            if (!("str" in item) || !item.str.trim()) continue;
+            const font = page.commonObjs.get(item.fontName) as {
+              data?: Uint8Array;
+              missingFile?: boolean;
+            };
+            expect(font.missingFile).toBe(false);
+            expect(font.data?.length ?? 0).toBeGreaterThan(0);
+          }
           pages.push({
             size: page.view,
-            text: (await page.getTextContent()).items.map((item) =>
+            text: content.items.map((item) =>
               "str" in item
                 ? { text: item.str, position: item.transform }
                 : item,
@@ -391,6 +438,29 @@ test("Chromium PDF pagination, recto, running matter, offline isolation and repe
     const pages = await inspect(
       new Uint8Array(await readFile(join(scratch, "exported-long-book.pdf"))),
     );
+    const longPages = await inspect(
+      new Uint8Array(
+        await readFile(join(scratch, "exported-long-book.pdf.long.pdf")),
+      ),
+    );
+    expect(longPages).toHaveLength(results.longPages);
+    const longText = longPages
+      .flatMap((page) =>
+        page.text.map((item) => ("text" in item ? item.text : "")),
+      )
+      .join(" ");
+    expect(
+      [...longText.matchAll(/Book\s+paragraph\s+(\d+)\./g)].map((match) =>
+        Number(match[1]),
+      ),
+    ).toEqual(Array.from({ length: 1000 }, (_, index) => index + 1));
+    for (const page of longPages) expect(page.size).toEqual([0, 0, 432, 648]);
+    const novelPath = test.info().outputPath("exported-novel.pdf");
+    await writeFile(novelPath, Buffer.from(results.longPdf, "base64"));
+    await test.info().attach("exported-novel.pdf", {
+      path: novelPath,
+      contentType: "application/pdf",
+    });
     expect(pages).toEqual(
       await inspect(new Uint8Array(Buffer.from(results.secondPdf, "base64"))),
     );
@@ -434,8 +504,10 @@ test("Chromium PDF pagination, recto, running matter, offline isolation and repe
     expect(JSON.stringify(pages[headingPage]!.text)).toContain(
       "The final paragraph",
     );
+    const proofPath = test.info().outputPath("print-preview.pdf");
+    await writeFile(proofPath, Buffer.from(results.pdf, "base64"));
     await test.info().attach("print-preview.pdf", {
-      body: Buffer.from(results.pdf, "base64"),
+      path: proofPath,
       contentType: "application/pdf",
     });
   } finally {

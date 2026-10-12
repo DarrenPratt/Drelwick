@@ -1,4 +1,5 @@
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
+import * as fs from "node:fs/promises";
 import { readFile, readdir, writeFile, mkdir, symlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
@@ -15,8 +16,95 @@ import {
 import { defaultPrintSettings, type PrintPreview } from "@drelwick/shared";
 
 const copies: FixtureCopy[] = [];
+vi.mock("node:fs/promises", async (original) => {
+  const actual = await original<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    open: vi.fn(actual.open),
+    rename: vi.fn(actual.rename),
+    link: vi.fn(actual.link),
+    unlink: vi.fn(actual.unlink),
+  };
+});
 afterEach(async () => {
+  vi.mocked(fs.open).mockRestore();
+  vi.mocked(fs.rename).mockRestore();
+  vi.mocked(fs.link).mockRestore();
+  vi.mocked(fs.unlink).mockRestore();
   await Promise.all(copies.splice(0).map((c) => c.cleanup()));
+});
+
+it.each(["write", "sync", "rename", "link"] as const)(
+  "preserves source and destination after an actual %s operation fails",
+  async (phase) => {
+    const c = await fixture();
+    const path = join(dirname(c.projectPath), "fault.pdf");
+    const sourcePath = join(c.projectPath, "project.json");
+    const source = await readFile(sourcePath);
+    if (phase !== "link") await writeFile(path, "previous PDF");
+    const destination = await inspectExportDestination(
+      path,
+      c.projectPath,
+      "pdf",
+    );
+    const fault = Object.assign(
+      new Error("private manuscript text must not escape"),
+      { code: phase === "write" ? "ENOSPC" : "EIO" },
+    );
+    if (phase === "write" || phase === "sync") {
+      const actual =
+        await vi.importActual<typeof import("node:fs/promises")>(
+          "node:fs/promises",
+        );
+      vi.mocked(fs.open).mockImplementationOnce(async (...args) => {
+        const handle = await actual.open(...args);
+        if (phase === "write")
+          vi.spyOn(handle, "writeFile").mockImplementationOnce(async () => {
+            await handle.write(Buffer.from("partial"));
+            throw fault;
+          });
+        else vi.spyOn(handle, "sync").mockRejectedValueOnce(fault);
+        return handle;
+      });
+    } else vi.mocked(fs[phase]).mockRejectedValueOnce(fault);
+    await expect(
+      writeExportAtomically(destination, Buffer.from("replacement"), {
+        format: "pdf",
+        overwrite: true,
+      }),
+    ).rejects.toMatchObject({
+      code: "PDF_EXPORT_WRITE",
+      message:
+        "Unable to write export. Check permissions and disk space. The previous destination and project were preserved.",
+    });
+    if (phase === "link")
+      await expect(readFile(path)).rejects.toMatchObject({ code: "ENOENT" });
+    else expect(await readFile(path, "utf8")).toBe("previous PDF");
+    expect(await readFile(sourcePath)).toEqual(source);
+    expect(
+      (await readdir(dirname(path))).filter((name) => name.endsWith(".tmp")),
+    ).toEqual([]);
+  },
+);
+
+it("reports cleanup failure after publication without claiming the export failed", async () => {
+  const c = await fixture();
+  const path = join(dirname(c.projectPath), "cleanup.pdf");
+  const destination = await inspectExportDestination(
+    path,
+    c.projectPath,
+    "pdf",
+  );
+  vi.mocked(fs.unlink).mockRejectedValueOnce(
+    Object.assign(new Error("locked"), { code: "EPERM" }),
+  );
+  await expect(
+    writeExportAtomically(destination, Buffer.from("complete"), {
+      format: "pdf",
+      overwrite: false,
+    }),
+  ).resolves.toEqual({ cleanupWarning: true });
+  expect(await readFile(path, "utf8")).toBe("complete");
 });
 async function fixture() {
   const c = await copyFixture("minimal-book");

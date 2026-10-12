@@ -51,6 +51,7 @@ export function PrintPreviewDialog({
   projectId,
   onClose,
   onRefresh,
+  onReviewSettings,
   refreshing,
   error,
 }: {
@@ -58,6 +59,7 @@ export function PrintPreviewDialog({
   projectId: string;
   onClose(): void;
   onRefresh(): void;
+  onReviewSettings(): void;
   refreshing: boolean;
   error: string;
 }) {
@@ -220,30 +222,43 @@ export function PrintPreviewDialog({
       )}
       <section aria-label="PDF preflight">
         <h3>Basic preflight</h3>
+        <button onClick={onReviewSettings} disabled={refreshing || exporting}>
+          Review print settings
+        </button>
         <p>
           {preview.pages.length} pages -{" "}
           {blocking ? "Export blocked" : "No blocking findings"}
         </p>
         <ul>
-          {findings.map((finding, index) => (
-            <li key={index}>
-              <strong>
-                {finding.severity === "error" ? "Error" : "Warning"}:{" "}
-              </strong>
-              {finding.chapterId &&
-                `${preview.export?.chapters.find((c) => c.id === finding.chapterId)?.title ?? "Chapter"}: `}
-              {finding.setting && `${finding.setting}: `}
-              {finding.message}
-              {finding.page && (
-                <>
-                  {" "}
-                  <button onClick={() => setPage(finding.page!)}>
-                    Review page {finding.page}
-                  </button>
-                </>
-              )}
-            </li>
-          ))}
+          {findings.map((finding, index) => {
+            const reviewPage =
+              finding.page ??
+              (finding.chapterId
+                ? preview.pages.findIndex(
+                    (page) =>
+                      page.chapterId === finding.chapterId && !page.blank,
+                  ) + 1
+                : 0);
+            return (
+              <li key={index}>
+                <strong>
+                  {finding.severity === "error" ? "Error" : "Warning"}:{" "}
+                </strong>
+                {finding.chapterId &&
+                  `${preview.export?.chapters.find((c) => c.id === finding.chapterId)?.title ?? "Chapter"}: `}
+                {finding.setting && `${finding.setting}: `}
+                {finding.message}
+                {reviewPage > 0 && (
+                  <>
+                    {" "}
+                    <button onClick={() => setPage(reviewPage)}>
+                      Review page {reviewPage}
+                    </button>
+                  </>
+                )}
+              </li>
+            );
+          })}
         </ul>
         {warnings && (
           <label>

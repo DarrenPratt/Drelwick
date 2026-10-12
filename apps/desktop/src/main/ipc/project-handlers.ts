@@ -592,14 +592,17 @@ export function registerProjectHandlers(
           : "PRINT_PREVIEW_FAILED";
       return failure(
         code,
-        error instanceof ApplicationError &&
-          [
-            "PRINT_UNRESOLVED_FONT",
-            "PRINT_ASSET_OR_CONTENT_INVALID",
-            "PRINT_CONFIGURATION_INVALID",
-          ].includes(code)
-          ? error.message
-          : "Unable to render print preview. Check print settings, images and recovery files, then retry. Your manuscript is unchanged.",
+        code === "PRINT_CONFIGURATION_INVALID"
+          ? "Blocking preflight error: print settings are invalid or unreadable. Review Book design > Print settings and project access, then refresh. Your manuscript is unchanged."
+          : error instanceof ApplicationError &&
+              [
+                "PRINT_UNRESOLVED_FONT",
+                "PRINT_FONT_LOAD_FAILED",
+                "PRINT_ASSET_OR_CONTENT_INVALID",
+                "PRINT_CONFIGURATION_INVALID",
+              ].includes(code)
+            ? error.message
+            : "Unable to render print preview. Check print settings, images and recovery files, then retry. Your manuscript is unchanged.",
       );
     } finally {
       busy = false;

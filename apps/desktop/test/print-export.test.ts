@@ -101,6 +101,7 @@ it("inspects actual page boxes, metadata, language and embedded fonts and export
   expect(pdf.getTitle()).toBe(f.snapshot.book.title);
   const before = f.preview.pdf;
   pdf.getPages()[0]!.setMediaBox(0, 0, 500, 700);
+  pdf.addPage([432, 648]);
   pdf.setTitle("wrong");
   pdf.setLanguage("fr");
   for (const [, object] of pdf.context.enumerateIndirectObjects()) {
@@ -115,6 +116,7 @@ it("inspects actual page boxes, metadata, language and embedded fonts and export
   f.preview.pdf = await pdf.save();
   expect((await inspectPrintPdf(f.preview)).map((v) => v.code)).toEqual(
     expect.arrayContaining([
+      "page-count",
       "page-box",
       "metadata",
       "metadata-language",
