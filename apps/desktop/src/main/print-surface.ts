@@ -67,11 +67,15 @@ export function createPrintSurface(
             );
             const measurement = (await window.webContents
               .executeJavaScript(`(async () => {
-            const faces = await Promise.all([400,700].flatMap(weight => ['normal','italic'].map(style => document.fonts.load(style + ' ' + weight + ' 12px DrelwickPrint'))));
+            let faces;
+            try {
+              faces = await Promise.all([400,700].flatMap(weight => ['normal','italic'].map(style => document.fonts.load(style + ' ' + weight + ' 12px DrelwickPrint'))));
+            } catch { return { resourceError: 'font' }; }
             await document.fonts.ready;
-            if (faces.some(face => face.length !== 1) || [...document.fonts].some(font => font.status !== 'loaded')) throw new Error('Font unavailable');
-            await Promise.all([...document.images].map(image => image.decode()));
-            if ([...document.images].some(image => !image.naturalWidth)) throw new Error('Image unavailable');
+            if (faces.some(face => face.length !== 1) || [...document.fonts].some(font => font.status !== 'loaded')) return { resourceError: 'font' };
+            try { await Promise.all([...document.images].map(image => image.decode())); }
+            catch { return { resourceError: 'asset' }; }
+            if ([...document.images].some(image => !image.naturalWidth)) return { resourceError: 'asset' };
             const width = document.body.getBoundingClientRect().width;
             let overflow = false, clipping = false;
             for (const element of document.querySelectorAll('.chapter *')) {
@@ -81,7 +85,18 @@ export function createPrintSurface(
               if (['hidden','clip'].includes(getComputedStyle(element).overflow) && element.scrollHeight > element.clientHeight + 1) clipping = true;
             }
             return { overflow, clipping };
-          })()`)) as { overflow: boolean; clipping: boolean };
+          })()`)) as {
+              overflow: boolean;
+              clipping: boolean;
+              resourceError?: "font" | "asset";
+            };
+            if (measurement.resourceError)
+              throw new ApplicationError(
+                measurement.resourceError === "font"
+                  ? "PRINT_FONT_LOAD_FAILED"
+                  : "PRINT_ASSET_OR_CONTENT_INVALID",
+                "Print resources could not be loaded.",
+              );
             const pdf = await window.webContents.printToPDF({
               printBackground: true,
               preferCSSPageSize: true,

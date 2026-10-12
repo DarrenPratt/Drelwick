@@ -140,3 +140,14 @@ image-import undo scenario encountered unexpected alt text. Its isolated rerun a
 the complete 14-test rerun passed unchanged; no assertion or timeout was weakened.
 Native execution was on Windows; macOS/Linux execution is not claimed. No known
 #124 acceptance work remains; review and merge are separate.
+
+## Desktop E2E regression review — 12 October 2026
+
+The Windows native scenario could lose the first Contents mouse activation after
+changing reader controls and capturing the nested viewport. Explicitly focusing
+the Contents link before the real mouse click makes the input sequence reliable.
+The test still checks the exact destination fragment and actual scroll movement,
+and now checks Enter-key navigation back to the first Contents entry as well.
+Three consecutive focused runs and the full 20-scenario desktop suite pass.
+No forced clicks, sleeps, retries, disabled
+assertions, application changes or sandbox relaxations were needed.

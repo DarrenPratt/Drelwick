@@ -2014,6 +2014,10 @@ export function App() {
             projectId={project!.projectId}
             onClose={() => setPrintPreview(null)}
             onRefresh={() => void previewBook(true)}
+            onReviewSettings={() => {
+              setPrintPreview(null);
+              void editPrintSettings();
+            }}
             refreshing={previewing}
             error={error}
           />

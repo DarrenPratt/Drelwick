@@ -209,7 +209,7 @@ it("binds PDF export to the trusted preview and exposes authorized progress and 
     expect(options.signal.aborted).toBe(true);
     return { created: false, revision: cached.revision, cleanupWarning: false };
   });
-  const { invoke, event, settleHistory } = setup(
+  const { invoke, event, logger, settleHistory } = setup(
     f.root,
     saveChapter,
     undefined,
@@ -260,6 +260,16 @@ it("binds PDF export to the trusted preview and exposes authorized progress and 
       value: { created: false },
     });
     expect(exporting).toHaveBeenCalledOnce();
+    exporting.mockRejectedValueOnce(
+      new Error("Private manuscript body from I/O"),
+    );
+    const failed = await invoke(IPC.PRINT_EXPORT, request);
+    expect(failed).toMatchObject({
+      ok: false,
+      error: { code: "PDF_EXPORT_FAILED" },
+    });
+    expect(JSON.stringify(failed)).not.toContain("Private manuscript");
+    expect(logger.error).not.toHaveBeenCalled();
   } finally {
     release?.();
     await settleHistory();

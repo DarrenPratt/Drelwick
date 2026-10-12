@@ -70,6 +70,8 @@ const printFailureMessages: Record<string, string> = {
     "Blocking preflight error: missing image or unsupported content. Restore the local image or correct this chapter.",
   PRINT_CONFIGURATION_INVALID:
     "Blocking preflight error: invalid trim or margins. Correct Book design > Print settings and refresh.",
+  PRINT_FONT_LOAD_FAILED:
+    "Blocking preflight error: bundled print fonts could not be loaded. Repair the local application installation and refresh; no font download is required.",
 };
 const failed = (code: string, location = "") =>
   new ApplicationError(
@@ -130,8 +132,12 @@ export async function renderPrintRevision(
               [700, "italic"],
             ] as const
           ).map(async ([weight, style], index) => {
-            const bytes = await readFile(fontFiles[index]!());
-            return { bytes, weight, style, face: fontkit.create(bytes) };
+            try {
+              const bytes = await readFile(fontFiles[index]!());
+              return { bytes, weight, style, face: fontkit.create(bytes) };
+            } catch {
+              throw failed("PRINT_FONT_LOAD_FAILED");
+            }
           }),
         );
         check();
@@ -157,7 +163,12 @@ export async function renderPrintRevision(
         if (!rendered.ok)
           throw failed(
             "PRINT_ASSET_OR_CONTENT_INVALID",
-            rendered.diagnostics.find((d) => d.severity === "error")?.chapterId,
+            snapshot.book.chapters.find(
+              (chapter) =>
+                chapter.id ===
+                rendered.diagnostics.find((d) => d.severity === "error")
+                  ?.chapterId,
+            )?.title,
           );
         if (
           !rendered.chapters.length ||
@@ -244,7 +255,7 @@ export async function renderPrintRevision(
               snapshot.book.metadata?.author ?? "",
             ].every(inspectFont)
           )
-            throw failed("PRINT_UNRESOLVED_FONT", chapter.id);
+            throw failed("PRINT_UNRESOLVED_FONT", chapter.title);
         }
         check();
         surface = factory();
@@ -284,10 +295,22 @@ export async function renderPrintRevision(
             printStyles(settings, theme, pdf.getPageCount() % 2 === 0);
           const policy = `default-src 'none'; script-src 'none'; style-src 'sha256-${createHash("sha256").update(css).digest("base64")}'; style-src-attr 'none'; img-src data:; font-src data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'`;
           const document = `<!doctype html><html lang="${escapeXml(snapshot.book.language)}"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${escapeXml(policy)}"><style>${css}</style></head><body>${chapter.xhtml}</body></html>`;
-          const output = await surface.render(
-            document,
-            (printPageGeometry(settings, "recto").contentHeight * 96) / 25400,
-          );
+          const output = await surface
+            .render(
+              document,
+              (printPageGeometry(settings, "recto").contentHeight * 96) / 25400,
+            )
+            .catch((error: unknown) => {
+              if (
+                error instanceof ApplicationError &&
+                [
+                  "PRINT_FONT_LOAD_FAILED",
+                  "PRINT_ASSET_OR_CONTENT_INVALID",
+                ].includes(error.code)
+              )
+                throw failed(error.code, chapter.title);
+              throw error;
+            });
           check();
           producedBytes += output.pdf.byteLength;
           if (producedBytes > PRINT_LIMITS.bytes)

@@ -1,9 +1,9 @@
 # Community local print PDF export
 
-Related to #130 (`product:core`). This working-tree implementation is not yet
-validated: the final quality checks and independent generated-PDF inspection
-are blocked by dependency access errors in the current execution environment.
-Do not treat the test cases below as passing evidence.
+Issue #130 (`product:core`). PR #215 is merged. The 12 October 2026 local review
+verifies the PDF acceptance criteria and adds the fixes and evidence below.
+All required checks now pass, including all 20 desktop E2E scenarios. The changes
+are ready for PR review; review and merge remain separate.
 
 ## Workflow and supported output
 
@@ -11,7 +11,8 @@ Open **Export → Print PDF / preflight**. Pending editor changes must save befo
 the existing print preview pipeline captures a revision. Review the actual PDF
 pages and basic preflight findings. Errors disable **Export PDF**; warnings
 require acknowledgement for that revision. Findings identify chapter titles,
-settings or a **Review page** action where the measurement has that location.
+settings or a **Review page** action. Chapter-only measurements link to the first
+nonblank page of that chapter. **Review print settings** opens the settings dialog.
 Correct the source/settings and explicitly refresh to produce a new proof.
 
 Export selects a destination through Electron's native save dialog. Existing
@@ -43,8 +44,11 @@ Blocking errors include invalid trim/margins, missing/invalid images, unsupporte
 font characters or font loading failures, measured overflow/clipping, inconsistent
 page count/boxes, missing embedded fonts, metadata mismatch and unreadable PDFs.
 Resource/render failures stop generation rather than returning a partial book.
-Missing resources may prevent any PDF from being produced; the error directs the
-author to the affected chapter when known, or to settings/resources otherwise.
+Missing resources may prevent any PDF from being produced; the error names the
+affected chapter when known, or directs the author to settings/resources otherwise.
+Missing or corrupt bundled fonts request local installation repair. Chromium font
+and image decode failures retain those actionable classifications; parser/I/O
+payloads are not forwarded or logged.
 
 Unexpected blank pages are warnings because authored empty material can be
 intentional. Recto separator pages are marked intentional and are not warnings.
@@ -88,33 +92,68 @@ support remain unverified here. Existing render limits remain 2,000 pages,
 
 ## Acceptance coverage and validation status
 
-| Criterion                                                   | Implementation and tests added                                                                                                     | Status                                                 |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| Exact preview revision, dimensions, metadata, fonts/content | Main-process cached bytes, source identity, final PDF inspection; actual PDF unit fixture and offline E2E artifact inspection      | Unverified                                             |
-| Page count, resources, margins, clipping/overflow           | Shared preflight, existing render diagnostics, blocking generation errors, corruption/geometry tests                               | Unverified                                             |
-| Actionable errors/warnings                                  | Preview preflight panel in Export centre, located findings, warning acknowledgement, progress/cancel UI                            | Unverified                                             |
-| Local atomic destination, overwrite and cancellation        | Shared export primitive; preservation, validation failure, destination race, stale revision, cancellation and restricted IPC tests | Unverified; new files use atomic no-clobber hard links |
-| Offline Community operation                                 | Existing isolated Chromium renderer, no new dependencies; offline desktop workflow test                                            | Unverified                                             |
+| Criterion                                                         | Evidence                                                                                                                                                                                                              | Result |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Exact preview revision, dimensions, metadata and fonts            | Retained main-process bytes; stale checks before selection and publication; staged byte equality; PDF page-box, metadata/language, font and page-count corruption tests                                               | Pass   |
+| Page count, missing resources, invalid margins, clipping/overflow | Core preflight classification; native missing/corrupt image and font fixtures; oversized heading/word measurements; geometry and resource bounds                                                                      | Pass   |
+| Actionable findings and severity                                  | Chapter names in resource errors; page links for chapter-only findings; settings action; errors block export and warnings require revision acknowledgement                                                            | Pass   |
+| Atomic destination, overwrite, cancellation and cleanup           | Real destination publication; explicit replacement/rejection; picker and cooperative cancellation; stale destination/source tests; partial ENOSPC write, sync, rename and link fault injection; cleanup warning test  | Pass   |
+| Offline Community                                                 | Offline native Export workflow; zero renderer HTTP requests and zero hits at the isolated render surface's HTTP probe; independent Community dependency validation                                                    | Pass   |
+| IPC, paths, source and logs                                       | Strict identifier-only requests; trusted-frame/project ownership; unauthorized path/cancel rejection; linked/project/unsafe path rejection; source byte comparisons; sanitized IPC failure and log-content assertions | Pass   |
 
-New tests are in `packages/core/test/print-output.test.ts` and
-`apps/desktop/test/print-export.test.ts`, with IPC coverage in
-`chapter-persistence-ipc.test.ts`. Existing `tests/e2e/print.spec.ts` now compares
-the atomically published multi-page artifact to preview bytes before independent
-PDF.js text/position inspection. The desktop PDF scenario uses the Export centre,
-inspects exported dimensions/metadata/content offline, rejects overwrite and
-checks stale-source preservation. Existing resource/font/overflow fixtures are
-reused, not replaced.
+The review reuses the existing pipeline and atomic writer. It fixes missing-font
+and image-decode failures losing their actionable classifications, replaces
+chapter UUIDs with chapter titles in author-facing resource errors, adds preflight
+navigation, and strengthens the existing tests. No dependencies, project formats,
+security controls or publishing limits change.
 
-The initial frozen-lockfile install succeeded before environment permissions
-changed. The final attempts at lint, format check, typecheck, tests, build and
-desktop E2E stopped at `EPERM` reading installed ESLint/Prettier/TypeScript files.
-The workspace check stopped resolving TypeScript. A later frozen install aborted
-without modifying dependencies because it required interactive module removal.
-An intermediate typecheck identified missing API methods in a test mock, which
-were added; that fix and subsequent changes have not been revalidated. No new
-PDF properties have been independently verified in this session.
+`tests/e2e/print.spec.ts` independently reads the exported bytes with PDF.js,
+checks every used font has loaded embedded data without system-font fallback,
+and compares the typography fixture's complete text/positions with its Windows
+golden and a repeated production render. A separate 175-page novel fixture
+verifies all 1,000 paragraph markers in order and every page's 432 × 648 point
+view. Both published PDFs must equal the retained preview bytes.
 
-Completion requires a working pinned dependency environment, formatting and all
-requested checks, successful native desktop tests, independent PDF inspection,
-and resolution of any failures found. Use **Related to #130**, not a closing
-reference, until that evidence exists.
+A separate review-only pypdf 6.20.0 installation independently parsed the saved
+16-page typography PDF and 175-page novel PDF. Every MediaBox, CropBox and TrimBox
+was `[0, 0, 432, 648]`; both had title `A Printed Book`, language `en-GB` and the
+fixture's empty author. Noto Serif regular/bold and running-matter fonts contained
+nonempty embedded font programs. Independent extracted text preserved all 1,000
+novel paragraph markers in order. The review tool is outside the application's
+dependency graph; PDF.js checks remain in the executable repository E2E test.
+
+The desktop scenario independently checks its three-page exported PDF's title,
+author, dimensions and all three chapters. It also checks offline operation,
+unchanged project/book/manuscript bytes, no temporary files, overwrite rejection,
+stale-source rejection, failed-refresh retention and absence of manuscript text
+in application logs. Unit/filesystem tests additionally cover cancellation at
+written/commit boundaries, warning acknowledgement and disk failure preservation.
+
+## Review checks (12 October 2026)
+
+Windows, Node 24.20.0, pnpm 10.34.5 and Electron 39.1.2. The earlier PR's dependency
+access problems did not recur. Fresh local results:
+
+- `pnpm install --frozen-lockfile`: pass.
+- `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm build`: pass.
+- `pnpm test`: 1,006 tests pass across 93 files.
+- `pnpm test:coverage`: the same 1,006 tests pass; 72.02% statements,
+  64.15% branches, 71.51% functions and 74.08% lines repository-wide.
+- `pnpm check:workspace`: pass, including 20 boundary tests, six Community
+  workspaces and the separate smoke consumer; no Pro dependency.
+- `pnpm test:e2e`: all 20 pass (1.3 minutes), including both PDF scenarios.
+  The follow-up E2E fix explicitly focuses the ebook Contents link before its
+  mouse click and also checks keyboard navigation. Find and Replace now waits
+  for the visible saved state and completed chapter navigation before capturing
+  replacement review. Both affected tests pass three consecutive focused runs.
+  Original navigation, source-preservation and replacement assertions remain;
+  no forced clicks, sleeps, retries or security relaxations were introduced.
+
+Build emits the existing Vite chunk-size advisory; installation reports the
+existing ignored dependency build scripts. These do not fail the checks.
+Windows source-built evidence does not establish macOS/Linux packaged operation;
+#131 retains that release scope. Basic preflight is not PDF/X or exhaustive
+collision certification. Cancellation and time limits remain cooperative.
+
+No known #130 acceptance or validation blockers remain. The follow-up PR can use
+**Closes #130**; review and merge remain separate.
