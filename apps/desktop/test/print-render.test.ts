@@ -1,6 +1,10 @@
 import { expect, it, vi } from "vitest";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { ApplicationError, defaultPrintSettings } from "@drelwick/shared";
+import {
+  ApplicationError,
+  defaultPrintSettings,
+  defaultPrintEditions,
+} from "@drelwick/shared";
 import { readFile } from "node:fs/promises";
 import type { AssembledBook } from "@drelwick/core";
 import { renderPrintRevision } from "../src/main/print-render.js";
@@ -11,7 +15,12 @@ vi.mock("node:fs/promises", async (original) => {
 
 function snapshot(): AssembledBook {
   return {
-    print: { settings: defaultPrintSettings(), revision: "a".repeat(64) },
+    print: {
+      settings: defaultPrintSettings(),
+      revision: "a".repeat(64),
+      edition: "standard",
+      editions: defaultPrintEditions(),
+    },
     presentation: {
       schemaVersion: 1,
       projectId: "11111111-1111-4111-8111-111111111111",

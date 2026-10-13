@@ -1,19 +1,56 @@
-import { printPageGeometry, type PrintSettings } from "@drelwick/shared";
+import {
+  printPageGeometry,
+  PrintTypographySchema,
+  type PrintTypography,
+  type PrintSettings,
+} from "@drelwick/shared";
 import { generateThemeStyles, getBookTheme } from "./themes.js";
 import type { BuiltinThemeId } from "@drelwick/shared";
+
+export function printTypography(
+  themeId: BuiltinThemeId,
+  overrides: PrintTypography = {},
+) {
+  const theme = getBookTheme(themeId);
+  const values = PrintTypographySchema.parse(overrides);
+  return {
+    baseSizePt: values.baseSizePt ?? theme.targetOverrides.print.baseSizePt,
+    lineHeight:
+      values.lineHeight ??
+      theme.targetOverrides.print.lineHeight ??
+      theme.typography.lineHeight,
+    paragraphSpacingEm:
+      values.paragraphSpacingEm ??
+      theme.targetOverrides.print.paragraphSpacingEm ??
+      theme.typography.paragraphSpacingEm,
+    paragraphIndentEm:
+      values.paragraphIndentEm ?? theme.typography.paragraphIndentEm,
+    alignment: values.alignment ?? theme.typography.alignment,
+  };
+}
 
 /** Native Chromium fragmentation policy. No platform hyphenation dictionaries. */
 export function printStyles(
   settings: PrintSettings,
   theme: BuiltinThemeId,
   startsRecto: boolean,
+  overrides: PrintTypography = {},
 ): string {
+  const definition = getBookTheme(theme);
+  const typography = printTypography(theme, overrides);
+  definition.typography.alignment = typography.alignment;
+  definition.typography.paragraphIndentEm = typography.paragraphIndentEm;
+  definition.targetOverrides.print = {
+    baseSizePt: typography.baseSizePt,
+    lineHeight: typography.lineHeight,
+    paragraphSpacingEm: typography.paragraphSpacingEm,
+  };
   const recto = printPageGeometry(settings, startsRecto ? "recto" : "verso");
   const verso = printPageGeometry(settings, startsRecto ? "verso" : "recto");
   const margins = (geometry: typeof recto) =>
     `${geometry.top / 1000}mm ${geometry.right / 1000}mm ${geometry.bottom / 1000}mm ${geometry.left / 1000}mm`;
   return (
-    generateThemeStyles(getBookTheme(theme), "print", {
+    generateThemeStyles(definition, "print", {
       fontPolicy: "generic-only",
     }).css +
     `

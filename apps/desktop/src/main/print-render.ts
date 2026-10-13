@@ -11,8 +11,8 @@ import {
   escapeXml,
   printRoman,
   printStyles,
+  printTypography,
   renderBook,
-  resolveBookTheme,
 } from "@drelwick/renderer";
 import {
   ApplicationError,
@@ -121,7 +121,14 @@ export async function renderPrintRevision(
         const settings = snapshot.print?.settings;
         if (!settings || !PrintSettingsSchema.safeParse(settings).success)
           throw failed("PRINT_CONFIGURATION_INVALID");
-        const theme = resolveBookTheme(snapshot.presentation.themeId).themeId;
+        const edition = snapshot.print!.edition;
+        const profile = snapshot.print!.editions[edition];
+        const theme = profile.themeId;
+        const typography = printTypography(theme, profile.typography);
+        const runningSize =
+          edition === "large-print"
+            ? Math.max(14, typography.baseSizePt * 0.8)
+            : 9;
         const fontFiles = printFontFiles[theme === "modern" ? "sans" : "serif"];
         const fonts = await Promise.all(
           (
@@ -195,11 +202,13 @@ export async function renderPrintRevision(
         const result: PrintPreview = {
           revision: hash(
             JSON.stringify({
-              pipeline: 2,
+              pipeline: 3,
               chromium: process.versions.chrome,
               book: snapshot.book.revision,
               settings,
               theme,
+              edition,
+              typography,
               fonts: fonts.map((f) => hash(f.bytes)),
             }),
           ),
@@ -207,6 +216,7 @@ export async function renderPrintRevision(
           pages: [],
           diagnostics: [],
           export: {
+            edition,
             sourceRevision: printSourceRevision(snapshot),
             settings,
             title: snapshot.book.title,
@@ -292,7 +302,12 @@ export async function renderPrintRevision(
           }
           const css =
             fontCss +
-            printStyles(settings, theme, pdf.getPageCount() % 2 === 0);
+            printStyles(
+              settings,
+              theme,
+              pdf.getPageCount() % 2 === 0,
+              profile.typography,
+            );
           const policy = `default-src 'none'; script-src 'none'; style-src 'sha256-${createHash("sha256").update(css).digest("base64")}'; style-src-attr 'none'; img-src data:; font-src data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'`;
           const document = `<!doctype html><html lang="${escapeXml(snapshot.book.language)}"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${escapeXml(policy)}"><style>${css}</style></head><body>${chapter.xhtml}</body></html>`;
           const output = await surface
@@ -418,10 +433,11 @@ export async function renderPrintRevision(
               [folio, false, settings.pageNumbers.position === "footer-center"],
             ] as const) {
               if (!value) continue;
-              const width = headerFont.widthOfTextAtSize(value, 9);
+              const width = headerFont.widthOfTextAtSize(value, runningSize);
               if (
                 /[\t\r\n\u2028\u2029]/u.test(value) ||
-                width > points(geometry.contentWidth)
+                width > points(geometry.contentWidth) ||
+                runningSize * 1.5 > points(top ? geometry.top : geometry.bottom)
               ) {
                 result.diagnostics.push({
                   code: "overflow",
@@ -437,11 +453,13 @@ export async function renderPrintRevision(
                   : points(geometry.left);
               page.drawText(value, {
                 font: headerFont,
-                size: 9,
+                size: runningSize,
                 x,
                 y: top
-                  ? page.getHeight() - points(geometry.top) / 2 - 4
-                  : points(geometry.bottom) / 2 - 4,
+                  ? page.getHeight() -
+                    points(geometry.top) / 2 -
+                    (runningSize * 4) / 9
+                  : points(geometry.bottom) / 2 - (runningSize * 4) / 9,
               });
             }
             pdf.addPage(page);

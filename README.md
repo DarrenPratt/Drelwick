@@ -79,6 +79,9 @@ or **Cancel startup** before editing. See [manuscript recovery](docs/manuscript-
 
 Use **Book design → Print settings** to save local trim size, mirrored margins,
 gutter, chapter starts, headers and page numbers. See [Community print settings](docs/print-settings.md).
+Select **Standard print** or **Large print** there to retain independent typography
+and layout for the same manuscript. EPUB keeps its own theme. See
+[large-print editions and preset limitations](docs/large-print-edition.md).
 Use **Book preview → Print preview** for local pagination and facing pages drawn
 from the production PDF. **Export PDF** saves that exact revision after basic
 preflight and destination review; see [PDF export validation](docs/print-export.md).

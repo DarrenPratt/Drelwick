@@ -18,6 +18,7 @@ import {
   writeJsonAtomically,
 } from "./index.js";
 import { boundedRead, regularPath } from "./image-assets.js";
+import { separateLegacyPrintConfiguration } from "./print-configuration.js";
 
 export const BOOK_PRESENTATION_FILE = "presentation.json";
 const missing = (error: unknown) =>
@@ -87,6 +88,10 @@ export async function saveBookTheme(
   try {
     const current = await loadBookTheme(input.projectPath, input.projectId);
     if (current.savedThemeId !== input.themeId) {
+      await separateLegacyPrintConfiguration(
+        input.projectPath,
+        input.projectId,
+      );
       await (overrides.write ?? writeJsonAtomically)(
         join(input.projectPath, BOOK_PRESENTATION_FILE),
         BookPresentationSchema.parse({

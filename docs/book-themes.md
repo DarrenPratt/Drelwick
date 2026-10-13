@@ -2,6 +2,9 @@
 
 Issue #122 adds three local presentation presets to the shared renderer delivered
 by #121 / merged PR #189. Themes never receive manuscript nodes or rewrite prose.
+With #136, the Book theme selector controls EPUB presentation; each print edition
+selects its own theme and typography in Print settings. See
+[edition isolation and legacy conversion](large-print-edition.md).
 
 ```text
 project lock -> assembleBook -> BookRevision + presentation + captured assets
@@ -147,7 +150,8 @@ copies prose or invokes another semantic renderer.
 - #133 may evolve the versioned presentation vocabulary after its design/security
   decisions. This change accepts no custom/imported CSS, theme packages, arbitrary
   fonts, dynamic modules, plugins or user-defined themes.
-- #136 retains the dedicated large-print preset and export-validation profile.
+- #136 implements two fixed print profiles and the large-print starting preset,
+  reusing these themes and the same print pipeline.
 
 Future Community presets extend the typed catalogue, schema where needed, support
 matrix and golden tests together. There are no Pro dependencies or licence gates.

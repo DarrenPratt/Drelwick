@@ -35,7 +35,7 @@ test("Chromium PDF pagination, recto, running matter, offline isolation and repe
         const { createPrintSurface } = (await load(
           surface,
         )) as typeof import("../../apps/desktop/src/main/print-surface.js");
-        const { defaultPrintSettings } = (await load(
+        const { defaultPrintSettings, defaultPrintEditions } = (await load(
           shared,
         )) as typeof import("../../packages/shared/src/index.js");
         const settings = defaultPrintSettings();
@@ -67,7 +67,12 @@ test("Chromium PDF pagination, recto, running matter, offline isolation and repe
           document: { type: "doc", content },
         });
         const snapshot = {
-          print: { settings, revision: "a".repeat(64) },
+          print: {
+            settings,
+            revision: "a".repeat(64),
+            edition: "standard",
+            editions: defaultPrintEditions(),
+          },
           presentation: { schemaVersion: 1, themeId: "classic" },
           assets: new Map(),
           book: {
@@ -163,6 +168,33 @@ test("Chromium PDF pagination, recto, running matter, offline isolation and repe
         const before = BrowserWindow.getAllWindows().length;
         const first = await renderPrintRevision(snapshot, createPrintSurface);
         const second = await renderPrintRevision(snapshot, createPrintSurface);
+        // Both editions consume the same semantic manuscript and production surface.
+        const largeSource = structuredClone(snapshot);
+        largeSource.print!.edition = "large-print";
+        largeSource.print!.settings = structuredClone(settings);
+        // Suppress running matter for exact extracted-prose comparison below.
+        const proseSource = structuredClone(snapshot);
+        for (const source of [proseSource, largeSource]) {
+          source.print!.settings.headers.verso = "none";
+          source.print!.settings.headers.recto = "none";
+          source.print!.settings.pageNumbers.enabled = false;
+        }
+        const largeOverflow = await renderPrintRevision(
+          largeSource,
+          createPrintSurface,
+        );
+        // The default 6-inch trim cannot fit this unbroken 40.5 pt heading.
+        // Preflight must block it; the reviewed proof uses a shorter heading.
+        proseSource.book.chapters[3]!.title = "Thanks";
+        largeSource.book.chapters[3]!.title = "Thanks";
+        const standardProse = await renderPrintRevision(
+          proseSource,
+          createPrintSurface,
+        );
+        const large = await renderPrintRevision(
+          largeSource,
+          createPrintSurface,
+        );
         const { inspectExportDestination, writeExportAtomically } = (await load(
           core,
         )) as typeof import("../../packages/core/src/index.js");
@@ -175,6 +207,15 @@ test("Chromium PDF pagination, recto, running matter, offline isolation and repe
           format: "pdf",
           overwrite: false,
         });
+        await writeExportAtomically(
+          await inspectExportDestination(
+            `${destination}.large.pdf`,
+            projectPath,
+            "pdf",
+          ),
+          large.pdf,
+          { format: "pdf", overwrite: false },
+        );
         // A novel-sized output, separate from the small typography golden.
         const longSource = structuredClone(snapshot);
         longSource.book.chapters = [longSource.book.chapters[1]!];
@@ -349,6 +390,14 @@ test("Chromium PDF pagination, recto, running matter, offline isolation and repe
           longPages: long.pages.length,
           longFindings: long.export!.findings,
           longPdf: Buffer.from(long.pdf).toString("base64"),
+          standardProsePdf: Buffer.from(standardProse.pdf).toString("base64"),
+          largePdf: Buffer.from(large.pdf).toString("base64"),
+          largePages: large.pages.length,
+          standardProsePages: standardProse.pages.length,
+          largeFindings: large.export!.findings,
+          largeEdition: large.export!.edition,
+          largeRevision: large.revision,
+          largeOverflowFindings: largeOverflow.export!.findings,
         };
       },
       {
@@ -364,6 +413,46 @@ test("Chromium PDF pagination, recto, running matter, offline isolation and repe
     );
     expect(results.diagnostics).toEqual([]);
     expect(results.findings).toEqual([]);
+    expect(results.largeFindings).toEqual([]);
+    expect(results.largeOverflowFindings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "overflow", severity: "error" }),
+      ]),
+    );
+    expect(results.largeEdition).toBe("large-print");
+    expect(results.largePages).toBeGreaterThan(results.standardProsePages);
+    expect(results.largeRevision).not.toBe(results.revision);
+    expect(
+      await readFile(join(scratch, "exported-long-book.pdf.large.pdf")),
+    ).toEqual(Buffer.from(results.largePdf, "base64"));
+    const prose = async (encoded: string) => {
+      const task = getDocument({
+        data: Uint8Array.from(Buffer.from(encoded, "base64")),
+        useSystemFonts: false,
+        isEvalSupported: false,
+      });
+      try {
+        const pdf = await task.promise;
+        let text = "";
+        for (let index = 1; index <= pdf.numPages; index++) {
+          const page = await pdf.getPage(index);
+          const content = await page.getTextContent();
+          text += content.items
+            .map((item) => ("str" in item ? item.str : ""))
+            .join("");
+        }
+        // The fixture's explicit discretionary hyphen becomes visible only
+        // when the narrower large-type line breaks at that position.
+        return text
+          .replace(/\s|\u00ad/gu, "")
+          .replace("extra-ordinary", "extraordinary");
+      } finally {
+        await task.destroy();
+      }
+    };
+    expect(await prose(results.largePdf)).toBe(
+      await prose(results.standardProsePdf),
+    );
     expect(results.longFindings).toEqual([]);
     expect(results.longPages).toBeGreaterThan(100);
     expect(

@@ -19,6 +19,8 @@ The [local publishing delivery plan](planning/local-publishing-plan.md) updates 
 
 Operational documents:
 
+- [Independent Standard and Large-print publishing editions](large-print-edition.md)
+
 - [Local print pagination and PDF-backed preview](print-preview.md)
 - [Community print settings, dimensions and font requirements](print-settings.md)
 - [Local print PDF export, preflight and review evidence](print-export.md)

@@ -28,6 +28,7 @@ import {
   restoreProjectArchive,
   writeJsonAtomically,
   CHAPTER_CREATION_LOCK,
+  printSourceRevision,
 } from "../src/index.js";
 
 const copies: FixtureCopy[] = [];
@@ -107,7 +108,12 @@ it("persists representative presets/custom geometry and every semantic option wi
     );
     expect(
       JSON.parse(await readFile(join(f.projectPath, "print.json"), "utf8")),
-    ).toEqual({ schemaVersion: 1, projectId: f.projectId, settings });
+    ).toEqual({
+      schemaVersion: 2,
+      projectId: f.projectId,
+      edition: state.edition,
+      editions: state.editions,
+    });
   }
   const settings: PrintSettings = {
     ...state.settings,
@@ -270,6 +276,175 @@ it("honors the project lock and reports post-commit cleanup as saved with warnin
   expect(await loadPrintConfiguration(f.projectPath, f.projectId)).toEqual({
     settings: saved.settings,
     revision: saved.revision,
+    edition: saved.edition,
+    editions: saved.editions,
   });
   expect(await readdir(f.projectPath)).toContain(CHAPTER_CREATION_LOCK);
+});
+
+it("keeps two print profiles and EPUB independent across switches, reopen and archive restore", async () => {
+  const f = await setup();
+  const before = await sourceBytes(f.projectPath);
+  const book = await assembleBook(f.projectPath);
+  let state = await loadPrintConfiguration(f.projectPath, f.projectId);
+  const standard = structuredClone(state.editions.standard);
+  const large = structuredClone(state.editions["large-print"]);
+  large.settings.trim = { preset: "custom", width: 177800, height: 254000 };
+  large.settings.margins.gutter = 10000;
+  large.typography.baseSizePt = 20;
+  state = await savePrintConfiguration({
+    ...f,
+    expectedRevision: state.revision,
+    edition: "large-print",
+    ...large,
+  });
+  const largeRevision = printSourceRevision(
+    await assembleBook(f.projectPath, { print: true }),
+  );
+  expect(state.editions.standard).toEqual(standard);
+  expect(await loadPrintConfiguration(f.projectPath, f.projectId)).toEqual(
+    state,
+  );
+  state = await savePrintConfiguration({
+    ...f,
+    expectedRevision: state.revision,
+    edition: "standard",
+    ...standard,
+  });
+  expect(
+    printSourceRevision(await assembleBook(f.projectPath, { print: true })),
+  ).not.toBe(largeRevision);
+  expect(state.editions["large-print"]).toEqual(large);
+  state = await savePrintConfiguration({
+    ...f,
+    expectedRevision: state.revision,
+    edition: "large-print",
+    ...state.editions["large-print"],
+  });
+  expect(
+    printSourceRevision(await assembleBook(f.projectPath, { print: true })),
+  ).toBe(largeRevision);
+  expect(await sourceBytes(f.projectPath)).toEqual(before);
+  expect((await assembleBook(f.projectPath)).book).toEqual(book.book);
+  await saveBookTheme({ ...f, themeId: "literary" });
+  expect(await loadPrintConfiguration(f.projectPath, f.projectId)).toEqual(
+    state,
+  );
+  expect(
+    printSourceRevision(await assembleBook(f.projectPath, { print: true })),
+  ).toBe(largeRevision);
+  const archivePath = join(dirname(f.projectPath), "editions.zip");
+  const destinationParent = join(dirname(f.projectPath), "editions-restored");
+  await mkdir(destinationParent);
+  await createProjectArchive({ projectPath: f.projectPath, archivePath });
+  const restored = await restoreProjectArchive({
+    archivePath,
+    destinationParent,
+  });
+  expect(
+    await loadPrintConfiguration(restored.projectPath, f.projectId),
+  ).toEqual(state);
+});
+
+it("freezes legacy print geometry and theme before an EPUB theme change", async () => {
+  const f = await setup();
+  await writeFile(
+    join(f.projectPath, "presentation.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      projectId: f.projectId,
+      themeId: "literary",
+    }),
+  );
+  const settings = defaultPrintSettings();
+  settings.margins.gutter = 7000;
+  const legacy = JSON.stringify({
+    schemaVersion: 1,
+    projectId: f.projectId,
+    settings,
+  });
+  await writeFile(join(f.projectPath, "print.json"), legacy);
+  const before = await assembleBook(f.projectPath, { print: true });
+  expect(await readFile(join(f.projectPath, "print.json"), "utf8")).toBe(
+    legacy,
+  );
+  await saveBookTheme({ ...f, themeId: "modern" });
+  const after = await assembleBook(f.projectPath, { print: true });
+  expect(after.print!.editions.standard).toEqual(
+    before.print!.editions.standard,
+  );
+  expect(after.print!.settings).toEqual(settings);
+  expect(after.presentation.themeId).toBe("modern");
+  expect(printSourceRevision(after)).toBe(printSourceRevision(before));
+  expect(after.book).toEqual(before.book);
+});
+
+it("retains both profiles after a failed edition switch and rejects invalid typography before path access", async () => {
+  const f = await setup();
+  const initial = await loadPrintConfiguration(f.projectPath, f.projectId);
+  const saved = await savePrintConfiguration({
+    ...f,
+    expectedRevision: initial.revision,
+    ...initial.editions.standard,
+  });
+  const bytes = await readFile(join(f.projectPath, "print.json"));
+  await expect(
+    savePrintConfiguration(
+      {
+        ...f,
+        expectedRevision: saved.revision,
+        edition: "large-print",
+        ...saved.editions["large-print"],
+      },
+      {
+        write: async () => {
+          throw new Error("disk failure");
+        },
+      },
+    ),
+  ).rejects.toMatchObject({ code: "PRINT_CONFIGURATION_SAVE_FAILED" });
+  expect(await readFile(join(f.projectPath, "print.json"))).toEqual(bytes);
+  expect(await loadPrintConfiguration(f.projectPath, f.projectId)).toEqual(
+    saved,
+  );
+  for (const typography of [
+    { baseSizePt: 0 },
+    { lineHeight: Infinity },
+    { paragraphIndentEm: -1 },
+    { css: "url(https://example.com)" },
+  ]) {
+    await expect(
+      savePrintConfiguration({
+        ...f,
+        projectPath: "missing",
+        expectedRevision: saved.revision,
+        settings: saved.settings,
+        typography,
+      } as Parameters<typeof savePrintConfiguration>[0]),
+    ).rejects.toMatchObject({ code: "PRINT_CONFIGURATION_INVALID" });
+  }
+});
+
+it("safely retries an EPUB theme save interrupted after legacy print separation", async () => {
+  const f = await setup();
+  const before = await assembleBook(f.projectPath, { print: true });
+  const bytes = await sourceBytes(f.projectPath);
+  await expect(
+    saveBookTheme(
+      { ...f, themeId: "modern" },
+      {
+        write: async () => {
+          throw new Error("synthetic interruption");
+        },
+      },
+    ),
+  ).rejects.toMatchObject({ code: "BOOK_PRESENTATION_SAVE_FAILED" });
+  expect(await sourceBytes(f.projectPath)).toEqual(bytes);
+  const separated = await assembleBook(f.projectPath, { print: true });
+  expect(separated.print!.editions).toEqual(before.print!.editions);
+  expect(printSourceRevision(separated)).toBe(printSourceRevision(before));
+  await saveBookTheme({ ...f, themeId: "modern" });
+  expect(
+    printSourceRevision(await assembleBook(f.projectPath, { print: true })),
+  ).toBe(printSourceRevision(before));
 });

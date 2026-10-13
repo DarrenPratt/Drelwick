@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BOOK_THEME_OPTIONS, printTypography } from "@drelwick/renderer";
 import {
   PRINT_TRIM_PRESETS,
   PrintSettingsSchema,
+  PrintTypographySchema,
+  type PrintEdition,
+  type PrintProfile,
   fromPrintMicrometres,
   toPrintMicrometres,
   type PrintSettings,
@@ -47,6 +51,12 @@ export function PrintSettingsDialog({
   const saving = useRef(false);
   const [saved, setSaved] = useState(initial);
   const [settings, setSettings] = useState(initial.settings);
+  const [themeId, setThemeId] = useState(
+    initial.editions[initial.edition].themeId,
+  );
+  const [typography, setTypography] = useState(
+    initial.editions[initial.edition].typography,
+  );
   const [measurements, setMeasurements] = useState(() =>
     displayed(initial.settings),
   );
@@ -54,6 +64,9 @@ export function PrintSettingsDialog({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const dirty =
+    themeId !== saved.editions[saved.edition].themeId ||
+    JSON.stringify(typography) !==
+      JSON.stringify(saved.editions[saved.edition].typography) ||
     JSON.stringify(settings) !== JSON.stringify(saved.settings) ||
     JSON.stringify(measurements) !== JSON.stringify(displayed(saved.settings));
   useEffect(() => {
@@ -91,42 +104,57 @@ export function PrintSettingsDialog({
       );
     return parsed.data;
   }, [settings, measurements]);
-  const save = useCallback(async () => {
-    if (saving.current) return;
-    let next: PrintSettings;
-    try {
-      next = validated();
-    } catch (failure) {
-      setError(
-        failure instanceof Error ? failure.message : "Check print settings.",
-      );
-      return;
-    }
-    saving.current = true;
-    setBusy(true);
-    setError("");
-    setMessage("");
-    try {
-      const result = await window.drelwick.project.savePrintConfiguration({
-        projectId,
-        expectedRevision: saved.revision,
-        settings: next,
-      });
-      if (result.ok) {
-        setSaved(result.value);
-        setSettings(result.value.settings);
-        setMeasurements(displayed(result.value.settings));
-        setMessage(result.warning ?? "Print settings saved.");
-      } else setError(result.error.message);
-    } catch {
-      setError(
-        "Unable to save print settings. Your draft remains here; retry before closing.",
-      );
-    } finally {
-      saving.current = false;
-      setBusy(false);
-    }
-  }, [projectId, saved.revision, validated]);
+  const save = useCallback(
+    async (selection?: { edition: PrintEdition; profile: PrintProfile }) => {
+      if (saving.current) return;
+      let next: PrintSettings;
+      try {
+        next = selection ? selection.profile.settings : validated();
+        const parsedTypography = PrintTypographySchema.safeParse(
+          selection ? selection.profile.typography : typography,
+        );
+        if (!parsedTypography.success)
+          throw new Error(
+            "Check typography: body size 9–32 pt, line spacing 1.2–2.5, paragraph spacing 0–1 em and indent 0–2 em. Enter a number in each field.",
+          );
+      } catch (failure) {
+        setError(
+          failure instanceof Error ? failure.message : "Check print settings.",
+        );
+        return;
+      }
+      saving.current = true;
+      setBusy(true);
+      setError("");
+      setMessage("");
+      try {
+        const result = await window.drelwick.project.savePrintConfiguration({
+          projectId,
+          expectedRevision: saved.revision,
+          settings: next,
+          edition: selection?.edition ?? saved.edition,
+          themeId: selection?.profile.themeId ?? themeId,
+          typography: selection?.profile.typography ?? typography,
+        });
+        if (result.ok) {
+          setSaved(result.value);
+          setSettings(result.value.settings);
+          setThemeId(result.value.editions[result.value.edition].themeId);
+          setTypography(result.value.editions[result.value.edition].typography);
+          setMeasurements(displayed(result.value.settings));
+          setMessage(result.warning ?? "Print settings saved.");
+        } else setError(result.error.message);
+      } catch {
+        setError(
+          "Unable to save print settings. Your draft remains here; retry before closing.",
+        );
+      } finally {
+        saving.current = false;
+        setBusy(false);
+      }
+    },
+    [projectId, saved.revision, saved.edition, themeId, typography, validated],
+  );
   useEffect(() => window.drelwick.onSaveRequested(() => void save()), [save]);
   function close() {
     if (
@@ -200,10 +228,99 @@ export function PrintSettingsDialog({
       >
         <h2 id="print-settings-title">Print settings</h2>
         <p>
-          Local book layout for future print output. These settings do not
-          change your manuscript or ebook. Pagination and PDF export are not
-          available yet.
+          Each print edition has its own settings and uses the same manuscript.
+          Save changes before switching editions, then open Print preview to
+          recalculate pages and review preflight before exporting.
         </p>
+        <fieldset disabled={busy}>
+          <legend>Publishing edition</legend>
+          <label>
+            Print edition
+            <select
+              aria-label="Print edition"
+              value={saved.edition}
+              onChange={(event) => {
+                if (dirty) {
+                  setError("Save your changes before switching editions.");
+                  return;
+                }
+                const edition = event.target.value as PrintEdition;
+                void save({ edition, profile: saved.editions[edition] });
+              }}
+            >
+              <option value="standard">Standard print</option>
+              <option value="large-print">Large print</option>
+            </select>
+          </label>
+          {saved.edition === "large-print" && (
+            <p>
+              The large-print preset is an accessible starting point, not a
+              guarantee of accessibility certification, legal compliance or
+              publisher acceptance.
+            </p>
+          )}
+        </fieldset>
+        <fieldset disabled={busy}>
+          <legend>Edition typography</legend>
+          <label>
+            Print theme
+            <select
+              value={themeId}
+              onChange={(event) =>
+                setThemeId(event.target.value as PrintProfile["themeId"])
+              }
+            >
+              {BOOK_THEME_OPTIONS.map((theme) => (
+                <option key={theme.id} value={theme.id}>
+                  {theme.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {(
+            [
+              ["baseSizePt", "Body size (pt)", 9, 32],
+              ["lineHeight", "Line spacing (multiplier)", 1.2, 2.5],
+              ["paragraphSpacingEm", "Paragraph spacing (em)", 0, 1],
+              ["paragraphIndentEm", "Paragraph indent (em)", 0, 2],
+            ] as const
+          ).map(([key, label, min, max]) => {
+            const value = typography[key] ?? printTypography(themeId)[key];
+            return (
+              <label key={key}>
+                {label}
+                <input
+                  type="number"
+                  min={min}
+                  max={max}
+                  step="0.05"
+                  value={Number.isNaN(value) ? "" : value}
+                  onChange={(event) =>
+                    setTypography({
+                      ...typography,
+                      [key]: event.target.valueAsNumber,
+                    })
+                  }
+                />
+              </label>
+            );
+          })}
+          <label>
+            Paragraph alignment
+            <select
+              value={typography.alignment ?? printTypography(themeId).alignment}
+              onChange={(event) =>
+                setTypography({
+                  ...typography,
+                  alignment: event.target.value as "left" | "justify",
+                })
+              }
+            >
+              <option value="left">Left</option>
+              <option value="justify">Justified</option>
+            </select>
+          </label>
+        </fieldset>
         <fieldset disabled={busy}>
           <legend>Page size</legend>
           <label>
@@ -425,9 +542,9 @@ export function PrintSettingsDialog({
           </label>
         </fieldset>
         <p>
-          Fonts follow the selected book theme and available local fallbacks.
-          Font embedding requires appropriate permissions; no fonts are bundled
-          or embedded here.
+          Print uses bundled Noto Sans for Modern and Noto Serif for Classic and
+          Literary. Typography overrides apply only to this edition; EPUB keeps
+          its own theme.
         </p>
         <p role="status">
           {dirty ? "Unsaved print settings" : "No unsaved print settings"}

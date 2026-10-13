@@ -244,6 +244,8 @@ it("classifies measurable findings and invalid geometry; source identity covers 
   expect(printSourceRevision(book)).not.toBe(revision);
   book.print!.settings.margins.gutter--;
   book.presentation.themeId = "modern";
+  expect(printSourceRevision(book)).toBe(revision);
+  book.print!.editions.standard.themeId = "modern";
   expect(printSourceRevision(book)).not.toBe(revision);
   const preview: PrintPreview = {
     revision,
@@ -283,4 +285,41 @@ it("classifies measurable findings and invalid geometry; source identity covers 
     page: 4,
     chapterId: "chapter",
   });
+});
+
+it("reviews binding space using the current edition's actual page count and margins", () => {
+  const preview: PrintPreview = {
+    revision: "a".repeat(64),
+    pdf: new Uint8Array(),
+    diagnostics: [],
+    pages: Array.from({ length: 300 }, () => ({
+      chapterId: "chapter",
+      side: "recto",
+      blank: false,
+      folio: "1",
+    })),
+    export: {
+      edition: "large-print",
+      sourceRevision: "b".repeat(64),
+      settings: defaultPrintSettings(),
+      title: "Book",
+      author: "Author",
+      language: "en",
+      chapters: [],
+      findings: [],
+    },
+  };
+  expect(printPreflight(preview)).toEqual([]);
+  preview.pages.push(preview.pages[0]!);
+  expect(printPreflight(preview)).toMatchObject([
+    { code: "binding-space-review", severity: "warning", setting: "margins" },
+  ]);
+  preview.export!.settings.margins.gutter = 6350;
+  expect(printPreflight(preview)).toEqual([]);
+  preview.export!.settings.margins.inside = 100000;
+  expect(
+    printPreflight(preview).some(
+      (f) => f.code === "invalid-settings" && f.severity === "error",
+    ),
+  ).toBe(true);
 });

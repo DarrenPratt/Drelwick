@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
-import { defaultPrintSettings } from "@drelwick/shared";
-import { printRoman, printStyles } from "../src/print.js";
+import { defaultPrintSettings, defaultPrintEditions } from "@drelwick/shared";
+import { printRoman, printStyles, printTypography } from "../src/print.js";
+import { getBookTheme, generateThemeStyles } from "../src/themes.js";
 
 it("uses shared mirrored geometry and keeps Chromium fragmentation policy explicit", () => {
   const settings = defaultPrintSettings();
@@ -28,4 +29,30 @@ it("formats front-matter folios independently from physical sides", () => {
     "xlix",
     "xcix",
   ]);
+});
+
+it("applies edition overrides without mutating presets or EPUB styles and rejects unsafe values", () => {
+  const profile = defaultPrintEditions()["large-print"];
+  const before = generateThemeStyles(getBookTheme("modern"), "ebook");
+  const css = printStyles(
+    profile.settings,
+    profile.themeId,
+    true,
+    profile.typography,
+  );
+  expect(css).toContain("font-size: 18pt; line-height: 1.5; text-align: left");
+  expect(css).toContain("margin: 0 0 0.5em; text-indent: 0em");
+  expect(generateThemeStyles(getBookTheme("modern"), "ebook")).toEqual(before);
+  expect(printTypography("modern").baseSizePt).toBe(10.5);
+  expect(() =>
+    printStyles(profile.settings, "modern", true, { baseSizePt: Infinity }),
+  ).toThrow();
+  expect(() =>
+    printStyles(profile.settings, "modern", true, { lineHeight: 3 }),
+  ).toThrow();
+  expect(() =>
+    printStyles(profile.settings, "modern", true, {
+      css: "url(file:///private)",
+    } as never),
+  ).toThrow();
 });

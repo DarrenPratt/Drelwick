@@ -2,7 +2,11 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { defaultPrintSettings, type DrelwickApi } from "@drelwick/shared";
+import {
+  defaultPrintSettings,
+  defaultPrintEditions,
+  type DrelwickApi,
+} from "@drelwick/shared";
 import { PrintSettingsDialog } from "../src/renderer/PrintSettingsDialog.js";
 const save = vi.fn<DrelwickApi["project"]["savePrintConfiguration"]>();
 const close = vi.fn();
@@ -20,10 +24,24 @@ beforeEach(async () => {
   HTMLDialogElement.prototype.close = function () {
     this.removeAttribute("open");
   };
-  save.mockReset().mockImplementation(async (input) => ({
-    ok: true,
-    value: { settings: input.settings, revision: "b".repeat(64) },
-  }));
+  const editions = defaultPrintEditions();
+  save.mockReset().mockImplementation(async (input) => {
+    const edition = input.edition ?? "standard";
+    editions[edition] = {
+      settings: input.settings,
+      themeId: input.themeId ?? editions[edition].themeId,
+      typography: input.typography ?? editions[edition].typography,
+    };
+    return {
+      ok: true,
+      value: {
+        settings: input.settings,
+        revision: "b".repeat(64),
+        edition,
+        editions: structuredClone(editions),
+      },
+    };
+  });
   close.mockReset();
   container = document.createElement("div");
   document.body.append(container);
@@ -31,7 +49,12 @@ beforeEach(async () => {
   await act(async () =>
     root.render(
       createElement(PrintSettingsDialog, {
-        initial: { settings: defaultPrintSettings(), revision: "a".repeat(64) },
+        initial: {
+          settings: defaultPrintSettings(),
+          revision: "a".repeat(64),
+          edition: "standard",
+          editions: defaultPrintEditions(),
+        },
         projectId: "00000000-0000-4000-8000-000000000101",
         onClose: close,
       }),
@@ -170,4 +193,36 @@ it("saves through the ordinary keyboard shortcut without propagating to manuscri
   } finally {
     window.removeEventListener("keydown", outer);
   }
+});
+
+it("switches saved editions independently, keeps dirty and failed drafts, and restores overrides", async () => {
+  await change("Body size", "12");
+  await change("Print edition", "large-print");
+  expect(field("Print edition").value).toBe("standard");
+  expect(container.textContent).toContain("Save your changes before switching");
+  expect(save).not.toHaveBeenCalled();
+  await submit();
+  save.mockResolvedValueOnce({
+    ok: false,
+    error: { code: "FAILED", message: "Switch failed" },
+  });
+  await change("Print edition", "large-print");
+  expect(field("Print edition").value).toBe("standard");
+  expect(field("Body size").value).toBe("12");
+  await change("Print edition", "large-print");
+  expect(field("Body size").value).toBe("18");
+  expect(container.textContent).toContain("not a guarantee");
+  await change("Body size", "20");
+  await change("Additional gutter", "0.25");
+  await submit();
+  await change("Print edition", "standard");
+  expect(field("Body size").value).toBe("12");
+  expect(field("Additional gutter").value).toBe("0.125");
+  await change("Print edition", "large-print");
+  expect(field("Body size").value).toBe("20");
+  expect(field("Additional gutter").value).toBe("0.25");
+  await change("Body size", "100");
+  const calls = save.mock.calls.length;
+  await submit();
+  expect(save.mock.calls.length).toBe(calls);
 });

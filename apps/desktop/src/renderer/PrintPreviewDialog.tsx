@@ -162,6 +162,12 @@ export function PrintPreviewDialog({
     >
       <h2 id="print-preview-title">Print preview</h2>
       <p>
+        Edition:{" "}
+        {preview.export?.edition === "large-print"
+          ? "Large print"
+          : "Standard print"}
+      </p>
+      <p>
         Saved PDF revision {preview.revision.slice(0, 12)} ·{" "}
         {preview.pages.length} pages. Refresh to include later changes.
       </p>

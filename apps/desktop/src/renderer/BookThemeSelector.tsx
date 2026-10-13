@@ -38,6 +38,7 @@ export function BookThemeSelector({
         ))}
       </select>
       <p>
+        EPUB presentation. Print themes are configured in Print settings.{" "}
         {
           BOOK_THEME_OPTIONS.find((theme) => theme.id === selection?.themeId)
             ?.description

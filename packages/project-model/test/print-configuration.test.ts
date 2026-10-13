@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import {
   defaultPrintSettings,
+  defaultPrintEditions,
   PrintSettingsSchema,
   PRINT_TRIM_PRESETS,
   fromPrintMicrometres,
@@ -41,6 +42,43 @@ it("validates deterministic independent novel defaults and the versioned compone
     { ...data, schemaVersion: 2 },
     { ...data, unknown: true },
     { ...data, projectId: "path" },
+  ])
+    expect(PrintConfigurationSchema.safeParse(invalid).success).toBe(false);
+});
+
+it("validates exactly two version-2 profiles with bounded typography and no arbitrary resources", () => {
+  const data = {
+    schemaVersion: 2,
+    projectId: "00000000-0000-4000-8000-000000000101",
+    edition: "large-print",
+    editions: defaultPrintEditions(),
+  };
+  expect(PrintConfigurationSchema.parse(data)).toEqual(data);
+  for (const invalid of [
+    { ...data, edition: "other" },
+    { ...data, schemaVersion: 3 },
+    { ...data, editions: { ...data.editions, other: data.editions.standard } },
+    { ...data, editions: { standard: data.editions.standard } },
+    {
+      ...data,
+      editions: {
+        ...data.editions,
+        "large-print": {
+          ...data.editions["large-print"],
+          typography: { baseSizePt: 33 },
+        },
+      },
+    },
+    {
+      ...data,
+      editions: {
+        ...data.editions,
+        "large-print": {
+          ...data.editions["large-print"],
+          fontPath: "C:/font.ttf",
+        },
+      },
+    },
   ])
     expect(PrintConfigurationSchema.safeParse(invalid).success).toBe(false);
 });

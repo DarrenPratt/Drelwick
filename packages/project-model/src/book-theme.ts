@@ -73,8 +73,8 @@ export const BookThemeSchema = z
           .strict(),
         print: z
           .object({
-            baseSizePt: number(9, 14),
-            lineHeight: number(1.2, 1.8).optional(),
+            baseSizePt: number(9, 32),
+            lineHeight: number(1.2, 2.5).optional(),
             paragraphSpacingEm: number(0, 1).optional(),
           })
           .strict(),

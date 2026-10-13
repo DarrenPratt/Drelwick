@@ -708,15 +708,24 @@ of the current format.
 
 ## Print configuration component (#128)
 
-Optional root `print.json` has strict `schemaVersion: 1`, `projectId` matching the
-manifest UUID, and `settings` validated by `PrintSettingsSchema`. All physical
+Optional root `print.json` has strict `schemaVersion: 2`, `projectId` matching the
+manifest UUID, `edition` (`standard` or `large-print`) and `editions` with exactly
+those two keys. Each profile has `settings` validated by `PrintSettingsSchema`,
+`themeId` (`classic`, `modern` or `literary`) and bounded `typography` overrides.
+See [edition defaults, bounds and compatibility](large-print-edition.md).
+All physical
 lengths are integer micrometres, distinct from the persisted `unit` display
 preference (`in` or `mm`). The settings contain trim preset/custom width/height,
 mirrored inside/outside/top/bottom margins plus additional gutter, chapter starts,
 semantic left/right headers and page-number instructions. See the complete
 [values, defaults, bounds and semantics](print-settings.md).
 
-Absence means deterministic 6 × 9-inch defaults without a rewrite. The project,
+Absence means deterministic 6 × 9-inch geometry without a rewrite. Version-1
+components (`schemaVersion`, `projectId`, `settings`) remain readable. Their
+geometry and legacy shared theme initialise Standard; the first print save or
+switch writes version 2. An EPUB theme change first freezes legacy print settings
+in version 2 under the same project lock, preserving appearance if interrupted.
+The project,
 book and chapter versions remain unchanged. Print settings do not alter
 `presentation.json`, `publication.json`, ebook configuration or manuscript files.
 Portable backups retain this file. Unknown fields or unsupported component
