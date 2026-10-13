@@ -5,7 +5,12 @@ import { dirname, join } from "node:path";
 import type { BrowserWindow } from "electron";
 import { PDFDocument, PDFName, PDFDict } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
-import { assembleBook, printSourceRevision, saveChapter } from "@drelwick/core";
+import {
+  assembleBook,
+  printSourceRevision,
+  saveChapter,
+  savePrintConfiguration,
+} from "@drelwick/core";
 import type { PrintPreview } from "@drelwick/shared";
 import {
   copyFixture,
@@ -157,6 +162,32 @@ it("rejects stale previews before selection and source changes during destinatio
   expect(
     (await readdir(dirname(f.path))).filter((p) => p.endsWith(".tmp")),
   ).toEqual([]);
+  save.mockClear();
+  await expect(f.run()).rejects.toMatchObject({ code: "PDF_EXPORT_STALE" });
+  expect(save).not.toHaveBeenCalled();
+});
+
+it("rejects a different selected edition even when geometry is identical, including a switch during export", async () => {
+  const f = await fixture();
+  const switchEdition = async () => {
+    const current = (await assembleBook(f.copy.projectPath, { print: true }))
+      .print!;
+    return savePrintConfiguration({
+      projectPath: f.copy.projectPath,
+      projectId: f.snapshot.book.projectId,
+      expectedRevision: current.revision,
+      edition: "large-print",
+      ...current.editions["large-print"],
+    });
+  };
+  await writeFile(f.path, "previous PDF");
+  save.mockImplementationOnce(async () => {
+    await switchEdition();
+    return { canceled: false, filePath: f.path };
+  });
+  confirm.mockResolvedValue({ response: 1 });
+  await expect(f.run()).rejects.toMatchObject({ code: "PDF_EXPORT_STALE" });
+  expect(await readFile(f.path, "utf8")).toBe("previous PDF");
   save.mockClear();
   await expect(f.run()).rejects.toMatchObject({ code: "PDF_EXPORT_STALE" });
   expect(save).not.toHaveBeenCalled();

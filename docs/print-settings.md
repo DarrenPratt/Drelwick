@@ -6,7 +6,9 @@ open. Failed saves retain the draft and previous valid file. Closing a dirty
 dialog requires confirmation. Project transitions and shutdown are blocked while
 the dialog is open. No account, network, Pro package or publisher profile is used.
 These settings feed the [local print pagination and PDF-backed preview](print-preview.md)
-implemented by #129. Final PDF export/preflight remains #130.
+implemented by #129 and PDF export/preflight from #130. Standard and Large print
+now have independent [edition profiles](large-print-edition.md); select an edition
+in this dialog before editing its settings.
 
 ## Dimensions and defaults
 
@@ -67,8 +69,9 @@ pipeline; the settings dialog itself does not manufacture pages.
 
 ## Fonts and embedding
 
-Typography reuses the existing [Community themes](book-themes.md); there is no
-second font picker or arbitrary font-file field. The current print-target CSS
+Typography reuses the existing [Community themes](book-themes.md), selected
+independently per edition, with bounded size, spacing, indentation and alignment
+overrides. There is no arbitrary font-file field. The current print-target CSS
 defines the theme's local fallback chains below. The deterministic PDF consumer
 substitutes bundled, licensed Noto Serif/Sans and rejects unsupported glyphs;
 see [the PDF font policy](print-preview.md#supported-pagination-and-typography).
@@ -93,13 +96,15 @@ actual PDF font embedding. No remote font downloads are introduced.
 
 ## Versioning, persistence and recovery
 
-`print.json` is an optional strict version-1 component:
+`print.json` is an optional strict version-2 component:
 
 ```text
-{ schemaVersion: 1, projectId: <project UUID>, settings: <PrintSettings> }
+{ schemaVersion: 2, projectId: <project UUID>, edition: "standard" | "large-print",
+  editions: { standard: <PrintProfile>, "large-print": <PrintProfile> } }
 ```
 
-The persistent envelope is `PrintConfigurationSchema` in project-model; the
+Each profile contains `settings`, `themeId` and `typography` overrides. The
+persistent envelope is `PrintConfigurationSchema` in project-model; the
 renderer-safe semantic vocabulary and validation are shared. Core exports
 `loadPrintConfiguration`, `readPrintConfiguration`, `savePrintConfiguration` and
 `PRINT_CONFIGURATION_FILE`; shared exports unit helpers and `printPageGeometry`.
@@ -107,11 +112,13 @@ The read helper is used under the shared project lock by print assembly
 to capture settings with its manuscript revision. It does not add print settings
 to the ebook revision or current ebook assembly path.
 
-Existing project/book/chapter/component versions are unchanged. Absent settings
-produce deterministic defaults without writing anything, including historical
-v1 snapshots. Normal desktop v1→v2 migration remains unchanged. This additive
-component needs no destructive transformation or multi-file migration. The first
-explicit Save creates it; subsequent saves atomically replace only that file.
+Existing project/book/chapter versions are unchanged. Absent print settings and
+version-1 print components are read without rewriting them; the legacy theme and
+geometry initialise Standard. The first explicit Save or edition switch writes
+version 2. Changing a legacy ebook theme first preserves the old print appearance
+in version 2. See [conversion ordering and recovery](large-print-edition.md#persistence-and-compatibility).
+Normal desktop project v1→v2 migration remains unchanged. Saves atomically replace
+only this file.
 Portable backups include it. A newer version, unknown field, foreign project ID,
 malformed data or retained `print.json.tmp` blocks print operations without
 rewriting it; normal manuscript authoring remains available.

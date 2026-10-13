@@ -1,5 +1,9 @@
 # Local print pagination and PDF preview
 
+Print preview renders the selected [Standard or Large-print edition](large-print-edition.md).
+Each profile has independent typography and geometry, and the edition is part of
+the preview/export revision. Both use the pipeline described below.
+
 Issue #129 is CORE. Open **Book preview → Print preview** to render the saved
 book. Pending edits must save first. Page navigation covers the entire book;
 facing mode places physical verso on the left and recto on the right, with a

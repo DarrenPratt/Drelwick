@@ -2871,7 +2871,7 @@ test("PDF-backed print preview and atomic export work offline and preserve previ
   }
 });
 
-test("Community print settings persist offline and preserve manuscript and ebook files", async () => {
+test("Community print editions persist offline and preserve manuscript and ebook files", async () => {
   const fixture = await copyFixture("public-example");
   const scratch = await mkdtemp(join(tmpdir(), "drelwick-print-settings-"));
   let application: ElectronApplication | undefined;
@@ -2965,6 +2965,25 @@ test("Community print settings persist offline and preserve manuscript and ebook
     await dialog.screenshot({
       path: test.info().outputPath("print-settings.png"),
     });
+    await dialog
+      .getByLabel("Print edition", { exact: true })
+      .selectOption("large-print");
+    await expect(dialog.getByLabel("Body size (pt)")).toHaveValue("18");
+    await expect(dialog.getByLabel("Trim width (in)")).toHaveValue("6");
+    await dialog.getByLabel("Body size (pt)").fill("20");
+    await dialog.getByLabel("Additional gutter (in)").fill("0.25");
+    await dialog
+      .getByRole("button", { name: "Save print settings", exact: true })
+      .click();
+    await expect(dialog.getByRole("status")).toContainText(
+      "Print settings saved.",
+    );
+    await dialog.evaluate((node) => {
+      node.scrollTop = 0;
+    });
+    await dialog.screenshot({
+      path: test.info().outputPath("large-print-settings.png"),
+    });
     await dialog.getByRole("button", { name: "Close", exact: true }).click();
     expect(
       await Promise.all(
@@ -2995,6 +3014,16 @@ test("Community print settings persist offline and preserve manuscript and ebook
       name: "Print settings",
       exact: true,
     });
+    await expect(
+      reopened.getByLabel("Print edition", { exact: true }),
+    ).toHaveValue("large-print");
+    await expect(reopened.getByLabel("Body size (pt)")).toHaveValue("20");
+    await expect(reopened.getByLabel("Additional gutter (in)")).toHaveValue(
+      "0.25",
+    );
+    await reopened
+      .getByLabel("Print edition", { exact: true })
+      .selectOption("standard");
     await expect(reopened.getByLabel("Trim width (mm)")).toHaveValue("155");
     await expect(reopened.getByLabel("Chapter starts")).toHaveValue("recto");
     await expect(reopened.getByLabel("Left-hand page header")).toHaveValue(

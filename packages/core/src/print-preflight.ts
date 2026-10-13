@@ -13,7 +13,8 @@ export function printSourceRevision(snapshot: AssembledBook): string {
       JSON.stringify({
         book: snapshot.book.revision,
         settings: snapshot.print?.settings,
-        theme: snapshot.presentation,
+        edition: snapshot.print?.edition,
+        profile: snapshot.print?.editions[snapshot.print.edition],
       }),
     )
     .digest("hex");
@@ -29,6 +30,17 @@ export function printPreflight(preview: PrintPreview): PrintFinding[] {
         "The PDF must contain 1–2,000 pages. Review the book's included chapters.",
     });
   const settings = PrintSettingsSchema.safeParse(preview.export?.settings);
+  if (
+    settings.success &&
+    preview.pages.length > 300 &&
+    settings.data.margins.inside + settings.data.margins.gutter < 25400
+  )
+    findings.push({
+      code: "binding-space-review",
+      severity: "warning",
+      setting: "margins",
+      message: `This edition has ${preview.pages.length} pages and less than 25.4 mm combined inside margin and gutter. Review binding space with your printer and increase it if needed, then repaginate. This is a conservative review reminder, not a publisher requirement or compliance check.`,
+    });
   if (!settings.success)
     findings.push({
       code: "invalid-settings",

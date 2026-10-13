@@ -1,10 +1,14 @@
 import { createHash } from "node:crypto";
 import { lstat, mkdir, rmdir } from "node:fs/promises";
 import { join } from "node:path";
-import { PrintConfigurationSchema } from "@drelwick/project-model";
+import {
+  PrintConfigurationSchema,
+  PrintConfigurationV2Schema,
+} from "@drelwick/project-model";
 import {
   ApplicationError,
   defaultPrintSettings,
+  defaultPrintEditions,
   PrintSaveRequestSchema,
   type PrintSaveRequest,
   type PrintConfigurationState,
@@ -15,6 +19,8 @@ import {
   writeJsonAtomically,
 } from "./index.js";
 import { boundedRead, regularPath } from "./image-assets.js";
+import { readBookPresentation } from "./book-presentation.js";
+import { resolveBookTheme } from "@drelwick/renderer";
 
 export const PRINT_CONFIGURATION_FILE = "print.json";
 const missing = (error: unknown) =>
@@ -46,17 +52,81 @@ export async function readPrintConfiguration(
       JSON.parse(bytes.toString("utf8")),
     );
     if (!parsed.success || parsed.data.projectId !== projectId) throw failed();
-    return { settings: parsed.data.settings, revision: revision(bytes) };
+    if (parsed.data.schemaVersion === 2) {
+      const { edition, editions } = parsed.data;
+      return {
+        edition,
+        editions,
+        settings: editions[edition].settings,
+        revision: revision(bytes),
+      };
+    }
+    return legacyState(
+      projectPath,
+      projectId,
+      parsed.data.settings,
+      revision(bytes),
+    );
   } catch (error) {
     if (!missing(error)) throw failed();
     const settings = defaultPrintSettings();
-    return {
+    return legacyState(
+      projectPath,
+      projectId,
       settings,
-      revision: revision(
-        JSON.stringify({ schemaVersion: 1, projectId, settings }),
-      ),
-    };
+      revision(JSON.stringify({ schemaVersion: 1, projectId, settings })),
+    );
   }
+}
+async function legacyState(
+  projectPath: string,
+  projectId: string,
+  settings: PrintConfigurationState["settings"],
+  sourceRevision: string,
+): Promise<PrintConfigurationState> {
+  const presentation = await readBookPresentation(projectPath, projectId);
+  const editions = defaultPrintEditions(
+    resolveBookTheme(presentation.settings.themeId).themeId,
+  );
+  editions.standard.settings = settings;
+  return {
+    edition: "standard",
+    editions,
+    settings,
+    revision: revision(
+      JSON.stringify({ sourceRevision, theme: presentation.settings }),
+    ),
+  };
+}
+
+/** Called under the project lock before changing a legacy shared ebook theme.
+ * Commit the old print appearance first; an interrupted ebook save is safe to retry. */
+export async function separateLegacyPrintConfiguration(
+  projectPath: string,
+  projectId: string,
+): Promise<void> {
+  const current = await readPrintConfiguration(projectPath, projectId);
+  try {
+    const parsed = PrintConfigurationSchema.parse(
+      JSON.parse(
+        (
+          await boundedRead(join(projectPath, PRINT_CONFIGURATION_FILE), 16384)
+        ).toString("utf8"),
+      ),
+    );
+    if (parsed.schemaVersion === 2) return;
+  } catch (error) {
+    if (!missing(error)) throw error;
+  }
+  await writeJsonAtomically(
+    join(projectPath, PRINT_CONFIGURATION_FILE),
+    PrintConfigurationV2Schema.parse({
+      schemaVersion: 2,
+      projectId,
+      edition: current.edition,
+      editions: current.editions,
+    }),
+  );
 }
 export async function loadPrintConfiguration(
   projectPath: string,
@@ -93,10 +163,20 @@ export async function savePrintConfiguration(
     );
     if (current.revision !== parsed.data.expectedRevision)
       throw failed("PRINT_CONFIGURATION_STALE");
-    const data = PrintConfigurationSchema.parse({
-      schemaVersion: 1,
+    const edition = parsed.data.edition ?? current.edition;
+    const profile = current.editions[edition];
+    const data = PrintConfigurationV2Schema.parse({
+      schemaVersion: 2,
       projectId: parsed.data.projectId,
-      settings: parsed.data.settings,
+      edition,
+      editions: {
+        ...current.editions,
+        [edition]: {
+          settings: parsed.data.settings,
+          themeId: parsed.data.themeId ?? profile.themeId,
+          typography: parsed.data.typography ?? profile.typography,
+        },
+      },
     });
     await (overrides.write ?? writeJsonAtomically)(
       join(projectPath, PRINT_CONFIGURATION_FILE),
@@ -104,7 +184,9 @@ export async function savePrintConfiguration(
     );
     // Match the atomic writer's serialization without a fallible post-commit read.
     result = {
-      settings: data.settings,
+      settings: data.editions[edition].settings,
+      edition,
+      editions: data.editions,
       revision: revision(`${JSON.stringify(data, null, 2)}\n`),
     };
     return result;

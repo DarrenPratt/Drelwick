@@ -26,6 +26,11 @@ The v0.1 build plan defines the minimal editor schema (text/paragraphs, bold/ita
 
 # 1. Purpose
 
+Implemented print edition separation (#136) is specified in
+[Large-print publishing edition](large-print-edition.md): two fixed profiles share
+one manuscript and the Community rendering/export pipeline, with independent EPUB
+presentation. No general multi-edition manager is introduced.
+
 This document defines the implementation architecture for Drelwick described in the Software Design Document.
 
 The intent is to move from conceptual architecture to a practical codebase structure with:

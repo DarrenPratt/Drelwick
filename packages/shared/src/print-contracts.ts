@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  BuiltinThemeIdSchema,
+  type BuiltinThemeId,
+} from "./theme-contracts.js";
 
 export const PRINT_TRIM_PRESETS = {
   "5x8": { label: "5 × 8 in", width: 127000, height: 203200 },
@@ -151,15 +155,66 @@ export function printPageGeometry(
     contentHeight: trim.height - margins.top - margins.bottom,
   };
 }
+export const PrintEditionSchema = z.enum(["standard", "large-print"]);
+export type PrintEdition = z.infer<typeof PrintEditionSchema>;
+/** Bounded overrides only: no author CSS, font paths or remote resources. */
+export const PrintTypographySchema = z
+  .object({
+    baseSizePt: z.number().finite().min(9).max(32).optional(),
+    lineHeight: z.number().finite().min(1.2).max(2.5).optional(),
+    paragraphSpacingEm: z.number().finite().min(0).max(1).optional(),
+    paragraphIndentEm: z.number().finite().min(0).max(2).optional(),
+    alignment: z.enum(["left", "justify"]).optional(),
+  })
+  .strict();
+export type PrintTypography = z.infer<typeof PrintTypographySchema>;
+export const PrintProfileSchema = z
+  .object({
+    themeId: BuiltinThemeIdSchema,
+    typography: PrintTypographySchema,
+    settings: PrintSettingsSchema,
+  })
+  .strict();
+export const PrintEditionsSchema = z
+  .object({
+    standard: PrintProfileSchema,
+    "large-print": PrintProfileSchema,
+  })
+  .strict();
+export type PrintProfile = z.infer<typeof PrintProfileSchema>;
+export type PrintEditions = z.infer<typeof PrintEditionsSchema>;
+export function defaultPrintEditions(
+  themeId: BuiltinThemeId = "classic",
+): PrintEditions {
+  return {
+    standard: { themeId, typography: {}, settings: defaultPrintSettings() },
+    "large-print": {
+      themeId: "modern",
+      typography: {
+        baseSizePt: 18,
+        lineHeight: 1.5,
+        paragraphSpacingEm: 0.5,
+        paragraphIndentEm: 0,
+        alignment: "left",
+      },
+      settings: defaultPrintSettings(),
+    },
+  };
+}
 export interface PrintConfigurationState {
   settings: PrintSettings;
   revision: string;
+  edition: PrintEdition;
+  editions: PrintEditions;
 }
 export const PrintSaveRequestSchema = z
   .object({
     projectId: z.string().uuid(),
     expectedRevision: z.string().regex(/^[a-f0-9]{64}$/),
     settings: PrintSettingsSchema,
+    edition: PrintEditionSchema.optional(),
+    themeId: BuiltinThemeIdSchema.optional(),
+    typography: PrintTypographySchema.optional(),
   })
   .strict();
 
@@ -187,6 +242,7 @@ export interface PrintPreview {
   pages: PrintPage[];
   diagnostics: PrintDiagnostic[];
   export?: {
+    edition?: PrintEdition;
     sourceRevision: string;
     settings: PrintSettings;
     title: string;
