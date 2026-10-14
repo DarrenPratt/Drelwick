@@ -79,3 +79,13 @@ source preservation, restore collision handling, tampered and malformed ZIPs,
 traversal paths, symlinks, IPC authorization, cancellation and project-operation
 serialization. Test archives and restored projects use isolated temporary
 directories.
+
+## Prospective story bible extension (#160)
+
+The [story bible contract](story-bible.md) defines independently versioned reference
+records without changing existing project/descriptor versions. #161 must implement
+reference validation, dirty-state recovery and backup integration. Active records,
+tombstones, reference snapshots, drafts and preserved corrupt bytes remain under `reference/` and belong in
+portable backups even when optional chapter history is excluded. Current archives
+copy eligible reference bytes but do not yet implement these reference semantics.
+Unknown reference content must be preserved; no lossy migration is authorized.

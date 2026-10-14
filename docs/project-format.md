@@ -279,3 +279,13 @@ backup verification and byte comparisons of the original prose. Tests also cover
 backup corruption, staging corruption, rename failure, external revisions,
 concurrent calls, unsafe paths, unsupported/malformed versions, retained edits
 after completion, archive round trips and the desktop authorization/startup gates.
+
+## Prospective story bible extension (#160)
+
+The [story bible contract](story-bible.md) defines independently versioned reference
+records without changing existing project/descriptor versions. #161 must implement
+reference validation, dirty-state recovery and backup integration. Active records,
+tombstones, reference snapshots, drafts and preserved corrupt bytes remain under `reference/` and belong in
+portable backups even when optional chapter history is excluded. Current archives
+copy eligible reference bytes but do not yet implement these reference semantics.
+Unknown reference content must be preserved; no lossy migration is authorized.

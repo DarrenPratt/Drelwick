@@ -1,0 +1,108 @@
+[
+  {
+    "schemaVersion": 1,
+    "kind": "character",
+    "id": "00000000-0000-4000-8000-000000000010",
+    "projectId": "00000000-0000-4000-8000-000000000001",
+    "created": "2026-10-14T12:00:00.000Z",
+    "modified": "2026-10-14T12:00:00.000Z",
+    "revision": 1,
+    "deletedAt": null,
+    "tags": ["synthetic"],
+    "links": [],
+    "name": "Mira",
+    "aliases": ["The cartographer"],
+    "role": "Navigator",
+    "description": "Maps the inland sea.",
+    "appearance": "Ink-stained fingers.",
+    "personality": "Patient.",
+    "background": "Raised at the harbour.",
+    "notes": "Private character note."
+  },
+  {
+    "schemaVersion": 1,
+    "kind": "location",
+    "id": "00000000-0000-4000-8000-000000000011",
+    "projectId": "00000000-0000-4000-8000-000000000001",
+    "created": "2026-10-14T12:00:00.000Z",
+    "modified": "2026-10-14T12:00:00.000Z",
+    "revision": 1,
+    "deletedAt": null,
+    "tags": ["synthetic"],
+    "links": [],
+    "name": "North harbour",
+    "type": "Port",
+    "description": "A sheltered inlet.",
+    "notes": "Private location note."
+  },
+  {
+    "schemaVersion": 1,
+    "kind": "canon",
+    "id": "00000000-0000-4000-8000-000000000012",
+    "projectId": "00000000-0000-4000-8000-000000000001",
+    "created": "2026-10-14T12:00:00.000Z",
+    "modified": "2026-10-14T12:00:00.000Z",
+    "revision": 1,
+    "deletedAt": null,
+    "tags": ["synthetic"],
+    "links": [],
+    "title": "The tide rule",
+    "category": "other",
+    "statement": "The inland sea has two tides.",
+    "notes": "Private canon note."
+  },
+  {
+    "schemaVersion": 1,
+    "kind": "timeline",
+    "id": "00000000-0000-4000-8000-000000000013",
+    "projectId": "00000000-0000-4000-8000-000000000001",
+    "created": "2026-10-14T12:00:00.000Z",
+    "modified": "2026-10-14T12:00:00.000Z",
+    "revision": 1,
+    "deletedAt": null,
+    "tags": ["synthetic"],
+    "links": [
+      {
+        "id": "00000000-0000-4000-8000-000000000100",
+        "target": {
+          "kind": "character",
+          "id": "00000000-0000-4000-8000-000000000010"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000101",
+        "target": {
+          "kind": "location",
+          "id": "00000000-0000-4000-8000-000000000011"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000102",
+        "target": {
+          "kind": "chapter",
+          "id": "00000000-0000-4000-8000-000000000002"
+        }
+      }
+    ],
+    "title": "Departure",
+    "date": "Second tide, year of reeds",
+    "sequence": 0,
+    "description": "Mira leaves the harbour.",
+    "notes": "Private timeline note."
+  },
+  {
+    "schemaVersion": 1,
+    "kind": "note",
+    "id": "00000000-0000-4000-8000-000000000014",
+    "projectId": "00000000-0000-4000-8000-000000000001",
+    "created": "2026-10-14T12:00:00.000Z",
+    "modified": "2026-10-14T12:00:00.000Z",
+    "revision": 1,
+    "deletedAt": null,
+    "tags": ["synthetic"],
+    "links": [],
+    "title": "Navigation research",
+    "body": "Synthetic research, independent of manuscript prose.",
+    "source": "Invented field notebook, page 3"
+  }
+]
