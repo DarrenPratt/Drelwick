@@ -16,14 +16,14 @@ Drelwick is a cross-platform, local-first, open-core authoring and publishing ap
 
 The dependency direction is always `Drelwick Pro -> Drelwick Community`. Community must build and test with no Pro repository present. No Pro repository is required during the v0.1 foundation. Manuscript/project files belong to the author and remain authoritative, recoverable outside the application and usable without cloud connectivity. EPUB/PDF are generated outputs, never editable master documents.
 
-| Classification | Product scope                                                                                                                                                                                                                                                                                                          |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CORE           | Manuscript editing; project/chapter management; semantic formatting; autosave; recovery; history; basic local DOCX import and manuscript export; portable local backup/restore; basic themes; ebook/print preview; EPUB 3; basic publishable print PDF; open project format; public extension APIs.                    |
-| PRO            | Potential advanced typography, KDP profiles/preflight, paperback/hardcover validation, automatic gutters, bleed/DPI analysis, advanced headers/page numbering/chapter openings, premium themes, advanced Word layout fidelity if separately designed, series management, advanced continuity and professional reports. |
-| SERVICE        | Optional hosted functionality with continuing operating costs. Basic local authoring never requires it.                                                                                                                                                                                                                |
-| ECOSYSTEM      | Third-party themes/plugins/extensions. The Community API they use remains CORE.                                                                                                                                                                                                                                        |
+| Classification | Product scope                                                                                                                                                                                                                                                                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| CORE           | Manuscript editing; project/chapter management; semantic formatting; autosave; recovery; history; basic local DOCX import and manuscript export; portable local backup/restore; basic themes; ebook/print preview; EPUB 3; basic publishable print PDF; open project format; public extension APIs; basic local story bible CRUD/search/chapter links. |
+| PRO            | Potential advanced typography, KDP profiles/preflight, paperback/hardcover validation, automatic gutters, bleed/DPI analysis, advanced headers/page numbering/chapter openings, premium themes, advanced Word layout fidelity if separately designed, professional publishing reports.                                                                 |
+| SERVICE        | Optional hosted functionality with continuing operating costs. Basic local authoring never requires it.                                                                                                                                                                                                                                                |
+| ECOSYSTEM      | Third-party themes/plugins/extensions. The Community API they use remains CORE.                                                                                                                                                                                                                                                                        |
 
-Community must be capable of producing a normal publishable novel. Pro monetises additional professional convenience, not artificial restrictions on authors' manuscripts. Detailed boundaries remain subject to commercial task 51; ordinary publishable PDF output and basic validation cannot require Pro. A feature appearing later in this document describes product capability, not an automatic assignment to Community or to v0.1.
+Community must be capable of producing a normal publishable novel. Pro monetises additional professional convenience, not artificial restrictions on authors' manuscripts. Per the 2 October owner decision, final allocation follows private working-app evaluation #203 and then #52 (commercial task 51); existing CORE scope proceeds now. Advanced continuity, series management and editorial tools are unallocated review candidates; ordinary publishable PDF output and basic validation cannot require Pro. A feature appearing later in this document describes product capability, not an automatic assignment to Community or to v0.1.
 
 The [commercial addendum](planning/commercial-architecture-addendum.md), [audit](planning/repository-audit.md) and [development guardrails](development.md) reconcile the original baseline. The v0.1 plan governs initial delivery scope; broader schema, publishing and plugin-runtime examples are future work.
 
@@ -309,6 +309,7 @@ my-novel/
 ├── reference/
 │   ├── characters/
 │   ├── locations/
+│   ├── canon/
 │   ├── timeline/
 │   └── notes/
 │
@@ -880,135 +881,53 @@ The archive format should remain documented and extractable with ordinary ZIP to
 
 # 24. Reference / Story Bible
 
-A major differentiating feature will be integrated story-reference information.
-
-Reference categories:
-
-```text
-Characters
-Locations
-Organisations
-Technology
-Timeline
-Canon
-Research
-General Notes
-```
-
-These records are not included in book exports.
-
----
+Initial offline CORE scope is local CRUD for characters, locations, canon facts,
+timeline events and research/general notes, basic search and explicit chapter
+links. The [story bible contract](story-bible.md) defines persistence, recovery,
+validation, deletion and implementation dependencies; runtime work is #161–#168.
+Organisations and technology use notes/canon, without speculative record types.
+Reference data is independent of manuscripts and excluded from EPUB, DOCX and
+print PDF, including private link metadata. No account or Pro code is required.
 
 # 25. Character Records
 
-Example:
-
-```text
-Character
-
-Name
-Aliases
-Role
-Description
-Appearance
-Personality
-Background
-Relationships
-First Appearance
-Notes
-```
-
-Characters may eventually be linked to manuscript scenes and chapters.
-
----
+Characters have name, aliases, optional role, description, appearance, personality,
+background and notes, with tags and explicit links. See the strict
+[versioned schema](story-bible.md#version-1-record-schema). Chapter links are in
+initial scope; scene/range links await stable manuscript anchors. Relationships
+use explicit record links; first appearance is not a separately persisted field.
 
 # 26. Locations
 
-Location records could contain:
-
-```text
-Name
-Type
-Description
-Important Features
-Characters
-Events
-Notes
-Images
-```
-
----
+Locations have name, optional type, description and notes, with tags and links.
+Important features use description/notes; associated characters and events use
+links. Image attachments require a separate design. Dirty edits survive failed
+saves and block navigation until saved or explicitly discarded.
 
 # 27. Timeline
 
-The timeline provides continuity tracking.
-
-Example:
-
-```text
-Day 1
- │
- ├── Aeon arrives at laboratory
- │
- └── Astrid activation
-
-Day 17
- │
- └── The Incident
-
-Day 21
- │
- └── Departure
-```
-
-Timeline events may link directly to chapters or scenes.
-
----
+Events have title, optional free-text fictional/calendar date, integer sequence,
+description and notes, with tags and chapter/record associations. Sort by sequence,
+then unsequenced entries, with UUID tie breaking; dates never imply chronology.
+Deleted/missing targets remain visible as unresolved links. Chapter linking is
+supported by the design; scenes and cross-book chronology are deferred.
 
 # 28. Canon Notes
 
-Canon records identify facts that should remain consistent throughout a manuscript or series.
-
-Examples:
-
-```text
-Character facts
-Technology rules
-Historical events
-Locations
-Relationships
-Terminology
-Dates
-Physical constraints
-```
-
-A future continuity checker could compare manuscript text against these records.
-
----
+Canon records contain title, category, statement, optional notes, tags and links.
+Categories are character, technology, location, history, relationship, terminology
+and other. Research/general notes contain title, body and optional source citation.
+There is no automatic continuity checking or manuscript modification. Advanced
+continuity, series management and editorial tooling are candidates for review
+**after #203**, without pre-allocation to Pro or a dependency on commercial review.
 
 # 29. Search
 
-Global search should cover:
-
-- manuscript;
-- chapter titles;
-- character records;
-- locations;
-- timeline;
-- canon;
-- notes.
-
-Later versions could support advanced searches such as:
-
-```text
-Find every chapter mentioning Astrid.
-```
-
-or:
-
-```text
-Find references to the laboratory after Chapter 10.
-```
+Basic CORE local search covers manuscript text/titles and all five record kinds,
+including aliases and tags. It uses a rebuildable bounded in-memory index and
+navigable type-filtered results. See [matching and refresh rules](story-bible.md#search-and-export-isolation).
+It does not infer mentions, perform automatic replacements or require SQLite.
+Advanced queries need a separate design and later owner review.
 
 ---
 

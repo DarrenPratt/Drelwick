@@ -424,7 +424,15 @@ A manuscript reader can ignore it for interpreting defined chapters, while a
 recovery copy should retain any files the author placed there. The same caution
 applies to unrecognized author files and the reserved matter/style directories.
 Do not interpret these directory names as evidence of implemented page, font or
-reference formats. This specification defines no prospective fields for them.
+reference formats. The normative [prospective story bible extension](story-bible.md) now defines
+version-1 records, owned links, tombstones and recovery files, with
+[representative JSON](examples/story-bible-v1.json). It is a design for #161, not
+implemented support or a change to existing project/descriptor versions. It
+supersedes the old illustrative models in technical §§65–69. Its stricter UTF-8,
+duplicate-key and unknown-field rules apply to future reference readers only;
+the implemented parser behaviours below remain unchanged. Reference snapshots,
+drafts and preserved corrupt bytes live under `reference/` and will be included even without optional
+chapter history. Manuscript exports must never include these files.
 
 ## Unknown data and forward compatibility
 

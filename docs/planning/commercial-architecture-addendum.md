@@ -19,6 +19,15 @@ Task 60 is future work, after the Community/Pro package boundary is established 
 
 Basic DOCX import is CORE in v0.2; basic manuscript DOCX export is CORE by v0.3. Cloud editing, hosted conversion and collaboration are outside the current roadmap. Optional Google Drive/Wasabi/Git repository backup is exploration of user-owned storage, not a Drelwick hosted service. Client-side integration does not automatically imply SERVICE classification; provider fees and any future Drelwick-operated infrastructure are separate decisions. See the [local publishing plan](local-publishing-plan.md). The rest of the feature-boundary review remains open in actual GitHub issue #52.
 
+## Owner sequencing — 2 October 2026
+
+Existing CORE work proceeds through the private working-app evaluation #203
+before final Community/Pro allocation in #52. Local story bible CRUD, basic search
+and chapter links are CORE. Advanced continuity, series management and editorial
+tools are unallocated candidates for review after #203, not approved Pro scope.
+The [story bible contract](../story-bible.md) governs #160–#168. This supersedes
+earlier commercial sequencing and does not open external contributions or release.
+
 # Commercial Architecture Milestone
 
 Create an additional GitHub milestone:
@@ -64,7 +73,7 @@ Open project format
 Plugin SDK
 ```
 
-## Initial Pro Scope
+## Publishing candidates for commercial review
 
 ```text
 Advanced print
@@ -73,9 +82,6 @@ KDP preflight
 Advanced validation
 Advanced Word layout fidelity (only if separately designed)
 Premium themes
-Series management
-Advanced continuity
-Advanced authoring tools
 ```
 
 ## Acceptance Criteria

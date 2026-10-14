@@ -16,6 +16,16 @@ This plan turns the Atticus gap analysis into local desktop delivery work. It su
 
 Git repository research includes private hosted or self-hosted remotes, scoped SSH/HTTPS credentials, binary assets/LFS, repository growth, rejected pushes, history retention and explicit commit-based restore. A local commit alone is not an off-device backup. Do not automatically merge into the active manuscript, force-push or rewrite remote history. Evaluate hooks, filters and untrusted repository configuration as part of the adapter boundary. Broader interactive Git/version-control tooling remains a separate future feature.
 
+## Story bible design and owner sequencing
+
+The 2 October owner decision places final commercial allocation after the private
+working-app gate #203. Existing CORE scope proceeds without waiting for #52.
+The [#160 contract](../story-bible.md) specifies local record CRUD, basic search
+and chapter links, with the [#161–#168 dependency graph](../story-bible.md#implementation-dependency-graph)
+and fixture matrix. Advanced continuity, series management and editorial tooling
+remain unallocated review candidates after #203. No cloud, AI or Pro implementation
+is part of this design. Scene/range links await a stable-anchor design.
+
 ## Delivery order and issue register
 
 The existing GitHub milestone names are retained. Dependencies below are actual issue numbers, not the stable task IDs in older plans. Each issue contains its scope, acceptance criteria, components, tests, classification and reliability constraints. Dependencies are prerequisites unless its body explicitly marks a relationship as coordination only.

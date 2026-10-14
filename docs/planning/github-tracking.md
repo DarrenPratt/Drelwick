@@ -29,6 +29,15 @@ The [local publishing plan](local-publishing-plan.md) maps new issue numbers and
 
 At the start of this update, main was `37a7bb8`, with 44 closed and 19 open issues and no open PRs. Chapter editing, persistence and recovery were implemented; publishing was not. The readiness and Project initialization sections below are historical records, not a live board snapshot. New publishing issues are added as Backlog, not automatically Ready.
 
+## Story bible specification — #160
+
+The [story bible contract](../story-bible.md) records the implementation graph for
+#161–#168, including all external prerequisites. #111 is implemented by merged
+PR #157; #160 supplies design, not runtime completion. The graph flows into #203
+and then #52, never back from commercial review to this CORE scope. Advanced
+continuity/series/editorial candidates are not pre-assigned to Pro. Issue state
+and readiness must still be checked against merged implementation.
+
 ## Milestones
 
 All eight were created; none existed to reuse.

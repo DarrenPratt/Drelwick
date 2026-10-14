@@ -2119,159 +2119,54 @@ Image referenced by Chapter 4 does not exist.
 
 # 65. Reference Data
 
-Reference data belongs outside manuscript exports.
-
-Directory:
-
-```text
-reference/
-│
-├── characters/
-├── locations/
-├── timeline/
-├── canon/
-└── notes/
-```
-
----
+The [story bible persistence contract](story-bible.md) is the normative prospective
+specification from #160. It defines strict, independently versioned files under
+`reference/`, atomic CRUD/recovery, backups, migration compatibility, deletion,
+validation and export exclusion. Runtime support remains #161 onward; the
+[public format](project-format-specification.md#reference-data-and-reserved-structures)
+distinguishes this design from implemented files.
 
 # 66. Character Model
 
-```typescript
-interface CharacterRecord {
-  id: string;
-
-  name: string;
-
-  aliases: string[];
-
-  role?: string;
-
-  description?: string;
-  appearance?: string;
-  personality?: string;
-  background?: string;
-
-  notes?: string;
-
-  tags: string[];
-}
-```
-
----
+Use the shared v1 envelope and character fields in the
+[record schema](story-bible.md#version-1-record-schema), including stable UUID,
+revision, timestamps, aliases, role, description, appearance, personality,
+background, notes, tags and links. No alternative unversioned interface applies.
 
 # 67. Location Model
 
-```typescript
-interface LocationRecord {
-  id: string;
-
-  name: string;
-
-  type?: string;
-
-  description?: string;
-
-  notes?: string;
-
-  tags: string[];
-}
-```
-
----
+Use the same strict envelope with location name, optional type/description/notes,
+tags and links. Important features belong in prose; image attachments are deferred.
+See the [schema and examples](story-bible.md#version-1-record-schema).
 
 # 68. Canon Model
 
-```typescript
-interface CanonRecord {
-  id: string;
-
-  title: string;
-
-  category:
-    | "character"
-    | "technology"
-    | "location"
-    | "history"
-    | "relationship"
-    | "terminology"
-    | "other";
-
-  statement: string;
-
-  notes?: string;
-
-  tags: string[];
-}
-```
-
----
+Canon uses title, category, statement and optional notes in the shared envelope.
+Research/general notes are a distinct `note` kind with title, body and optional
+source. The seven canon categories and exact fields are defined in the
+[record contract](story-bible.md#version-1-record-schema).
 
 # 69. Timeline Model
 
-```typescript
-interface TimelineEvent {
-  id: string;
-
-  title: string;
-
-  date?: string;
-
-  sequence?: number;
-
-  description?: string;
-
-  chapterIds: string[];
-
-  characterIds: string[];
-
-  locationIds: string[];
-}
-```
-
----
+Timeline events use title, optional free-text date, numeric sequence, description
+and notes, plus the shared envelope. Dates are not parsed into chronology.
+Chapter/character/location IDs are derived from authoritative
+[links](story-bible.md#link-schema-and-resolution), not parallel persisted arrays.
+That contract defines ordering, backlinks and deletion/split/merge behaviour.
+Scene/range links await a stable-anchor design.
 
 # 70. Search Architecture
 
-Initial search may simply index:
-
-```text
-chapter text
-chapter titles
-character names
-locations
-canon notes
-timeline
-```
-
-For small novels, in-memory search is sufficient.
-
-Later:
-
-```text
-SQLite FTS
-```
-
-can be introduced for larger projects.
-
----
+Basic local search is CORE. #167 reuses manuscript search and adds the
+[bounded reference search contract](story-bible.md#search-and-export-isolation),
+including Unicode matching, invalidation, cancellation and dirty-state rules.
+Reference data remains outside EPUB, DOCX and print PDF publication inputs.
 
 # 71. SQLite
 
-SQLite is optional in the initial milestone.
-
-The source of truth should remain project files.
-
-SQLite may later be used as an index/cache for:
-
-```text
-search
-statistics
-cross references
-recent project metadata
-```
-
-It should be rebuildable from project files.
+No database is needed for the initial in-memory reference index. Any future
+SQLite index is optional and rebuildable entirely from authoritative project
+files; it cannot become a persistence or Community/Pro dependency.
 
 ---
 
@@ -3149,6 +3044,12 @@ search
 Success criterion:
 
 > Reference content can be managed without affecting manuscript exports.
+
+Implement #161–#168 in the [acyclic dependency order](story-bible.md#implementation-dependency-graph).
+Local record CRUD, basic search and chapter links are CORE. Advanced continuity,
+series and editorial candidates receive owner review after #203; that review
+does not delay this scope. The [fixture matrix](story-bible.md#required-fixture-and-test-matrix)
+is required implementation evidence, not functionality delivered by #160.
 
 ---
 

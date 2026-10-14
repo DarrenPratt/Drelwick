@@ -47,6 +47,7 @@ Operational documents:
 - [Local reflowable ebook simulation and acceptance evidence](ebook-preview.md)
 - [Publication metadata, matter pages and managed covers](publication-matter.md)
 - [Community book themes, persistence and target styles](book-themes.md)
+- [Story bible persistence, linking and product boundaries (design; #160)](story-bible.md)
 - [Project format, version detection and recoverable migrations](project-format.md)
 - [Repository audit and reconciliations](planning/repository-audit.md)
 - [Development workflow and product classification](development.md)
