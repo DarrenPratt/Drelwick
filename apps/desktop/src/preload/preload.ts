@@ -9,6 +9,9 @@ import {
 import type { DrelwickApi } from "@drelwick/shared";
 
 const api: DrelwickApi = {
+  references: {
+    execute: (input) => ipcRenderer.invoke(IPC.REFERENCE_EXECUTE, input),
+  },
   spelling: {
     get: () => ipcRenderer.invoke(IPC.SPELLING_GET),
     update: (input) => ipcRenderer.invoke(IPC.SPELLING_UPDATE, input),

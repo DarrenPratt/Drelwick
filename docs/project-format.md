@@ -280,12 +280,15 @@ backup corruption, staging corruption, rename failure, external revisions,
 concurrent calls, unsafe paths, unsupported/malformed versions, retained edits
 after completion, archive round trips and the desktop authorization/startup gates.
 
-## Prospective story bible extension (#160)
+## Story bible extension (#160, #161)
 
 The [story bible contract](story-bible.md) defines independently versioned reference
-records without changing existing project/descriptor versions. #161 must implement
-reference validation, dirty-state recovery and backup integration. Active records,
+records without changing existing project/descriptor versions. The
+[storage implementation](story-bible-storage.md) provides strict reference
+validation, durable recovery candidates and backup integration. Active records,
 tombstones, reference snapshots, drafts and preserved corrupt bytes remain under `reference/` and belong in
-portable backups even when optional chapter history is excluded. Current archives
-copy eligible reference bytes but do not yet implement these reference semantics.
+portable backups even when optional chapter history is excluded. Archives retain
+eligible reference bytes verbatim, refuse unresolved temporary files and require
+explicit review of excluded reference paths. Restore retains unsupported data;
+reference validation reports it read-only independently of manuscript access.
 Unknown reference content must be preserved; no lossy migration is authorized.

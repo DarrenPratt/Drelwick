@@ -32,6 +32,11 @@ import {
 import * as yauzl from "yauzl";
 import * as yazl from "yazl";
 import { openProject } from "./index.js";
+import { withReferenceLock } from "./reference-files.js";
+import {
+  assertReferenceBackupReady,
+  referenceBackupDiagnostics,
+} from "./references.js";
 
 export const PROJECT_ARCHIVE_MANIFEST = ".drelwick-archive.json";
 export const PROJECT_ARCHIVE_MAX_BYTES = 1024 * 1024 * 1024;
@@ -87,11 +92,44 @@ interface ZipEntryList extends Array<yauzl.Entry> {
   zip: yauzl.ZipFile;
 }
 
+/** Native backup review only; returned paths are local UI data, never log fields. */
+export async function inspectReferenceBackup(
+  projectPath: string,
+): Promise<{ excludedPaths: string[]; unsupportedCount: number }> {
+  return withReferenceLock(projectPath, async (root) => {
+    const session = await openProject(
+      root,
+      {},
+      { readFile, lstat, realpath, writeJson: async () => undefined },
+    );
+    await assertReferenceBackupReady(root, session.project.projectId);
+    const excludedPaths: string[] = [];
+    await collectProjectFiles(root, false, excludedPaths);
+    return {
+      excludedPaths,
+      unsupportedCount: (
+        await referenceBackupDiagnostics(root, session.project.projectId)
+      ).length,
+    };
+  });
+}
+
 /** Capture a validated project revision as a portable, checksummed ZIP file. */
 export async function createProjectArchive(input: {
   projectPath: string;
   archivePath: string;
   includeHistory?: boolean;
+  approvedReferenceExclusions?: string[];
+}): Promise<{ projectId: string; fileCount: number }> {
+  return withReferenceLock(input.projectPath, (projectPath) =>
+    createProjectArchiveLocked({ ...input, projectPath }),
+  );
+}
+async function createProjectArchiveLocked(input: {
+  projectPath: string;
+  archivePath: string;
+  includeHistory?: boolean;
+  approvedReferenceExclusions?: string[];
 }): Promise<{ projectId: string; fileCount: number }> {
   if (!isAbsolute(input.projectPath) || !isAbsolute(input.archivePath))
     throw archiveError("PROJECT_ARCHIVE_PATH_INVALID");
@@ -119,7 +157,21 @@ export async function createProjectArchive(input: {
     },
   );
   const includeHistory = input.includeHistory ?? true;
-  const inventory = await collectProjectFiles(projectRoot, includeHistory);
+  await assertReferenceBackupReady(projectRoot, opened.project.projectId);
+  const excludedReferences: string[] = [];
+  const inventory = await collectProjectFiles(
+    projectRoot,
+    includeHistory,
+    excludedReferences,
+  );
+  if (
+    JSON.stringify(excludedReferences) !==
+    JSON.stringify(input.approvedReferenceExclusions ?? [])
+  )
+    throw new ApplicationError(
+      "REFERENCE_BACKUP_REVIEW_REQUIRED",
+      "Review excluded reference files before creating the backup.",
+    );
   if (inventory.length > PROJECT_ARCHIVE_MAX_FILES)
     throw archiveError("PROJECT_ARCHIVE_TOO_MANY_FILES");
   if (
@@ -155,11 +207,16 @@ export async function createProjectArchive(input: {
         sha256: digesting.digest(),
       });
     }
+    const currentExclusions: string[] = [];
     const currentInventory = await collectProjectFiles(
       projectRoot,
       includeHistory,
+      currentExclusions,
     );
-    if (!sameInventory(inventory, currentInventory))
+    if (
+      !sameInventory(inventory, currentInventory) ||
+      JSON.stringify(currentExclusions) !== JSON.stringify(excludedReferences)
+    )
       throw archiveError("PROJECT_ARCHIVE_CHANGED");
 
     const manifest = ProjectArchiveManifestSchema.parse({
@@ -343,6 +400,7 @@ async function rejectProjectDestination(parent: string): Promise<void> {
 async function collectProjectFiles(
   root: string,
   includeHistory: boolean,
+  excludedReferences: string[] = [],
 ): Promise<FileRecord[]> {
   const records: FileRecord[] = [];
   const visit = async (relativeDirectory: string): Promise<void> => {
@@ -352,16 +410,30 @@ async function collectProjectFiles(
     const names = await readdir(directory);
     names.sort((left, right) => left.localeCompare(right, "en"));
     for (const name of names) {
-      if (shouldExcludeName(name, false)) continue;
       const relativePath = relativeDirectory
         ? `${relativeDirectory}/${name}`
         : name;
+      if (shouldExcludeName(name, false)) {
+        if (relativePath.startsWith("reference/")) {
+          if (name.toLowerCase().endsWith(".tmp"))
+            throw new ApplicationError(
+              "REFERENCE_RECOVERY_REQUIRED",
+              "Resolve reference temporary files before backup.",
+            );
+          excludedReferences.push(relativePath);
+        }
+        continue;
+      }
       if (!isAllowedProjectPath(relativePath, includeHistory, true)) continue;
       const path = join(root, ...relativePath.split("/"));
       const info = await lstat(path);
       if (info.isSymbolicLink()) throw archiveError("PROJECT_ARCHIVE_SYMLINK");
       if (info.isDirectory()) {
-        if (shouldExcludeName(name, true)) continue;
+        if (shouldExcludeName(name, true)) {
+          if (relativePath.startsWith("reference/"))
+            excludedReferences.push(relativePath);
+          continue;
+        }
         await visit(relativePath);
       } else if (info.isFile()) {
         records.push({
