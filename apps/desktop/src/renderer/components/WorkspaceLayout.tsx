@@ -2,7 +2,14 @@ import { useRef, useState, type ReactNode } from "react";
 import { WorkspaceIcon as Icon } from "./WorkspaceIcon.js";
 import { sampleParagraphs } from "./workspace-sample.js";
 
-type Panel = "preview" | "format" | "details" | "search" | "history" | "export";
+type Panel =
+  | "preview"
+  | "format"
+  | "details"
+  | "search"
+  | "history"
+  | "export"
+  | "locations";
 const panelNames: Record<Panel, string> = {
   preview: "Book preview",
   format: "Book design",
@@ -10,6 +17,7 @@ const panelNames: Record<Panel, string> = {
   search: "Find in manuscript",
   history: "Version history",
   export: "Export your book",
+  locations: "Story bible locations",
 };
 
 export interface WorkspaceLayoutProps {
@@ -24,6 +32,7 @@ export interface WorkspaceLayoutProps {
   bookDesign?: ReactNode;
   publicationAction?: ReactNode;
   exportAction?: ReactNode;
+  locations?: ReactNode;
 }
 
 /** Presentation shell only: mock controls never call persistence or export APIs. */
@@ -39,6 +48,7 @@ export function WorkspaceLayout({
   bookDesign,
   publicationAction,
   exportAction,
+  locations,
 }: WorkspaceLayoutProps) {
   const [panel, setPanel] = useState<Panel | null>("preview");
   const [navigationOpen, setNavigationOpen] = useState(
@@ -177,6 +187,15 @@ export function WorkspaceLayout({
             <span>Export</span>
             {!exportAction && <span className="mode-mock">Mock</span>}
           </button>
+          {locations && (
+            <button
+              className="text-button"
+              aria-pressed={panel === "locations"}
+              onClick={() => selectPanel("locations")}
+            >
+              Locations
+            </button>
+          )}
         </div>
       </header>
       <div className="workspace-context">
@@ -392,6 +411,13 @@ export function WorkspaceLayout({
                   </p>
                 </div>
               ))}
+            {panel === "locations" &&
+              (locations ?? (
+                <div className="tool-intro">
+                  <h3>Story bible locations</h3>
+                  <p>Location records are not available for this project.</p>
+                </div>
+              ))}
             {panel === "search" && (
               <div className="tool-intro">
                 <h3>Find the right words.</h3>
@@ -436,6 +462,7 @@ export function WorkspaceLayout({
             ["search", "search"],
             ["history", "history"],
             ["export", "export"],
+            ["locations", "book"],
           ] as const
         ).map(([name, icon]) => (
           <button

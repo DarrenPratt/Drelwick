@@ -46,6 +46,7 @@ import type {
 import { Editor } from "./components/Editor.js";
 import { WorkspaceLayout } from "./components/WorkspaceLayout.js";
 import { WorkspaceIcon } from "./components/WorkspaceIcon.js";
+import { LocationManager } from "./LocationManager.js";
 import { RendererErrorBoundary } from "./RendererErrorBoundary.js";
 import type { JSONContent } from "@tiptap/core";
 import {
@@ -1467,6 +1468,7 @@ export function App() {
               </div>
             </div>
           }
+          locations={<LocationManager projectId={project.projectId} />}
           publicationAction={
             <button
               disabled={changingDocument}
