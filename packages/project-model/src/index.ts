@@ -25,3 +25,4 @@ export * from "./replacement-journal.js";
 export * from "./spelling-settings.js";
 
 export * from "./print-configuration.js";
+export * from "./reference.js";

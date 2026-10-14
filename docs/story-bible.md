@@ -1,9 +1,11 @@
 # Local story bible persistence and linking
 
-Status: implementation-ready design for #160, **not implemented runtime support**.
-Product: CORE (`product:core`). This is the normative prospective contract for
+Status: normative design from #160; #161 supplies the storage and restricted IPC
+foundation described in [implementation notes](story-bible-storage.md). Editors,
+search UI and the later linking workflow remain separate follow-ups.
+Product: CORE (`product:core`). This is the normative contract for
 technical specification §§65–71 and §103, design §§24–29 and the public format's
-reference extension. #161 implements it; this issue adds no CRUD, UI, IPC or database.
+reference extension. Persistent shapes below remain authoritative for #161.
 
 ## Scope and existing foundation
 
@@ -242,7 +244,7 @@ embedded ID is the original record ID. Then stage a unique same-directory
 `<id>.<operation-id>.tmp`, flush/close, reread/validate, recheck source fingerprint,
 and atomically replace the authoritative file. Reuse the atomic-writer abstraction
 with unique temporaries; do not assume its current cleanup behaviour preserves
-drafts. #161 must add the durable recovery path below before using it for records.
+drafts. The #161 reference service adds the durable recovery path below.
 
 The single live-record replacement is the commit point. No manifest timestamp,
 backlink file or chapter needs a second commit. Before it, failure leaves the

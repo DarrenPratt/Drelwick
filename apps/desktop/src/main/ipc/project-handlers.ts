@@ -6,6 +6,8 @@ import {
 } from "electron";
 import {
   createProjectArchive,
+  executeReferenceOperation,
+  inspectReferenceBackup,
   assembleBook,
   loadPublication,
   savePublication,
@@ -298,6 +300,61 @@ export function registerProjectHandlers(
       event.senderFrame?.url === rendererUrl
     );
   };
+
+  ipcMain.handle(IPC.REFERENCE_EXECUTE, async (event, payload: unknown) => {
+    if (!trusted(event))
+      return failure(
+        "PROJECT_ACCESS_DENIED",
+        "Project access is not permitted.",
+      );
+    const parsed = IpcRequestSchemas[IPC.REFERENCE_EXECUTE].safeParse(payload);
+    if (!parsed.success)
+      return failure("REFERENCE_INPUT_INVALID", "Invalid reference request.");
+    if (!activeProjectPath || parsed.data.projectId !== activeProjectId)
+      return failure(
+        "PROJECT_NOT_OPEN",
+        "Open the project before accessing references.",
+      );
+    if (busy)
+      return failure(
+        "PROJECT_BUSY",
+        "Wait for the current project operation and retry.",
+      );
+    busy = true;
+    const projectPath = activeProjectPath;
+    try {
+      await history.settleProject(projectPath);
+      const value = await executeReferenceOperation(
+        { projectPath, request: parsed.data },
+        {
+          authorized: () =>
+            Boolean(trusted(event)) &&
+            activeProjectPath === projectPath &&
+            activeProjectId === parsed.data.projectId,
+        },
+      );
+      if (!trusted(event))
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      return {
+        ok: true,
+        value,
+        ...(value.warning ? { warning: value.warning } : {}),
+      };
+    } catch (error) {
+      return failure(
+        error instanceof ApplicationError &&
+          (error.code.startsWith("REFERENCE_") || error.code === "PROJECT_BUSY")
+          ? error.code
+          : "REFERENCE_FAILED",
+        "Reference operation could not finish. Saved data and recovery copies were preserved. Review recovery or project access before retrying.",
+      );
+    } finally {
+      busy = false;
+    }
+  });
 
   for (const channel of [
     IPC.PUBLICATION_GET,
@@ -1329,10 +1386,35 @@ export function registerProjectHandlers(
           );
         if (!archivePath) return { ok: true, value: { created: false } };
         await history.settleProject(projectPath);
+        const referenceReview = await inspectReferenceBackup(projectPath);
+        if (
+          referenceReview.excludedPaths.length ||
+          referenceReview.unsupportedCount
+        ) {
+          const review = await dialog.showMessageBox(window, {
+            type: "warning",
+            title: "Review reference backup",
+            message: "Some reference files need attention.",
+            detail: `${referenceReview.unsupportedCount} reference validation problem(s). Eligible files will be copied unchanged.\nExcluded reference paths:\n${referenceReview.excludedPaths.join("\n") || "None"}`,
+            buttons: ["Cancel", "Create backup"],
+            defaultId: 0,
+            cancelId: 0,
+          });
+          if (review.response !== 1)
+            return { ok: true, value: { created: false } };
+          if (!trusted(event))
+            return failure(
+              "PROJECT_ACCESS_DENIED",
+              "Project access is not permitted.",
+            );
+        }
         await services.createArchive({
           projectPath,
           archivePath,
           includeHistory: parsed.data.includeHistory,
+          ...(referenceReview.excludedPaths.length
+            ? { approvedReferenceExclusions: referenceReview.excludedPaths }
+            : {}),
         });
         services.logger.info("project.backup_created", {
           projectId,

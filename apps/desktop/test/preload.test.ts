@@ -34,6 +34,14 @@ describe("preload API", () => {
     );
 
     const [, api] = exposeInMainWorld.mock.calls[0] as [string, DrelwickApi];
+    await api.references.execute({
+      operation: "list",
+      projectId: "123e4567-e89b-42d3-a456-426614174000",
+    });
+    expect(invoke).toHaveBeenLastCalledWith("reference:execute", {
+      operation: "list",
+      projectId: "123e4567-e89b-42d3-a456-426614174000",
+    });
     await api.project.exportDocx({
       projectId: "123e4567-e89b-42d3-a456-426614174000",
     });

@@ -7,6 +7,12 @@ import {
 } from "./print-contracts.js";
 export * from "./print-contracts.js";
 import { z } from "zod";
+import {
+  ReferenceRequestSchema,
+  type ReferenceRequest,
+  type ReferenceResponse,
+} from "./reference-contracts.js";
+export * from "./reference-contracts.js";
 import type { DocxExportReceipt } from "./docx-contracts.js";
 import type { EpubExportReceipt } from "./epub-contracts.js";
 export * from "./docx-contracts.js";
@@ -108,6 +114,7 @@ export type ChapterOrganisationRequest = z.infer<
 >;
 
 export const IPC = {
+  REFERENCE_EXECUTE: "reference:execute",
   DOCX_EXPORT: "docx:export",
   EPUB_EXPORT: "epub:export",
   SPELLING_GET: "spelling:get",
@@ -262,6 +269,7 @@ export type ProjectOperationResult<T> =
   | { ok: false; error: { code: string; message: string } };
 
 export const IpcRequestSchemas = {
+  [IPC.REFERENCE_EXECUTE]: ReferenceRequestSchema,
   [IPC.PRINT_GET]: z.object({ projectId: z.string().uuid() }).strict(),
   [IPC.PRINT_EXPORT]: PrintExportRequestSchema,
   [IPC.PRINT_EXPORT_CANCEL]: z
@@ -391,6 +399,11 @@ export interface RecoveryCandidateSummary {
 }
 
 export interface DrelwickApi {
+  references: {
+    execute(
+      input: ReferenceRequest,
+    ): Promise<ProjectOperationResult<ReferenceResponse>>;
+  };
   spelling: {
     get(): Promise<ProjectOperationResult<SpellingState>>;
     update(
