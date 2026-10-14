@@ -2,7 +2,14 @@ import { useRef, useState, type ReactNode } from "react";
 import { WorkspaceIcon as Icon } from "./WorkspaceIcon.js";
 import { sampleParagraphs } from "./workspace-sample.js";
 
-type Panel = "preview" | "format" | "details" | "search" | "history" | "export";
+type Panel =
+  | "preview"
+  | "format"
+  | "details"
+  | "search"
+  | "history"
+  | "export"
+  | "story-bible";
 const panelNames: Record<Panel, string> = {
   preview: "Book preview",
   format: "Book design",
@@ -10,6 +17,7 @@ const panelNames: Record<Panel, string> = {
   search: "Find in manuscript",
   history: "Version history",
   export: "Export your book",
+  "story-bible": "Story bible",
 };
 
 export interface WorkspaceLayoutProps {
@@ -24,6 +32,7 @@ export interface WorkspaceLayoutProps {
   bookDesign?: ReactNode;
   publicationAction?: ReactNode;
   exportAction?: ReactNode;
+  storyBible?: ReactNode;
 }
 
 /** Presentation shell only: mock controls never call persistence or export APIs. */
@@ -39,6 +48,7 @@ export function WorkspaceLayout({
   bookDesign,
   publicationAction,
   exportAction,
+  storyBible,
 }: WorkspaceLayoutProps) {
   const [panel, setPanel] = useState<Panel | null>("preview");
   const [navigationOpen, setNavigationOpen] = useState(
@@ -177,6 +187,15 @@ export function WorkspaceLayout({
             <span>Export</span>
             {!exportAction && <span className="mode-mock">Mock</span>}
           </button>
+          {storyBible && (
+            <button
+              className="text-button"
+              aria-pressed={panel === "story-bible"}
+              onClick={() => selectPanel("story-bible")}
+            >
+              Story bible
+            </button>
+          )}
         </div>
       </header>
       <div className="workspace-context">
@@ -329,6 +348,7 @@ export function WorkspaceLayout({
                   {samplePreview}
                 </>
               ))}
+            {panel === "story-bible" && storyBible}
             {panel === "details" &&
               (publicationAction ?? (
                 <div className="tool-intro">
