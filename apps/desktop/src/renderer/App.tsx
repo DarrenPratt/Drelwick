@@ -47,6 +47,7 @@ import { Editor } from "./components/Editor.js";
 import { WorkspaceLayout } from "./components/WorkspaceLayout.js";
 import { WorkspaceIcon } from "./components/WorkspaceIcon.js";
 import { RendererErrorBoundary } from "./RendererErrorBoundary.js";
+import { CharacterManager } from "./CharacterManager.js";
 import type { JSONContent } from "@tiptap/core";
 import {
   documentReducer,
@@ -1531,6 +1532,7 @@ export function App() {
               <p className="project-path">Saved in {project.projectPath}</p>
             </>
           }
+          storyBible={<CharacterManager projectId={project.projectId} />}
           notice={
             <>
               <ManuscriptSearch
