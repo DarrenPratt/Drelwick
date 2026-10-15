@@ -9,7 +9,8 @@ type Panel =
   | "search"
   | "history"
   | "export"
-  | "locations";
+  | "locations"
+  | "story-bible";
 const panelNames: Record<Panel, string> = {
   preview: "Book preview",
   format: "Book design",
@@ -18,6 +19,7 @@ const panelNames: Record<Panel, string> = {
   history: "Version history",
   export: "Export your book",
   locations: "Story bible locations",
+  "story-bible": "Story bible",
 };
 
 export interface WorkspaceLayoutProps {
@@ -33,6 +35,7 @@ export interface WorkspaceLayoutProps {
   publicationAction?: ReactNode;
   exportAction?: ReactNode;
   locations?: ReactNode;
+  storyBible?: ReactNode;
 }
 
 /** Presentation shell only: mock controls never call persistence or export APIs. */
@@ -49,6 +52,7 @@ export function WorkspaceLayout({
   publicationAction,
   exportAction,
   locations,
+  storyBible,
 }: WorkspaceLayoutProps) {
   const [panel, setPanel] = useState<Panel | null>("preview");
   const [navigationOpen, setNavigationOpen] = useState(
@@ -194,6 +198,15 @@ export function WorkspaceLayout({
               onClick={() => selectPanel("locations")}
             >
               Locations
+            </button>
+          )}
+          {storyBible && (
+            <button
+              className="text-button"
+              aria-pressed={panel === "story-bible"}
+              onClick={() => selectPanel("story-bible")}
+            >
+              Story bible
             </button>
           )}
         </div>
@@ -348,6 +361,7 @@ export function WorkspaceLayout({
                   {samplePreview}
                 </>
               ))}
+            {panel === "story-bible" && storyBible}
             {panel === "details" &&
               (publicationAction ?? (
                 <div className="tool-intro">

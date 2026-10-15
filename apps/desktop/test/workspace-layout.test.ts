@@ -25,6 +25,36 @@ afterEach(async () => {
 });
 
 describe("authoring workspace layout", () => {
+  it("keeps character and location panels accessible together", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () =>
+      root?.render(
+        createElement(WorkspaceLayout, {
+          ...workspace().props,
+          storyBible: "Character records",
+          locations: "Location records",
+        }),
+      ),
+    );
+    for (const [label, content] of [
+      ["Story bible", "Character records"],
+      ["Locations", "Location records"],
+      ["Story bible", "Character records"],
+    ]) {
+      const button = Array.from(container.querySelectorAll("button")).find(
+        (candidate) => candidate.textContent?.trim() === label,
+      );
+      expect(button).toBeDefined();
+      await act(async () => button?.click());
+      expect(button?.getAttribute("aria-pressed")).toBe("true");
+      expect(container.querySelector(".inspector-scroll")?.textContent).toBe(
+        content,
+      );
+    }
+  });
   it("starts narrow windows with room for the writing surface and can reopen the outline", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("innerWidth", 800);
