@@ -46,6 +46,10 @@ import type {
 import { Editor } from "./components/Editor.js";
 import { WorkspaceLayout } from "./components/WorkspaceLayout.js";
 import { WorkspaceIcon } from "./components/WorkspaceIcon.js";
+import {
+  LocationManager,
+  type LocationEditorHandle,
+} from "./LocationManager.js";
 import { RendererErrorBoundary } from "./RendererErrorBoundary.js";
 import { CharacterManager } from "./CharacterManager.js";
 import type { JSONContent } from "@tiptap/core";
@@ -63,6 +67,7 @@ const PrintPreviewDialog = lazy(() =>
 );
 
 export function App() {
+  const locationEditor = useRef<LocationEditorHandle | null>(null);
   const [printPreview, setPrintPreview] = useState<PrintPreview | null>(null);
   const [printConfiguration, setPrintConfiguration] =
     useState<PrintConfigurationState | null>(null);
@@ -376,17 +381,20 @@ export function App() {
         setError("Wait for the current project operation before closing.");
         return false;
       }
-      const saved = (await autosave.current?.flush()) ?? true;
+      const locationsSaved = (await locationEditor.current?.flush()) ?? true;
+      const saved =
+        ((await autosave.current?.flush()) ?? true) && locationsSaved;
       if (!saved) {
         setError(
           "Unable to save changes before closing. Your edits remain available; try closing again.",
         );
       }
-      return saved;
+      return saved && !locationEditor.current?.isDirty();
     });
   }, []);
 
   const saveActiveChapter = useCallback(() => {
+    void locationEditor.current?.flush();
     if (!documentReady || changingDocument) return;
     setError("");
     const coordinator = autosave.current;
@@ -511,6 +519,13 @@ export function App() {
   }, [saveActiveChapter]);
 
   const canLeaveChapter = useCallback(() => {
+    if (locationEditor.current?.isDirty()) {
+      void locationEditor.current.flush();
+      setError(
+        "Save or discard unsaved location changes in Locations before switching projects.",
+      );
+      return false;
+    }
     if (
       !changingDocument &&
       (savePending.current || isDocumentDirty(documentRef.current))
@@ -698,6 +713,12 @@ export function App() {
           return;
         }
       }
+      if (!((await locationEditor.current?.flush()) ?? true)) {
+        setError(
+          "Save or discard location changes before backing up the project.",
+        );
+        return;
+      }
       const result = await window.drelwick.project.backup({ includeHistory });
       if (!result.ok) setError(result.error.message);
       else if (result.value.created)
@@ -740,6 +761,12 @@ export function App() {
           );
           return;
         }
+      }
+      if (!((await locationEditor.current?.flush()) ?? true)) {
+        setError(
+          "Save or discard location changes before restoring a project.",
+        );
+        return;
       }
       const result = await window.drelwick.project.restore();
       if (!result.ok) setError(result.error.message);
@@ -1468,6 +1495,15 @@ export function App() {
               </div>
             </div>
           }
+          locations={
+            <LocationManager
+              ref={locationEditor}
+              projectId={project.projectId}
+              disabled={
+                opening || creating || importing || projectTask !== null
+              }
+            />
+          }
           publicationAction={
             <button
               disabled={changingDocument}
@@ -2092,6 +2128,8 @@ export function App() {
         <ImportManuscriptDialog
           onCancel={endImport}
           beforeOpen={async () => {
+            if (!((await locationEditor.current?.flush()) ?? true))
+              return false;
             const saved = (await autosave.current?.flush()) ?? true;
             return (
               saved &&

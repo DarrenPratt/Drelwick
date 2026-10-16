@@ -49,6 +49,7 @@ Operational documents:
 - [Community book themes, persistence and target styles](book-themes.md)
 - [Story bible persistence, linking and product boundaries (design; #160)](story-bible.md)
 - [Story bible storage and restricted IPC implementation (#161)](story-bible-storage.md)
+- [Local story bible location management (#163)](location-management.md)
 - [Project format, version detection and recoverable migrations](project-format.md)
 - [Repository audit and reconciliations](planning/repository-audit.md)
 - [Development workflow and product classification](development.md)

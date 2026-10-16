@@ -95,7 +95,9 @@ h1 {
 }
 
 button,
-input {
+input,
+textarea,
+select {
   font: inherit;
 }
 button {
@@ -1889,4 +1891,14 @@ button svg {
 .print-pdf-pages figcaption {
   color: white;
   text-align: center;
+}
+
+.workspace-inspector[hidden] {
+  display: none;
+}
+.story-bible-panel fieldset {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0 0 1rem;
 }

@@ -224,7 +224,11 @@ try {
   }
 
   const waitForRenderer = async () => {
-    const deadline = Date.now() + 15_000;
+    // Cold native-module and desktop initialization on hosted Linux runners can
+    // consume the former 15-second budget before the renderer starts loading.
+    // Keep this bounded below the CI step's two-minute timeout for cleanup.
+    const timeoutMs = 60_000;
+    const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if (existsSync(smokeFile)) return readFileSync(smokeFile, "utf8");
       if (launchError) throw launchError;
@@ -235,7 +239,9 @@ try {
       }
       await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
     }
-    throw new Error("Packaged renderer did not complete its smoke marker");
+    throw new Error(
+      `Packaged renderer did not complete its smoke marker within ${timeoutMs / 1000}s (${process.platform}/${process.arch}); the process did not report an exit. Check the preceding runtime diagnostics.`,
+    );
   };
 
   const smokeResult = await waitForRenderer();
