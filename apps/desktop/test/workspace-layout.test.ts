@@ -39,6 +39,7 @@ describe("authoring workspace layout", () => {
         }),
       ),
     );
+    expect(container.textContent).not.toContain("Location records");
     for (const [label, content] of [
       ["Story bible", "Character records"],
       ["Locations", "Location records"],
@@ -50,9 +51,13 @@ describe("authoring workspace layout", () => {
       expect(button).toBeDefined();
       await act(async () => button?.click());
       expect(button?.getAttribute("aria-pressed")).toBe("true");
-      expect(container.querySelector(".inspector-scroll")?.textContent).toBe(
-        content,
-      );
+      expect(
+        container.querySelector(".inspector-scroll")?.textContent,
+      ).toContain(content);
+      expect(
+        container.querySelector<HTMLElement>(".inspector-scroll > div[hidden]")
+          ?.textContent ?? "",
+      ).not.toBe(content);
     }
   });
   it("starts narrow windows with room for the writing surface and can reopen the outline", async () => {

@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
-import { act, createElement } from "react";
+import { act, createElement, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { DrelwickApi, ReferenceRecord } from "@drelwick/shared";
-import { LocationManager } from "../src/renderer/LocationManager.js";
+import {
+  LocationManager,
+  type LocationEditorHandle,
+} from "../src/renderer/LocationManager.js";
 
 const projectId = "00000000-0000-4000-8000-000000000201";
 const locationId = "00000000-0000-4000-8000-000000000202";
@@ -50,6 +53,11 @@ beforeEach(() => {
           readOnly: false,
         },
       };
+    if (request.operation === "recovery-list")
+      return {
+        ok: true,
+        value: { type: "recovery", candidates: [], diagnostics: [] },
+      };
     if (request.operation === "read")
       return {
         ok: true,
@@ -60,7 +68,16 @@ beforeEach(() => {
       value: {
         type: "record",
         value: {
-          record: { ...location, revision: location.revision + 1 },
+          record: {
+            ...location,
+            ...("content" in request ? request.content : {}),
+            kind: "location",
+            revision: location.revision + 1,
+            deletedAt:
+              request.operation === "delete"
+                ? "2026-10-14T11:00:00.000Z"
+                : null,
+          } as typeof location,
           fingerprint: "b".repeat(64),
         },
       },
@@ -75,6 +92,7 @@ afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 async function render() {
@@ -108,7 +126,7 @@ it("loads, edits and persists all approved location fields including Unicode", a
   await change("location-type", "Hidden harbour");
   await change("location-description", "A quiet quay with a signal tower.");
   await change("location-notes", "The tide stairs flood at moonrise.");
-  await change("location-tags", "coast, secret");
+  await change("location-tag-1", "secret");
   await act(async () => container.querySelector("form")!.requestSubmit());
 
   expect(execute).toHaveBeenLastCalledWith(
@@ -133,7 +151,13 @@ it("loads, edits and persists all approved location fields including Unicode", a
 it("preserves unsaved edits and reports stale-save failures", async () => {
   await render();
   await change("location-name", "Unpublished location");
-  vi.spyOn(window, "confirm").mockReturnValue(false);
+  execute.mockResolvedValueOnce({
+    ok: false,
+    error: {
+      code: "REFERENCE_STALE",
+      message: "The location changed elsewhere.",
+    },
+  });
   await act(async () =>
     Array.from(container.querySelectorAll("button"))
       .find((button) => button.textContent === "New")!
@@ -170,4 +194,228 @@ it("soft-deletes locations with explicit confirmation and uses restricted IPC", 
     }),
   );
   expect(container.textContent).toContain("Location deleted.");
+  await click("Restore location");
+  expect(execute).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      operation: "restore",
+      expectedRevision: 2,
+      expectedFingerprint: "b".repeat(64),
+    }),
+  );
+  expect(container.textContent).toContain("Location restored.");
+});
+
+async function click(text: string) {
+  await act(async () =>
+    Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent === text)!
+      .click(),
+  );
+}
+
+it("validates drafts without IPC and blocks unload until explicitly discarded", async () => {
+  await render();
+  await change("location-name", " ");
+  const calls = execute.mock.calls.length;
+  await act(async () => container.querySelector("form")!.requestSubmit());
+  expect(execute).toHaveBeenCalledTimes(calls);
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+    "Check the location fields",
+  );
+  const unload = new Event("beforeunload", { cancelable: true });
+  await act(async () => window.dispatchEvent(unload));
+  expect(unload.defaultPrevented).toBe(true);
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  await click("Discard changes");
+  expect(field("location-name").value).toBe(location.name);
+});
+
+it("autosaves after 750ms and retains edits typed during the save", async () => {
+  vi.useFakeTimers();
+  await render();
+  let resolve!: (value: Awaited<ReturnType<typeof execute>>) => void;
+  execute.mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  await change("location-name", "First draft");
+  await act(async () => vi.advanceTimersByTimeAsync(750));
+  expect(container.textContent).toContain("Saving…");
+  await change("location-name", "Later draft");
+  await act(async () =>
+    resolve({
+      ok: true,
+      value: {
+        type: "record",
+        value: {
+          record: { ...location, name: "First draft", revision: 2 },
+          fingerprint: "b".repeat(64),
+        },
+      },
+    }),
+  );
+  expect(field("location-name").value).toBe("Later draft");
+  expect(container.textContent).toContain("Unsaved changes");
+  await act(async () => vi.advanceTimersByTimeAsync(750));
+  expect(execute).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      operation: "update",
+      expectedRevision: 2,
+      content: expect.objectContaining({ name: "Later draft" }),
+      generation: 2,
+    }),
+  );
+  vi.useRealTimers();
+});
+
+it("preserves whitespace, combining Unicode, comma/newline tags and existing links", async () => {
+  const links = [
+    {
+      id: "00000000-0000-4000-8000-000000000203",
+      target: { kind: "chapter" as const, id: locationId },
+    },
+  ];
+  const implementation = execute.getMockImplementation()!;
+  execute.mockImplementation(async (request) =>
+    request.operation === "read"
+      ? {
+          ok: true,
+          value: {
+            type: "record",
+            value: {
+              record: { ...location, links, tags: ["a,b\nc"] },
+              fingerprint,
+            },
+          },
+        }
+      : implementation(request),
+  );
+  await render();
+  await change("location-notes", "  e\u0301 港 🌊\n ");
+  await act(async () => container.querySelector("form")!.requestSubmit());
+  expect(execute).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      content: expect.objectContaining({
+        notes: "  e\u0301 港 🌊\n ",
+        links,
+        tags: ["a,b\nc"],
+      }),
+    }),
+  );
+});
+
+it("keeps failed writes dirty and allows retry without losing content", async () => {
+  const handle = createRef<LocationEditorHandle>();
+  await act(async () =>
+    root.render(createElement(LocationManager, { projectId, ref: handle })),
+  );
+  await change("location-notes", "Keep this draft");
+  execute.mockRejectedValueOnce(
+    new Error("private detail should not be displayed"),
+  );
+  let saved: boolean | undefined;
+  await act(async () => {
+    saved = await handle.current!.flush();
+  });
+  expect(saved).toBe(false);
+  expect(handle.current!.isDirty()).toBe(true);
+  expect(container.textContent).not.toContain("private detail");
+  expect(field("location-notes").value).toBe("Keep this draft");
+  await act(async () => {
+    saved = await handle.current!.flush();
+  });
+  expect(saved).toBe(true);
+  expect(handle.current!.isDirty()).toBe(false);
+});
+
+it("creates a new record, focuses New, and permits leaving creation mode", async () => {
+  await render();
+  await click("New");
+  expect(document.activeElement).toBe(field("location-name"));
+  expect(
+    container.querySelector<HTMLSelectElement>("#location-record")!.disabled,
+  ).toBe(false);
+  await change("location-name", "New place");
+  await act(async () => container.querySelector("form")!.requestSubmit());
+  expect(execute).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      operation: "create",
+      content: expect.objectContaining({ name: "New place" }),
+    }),
+  );
+});
+
+it("reports read-only diagnostics and rejected loading without enabling writes", async () => {
+  execute.mockRejectedValueOnce(new Error("private path"));
+  await render();
+  expect(container.textContent).toContain("Unable to load locations");
+  expect(field("location-name").matches(":disabled")).toBe(true);
+  execute.mockResolvedValueOnce({
+    ok: true,
+    value: {
+      type: "list",
+      records: [],
+      readOnly: true,
+      diagnostics: [{ code: "REFERENCE_UNSUPPORTED" }],
+    },
+  });
+  await click("Retry loading");
+  expect(container.textContent).toContain("Some story bible files need review");
+  expect(field("location-name").matches(":disabled")).toBe(true);
+});
+
+it("shows an empty store and retains the draft on rejected deletion", async () => {
+  execute.mockResolvedValueOnce({
+    ok: true,
+    value: { type: "list", records: [], diagnostics: [], readOnly: false },
+  });
+  await render();
+  expect(container.textContent).toContain("No locations yet");
+  await change("location-name", "Created place");
+  await act(async () => container.querySelector("form")!.requestSubmit());
+  expect(execute).toHaveBeenLastCalledWith(
+    expect.objectContaining({ operation: "create" }),
+  );
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  execute.mockRejectedValueOnce(new Error("private path"));
+  await click("Delete");
+  expect(container.textContent).toContain("Unable to change the location");
+  expect(field("location-name").value).toBe("Created place");
+  expect(
+    Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Delete",
+    )!.disabled,
+  ).toBe(false);
+});
+
+it("keeps recovery candidates read-only before editing", async () => {
+  const implementation = execute.getMockImplementation()!;
+  execute.mockImplementation(async (request) =>
+    request.operation === "recovery-list"
+      ? {
+          ok: true,
+          value: {
+            type: "recovery",
+            candidates: [],
+            diagnostics: [{ code: "REFERENCE_RECOVERY_REQUIRED" }],
+          },
+        }
+      : implementation(request),
+  );
+  await render();
+  expect(container.textContent).toContain("recovery needs review");
+  expect(field("location-name").matches(":disabled")).toBe(true);
+});
+
+it("permits shutdown while an initial read-only list is still loading", async () => {
+  const handle = createRef<LocationEditorHandle>();
+  execute.mockImplementationOnce(() => new Promise(() => undefined));
+  await act(async () =>
+    root.render(createElement(LocationManager, { projectId, ref: handle })),
+  );
+  expect(container.textContent).toContain("Loading locations");
+  expect(handle.current!.isDirty()).toBe(false);
+  await expect(handle.current!.flush()).resolves.toBe(true);
 });

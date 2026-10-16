@@ -173,54 +173,6 @@ select:focus-visible {
   color: white;
   border-color: #294f8f;
 }
-.story-bible-panel {
-  padding-bottom: 1rem;
-}
-.story-bible-panel label {
-  display: block;
-  font-weight: 600;
-  margin: 0.8rem 0 0.35rem;
-}
-.story-bible-panel input,
-.story-bible-panel textarea,
-.story-bible-panel select {
-  border: 1px solid #9baac0;
-  border-radius: 0.4rem;
-  color: #243044;
-  padding: 0.6rem;
-  width: 100%;
-}
-.story-bible-panel textarea {
-  min-height: 4rem;
-  resize: vertical;
-}
-.story-bible-toolbar,
-.story-bible-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-.story-bible-toolbar {
-  align-items: end;
-  margin-bottom: 1rem;
-}
-.story-bible-toolbar label {
-  flex: 1;
-  margin: 0;
-}
-.story-bible-toolbar button {
-  flex-shrink: 0;
-}
-.story-bible-field {
-  margin-top: 0.8rem;
-}
-.story-bible-actions {
-  margin-top: 1rem;
-}
-.story-bible-status,
-.story-bible-empty {
-  color: #5a6b88;
-  line-height: 1.5;
-}
 .project-actions {
   display: flex;
   gap: 0.75rem;
@@ -1939,4 +1891,14 @@ button svg {
 .print-pdf-pages figcaption {
   color: white;
   text-align: center;
+}
+
+.workspace-inspector[hidden] {
+  display: none;
+}
+.story-bible-panel fieldset {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0 0 1rem;
 }

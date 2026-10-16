@@ -55,6 +55,7 @@ export function WorkspaceLayout({
   storyBible,
 }: WorkspaceLayoutProps) {
   const [panel, setPanel] = useState<Panel | null>("preview");
+  const [locationsVisited, setLocationsVisited] = useState(false);
   const [navigationOpen, setNavigationOpen] = useState(
     () => window.innerWidth > 850,
   );
@@ -63,7 +64,10 @@ export function WorkspaceLayout({
   const [size, setSize] = useState(16);
   const [samplePage, setSamplePage] = useState(0);
   const rail = useRef<HTMLDivElement>(null);
-  const selectPanel = (next: Panel) => setPanel(next);
+  const selectPanel = (next: Panel) => {
+    if (next === "locations") setLocationsVisited(true);
+    setPanel(next);
+  };
   const samplePreview = (
     <>
       <div className="preview-options">
@@ -283,184 +287,189 @@ export function WorkspaceLayout({
         <div className="manuscript-surface">{editor}</div>
         <footer className="workspace-status">{status}</footer>
       </section>
-      {panel && (
-        <aside className="workspace-inspector" aria-label={panelNames[panel]}>
-          <header className="inspector-heading">
-            <div>
-              <h2>{panelNames[panel]}</h2>
-              <span className="mock-tag">
-                {panel === "preview"
-                  ? bookPreviewAction
-                    ? "Manuscript"
-                    : "Layout mock"
-                  : panel === "format" && bookDesign
-                    ? "Presentation"
-                    : panel === "details" && publicationAction
-                      ? "Publication"
-                      : panel === "export" && exportAction
-                        ? "Local DOCX"
+      <aside
+        className="workspace-inspector"
+        hidden={!panel}
+        aria-label={panelNames[panel ?? "preview"]}
+      >
+        <header className="inspector-heading">
+          <div>
+            <h2>{panelNames[panel ?? "preview"]}</h2>
+            <span className="mock-tag">
+              {panel === "preview"
+                ? bookPreviewAction
+                  ? "Manuscript"
+                  : "Layout mock"
+                : panel === "format" && bookDesign
+                  ? "Presentation"
+                  : panel === "details" && publicationAction
+                    ? "Publication"
+                    : panel === "export" && exportAction
+                      ? "Local DOCX"
+                      : panel === "locations" && locations
+                        ? "Private · local"
                         : "Feature mock"}
-              </span>
-            </div>
-            <button
-              className="icon-button"
-              aria-label="Close tool panel"
-              onClick={() => {
-                setPanel(null);
-                rail.current
-                  ?.querySelector<HTMLButtonElement>(`[data-panel="${panel}"]`)
-                  ?.focus();
-              }}
-            >
-              <Icon name="close" />
-            </button>
-          </header>
-          <div className="inspector-scroll">
-            {panel === "preview" && (bookPreviewAction ?? samplePreview)}
-            {panel === "format" &&
-              (bookDesign ?? (
-                <>
-                  <div className="tool-intro">
-                    <span className="section-label">MAKE IT YOURS</span>
-                    <h3>A style for your story.</h3>
-                    <p>
-                      Try a direction for the sample page. These settings are
-                      temporary and do not change your book.
-                    </p>
-                  </div>
-                  <div className="theme-choices">
-                    {["Literary", "Classic", "Modern"].map((name) => (
-                      <button
-                        key={name}
-                        className={`theme-choice theme-${name.toLowerCase()}`}
-                        aria-pressed={theme === name}
-                        onClick={() => setTheme(name)}
-                      >
-                        <span>Aa</span>
-                        <strong>{name}</strong>
-                        <small>
-                          {name === "Literary"
-                            ? "Quiet & considered"
-                            : name === "Classic"
-                              ? "Timeless & familiar"
-                              : "Clean & contemporary"}
-                        </small>
-                      </button>
-                    ))}
-                  </div>
-                  <label className="sample-size">
-                    Sample type size <span>{size}px</span>
-                    <input
-                      type="range"
-                      min="13"
-                      max="20"
-                      value={size}
-                      onChange={(event) => setSize(Number(event.target.value))}
-                    />
-                  </label>
-                  {samplePreview}
-                </>
-              ))}
-            {panel === "story-bible" && storyBible}
-            {panel === "details" &&
-              (publicationAction ?? (
+            </span>
+          </div>
+          <button
+            className="icon-button"
+            aria-label="Close tool panel"
+            onClick={() => {
+              setPanel(null);
+              rail.current
+                ?.querySelector<HTMLButtonElement>(`[data-panel="${panel}"]`)
+                ?.focus();
+            }}
+          >
+            <Icon name="close" />
+          </button>
+        </header>
+        <div className="inspector-scroll">
+          {panel === "preview" && (bookPreviewAction ?? samplePreview)}
+          {panel === "format" &&
+            (bookDesign ?? (
+              <>
                 <div className="tool-intro">
-                  <span className="section-label">YOUR BOOK</span>
-                  <h3>{title}</h3>
-                  <p>{author}</p>
-                  <div className="planned-card">
-                    <Icon name="page" />
-                    <h3>A place for every page.</h3>
-                    <p>
-                      Publication details, your cover, and front and back matter
-                      will live here.
-                    </p>
-                    <p className="mock-explanation">
-                      Not available yet. The outline entries show the planned
-                      structure, not saved pages.
-                    </p>
-                  </div>
-                </div>
-              ))}
-            {panel === "export" &&
-              (exportAction ? (
-                <div className="tool-intro">
-                  <h3>Local publishing exports</h3>
+                  <span className="section-label">MAKE IT YOURS</span>
+                  <h3>A style for your story.</h3>
                   <p>
-                    Export from one saved manuscript revision. Pending edits are
-                    saved first and the project remains authoritative.
-                  </p>
-                  {exportAction}
-                  <p>
-                    EPUB is reflowable and DOCX preserves manuscript content,
-                    not exact page layout.
+                    Try a direction for the sample page. These settings are
+                    temporary and do not change your book.
                   </p>
                 </div>
-              ) : (
-                <div className="tool-intro">
-                  <h3>From manuscript to book.</h3>
-                  <p>
-                    Planned local exports. Your manuscript will remain your
-                    original.
-                  </p>
-                  {[
-                    ["EPUB", "A reflowable ebook for digital readers"],
-                    ["Print PDF", "A carefully typeset print interior"],
-                    ["DOCX", "An editable copy of your manuscript"],
-                  ].map(([name, description]) => (
-                    <div className="export-option" key={name}>
-                      <Icon name="page" />
-                      <div>
-                        <strong>{name}</strong>
-                        <p>{description}</p>
-                      </div>
-                      <span className="mock-tag">Planned</span>
-                    </div>
+                <div className="theme-choices">
+                  {["Literary", "Classic", "Modern"].map((name) => (
+                    <button
+                      key={name}
+                      className={`theme-choice theme-${name.toLowerCase()}`}
+                      aria-pressed={theme === name}
+                      onClick={() => setTheme(name)}
+                    >
+                      <span>Aa</span>
+                      <strong>{name}</strong>
+                      <small>
+                        {name === "Literary"
+                          ? "Quiet & considered"
+                          : name === "Classic"
+                            ? "Timeless & familiar"
+                            : "Clean & contemporary"}
+                      </small>
+                    </button>
                   ))}
-                  <button disabled className="primary-button planned-export">
-                    Export unavailable
-                  </button>
+                </div>
+                <label className="sample-size">
+                  Sample type size <span>{size}px</span>
+                  <input
+                    type="range"
+                    min="13"
+                    max="20"
+                    value={size}
+                    onChange={(event) => setSize(Number(event.target.value))}
+                  />
+                </label>
+                {samplePreview}
+              </>
+            ))}
+          {panel === "story-bible" && storyBible}
+          {panel === "details" &&
+            (publicationAction ?? (
+              <div className="tool-intro">
+                <span className="section-label">YOUR BOOK</span>
+                <h3>{title}</h3>
+                <p>{author}</p>
+                <div className="planned-card">
+                  <Icon name="page" />
+                  <h3>A place for every page.</h3>
+                  <p>
+                    Publication details, your cover, and front and back matter
+                    will live here.
+                  </p>
                   <p className="mock-explanation">
-                    This is a layout mock. No file will be created.
+                    Not available yet. The outline entries show the planned
+                    structure, not saved pages.
                   </p>
                 </div>
-              ))}
-            {panel === "locations" &&
+              </div>
+            ))}
+          {panel === "export" &&
+            (exportAction ? (
+              <div className="tool-intro">
+                <h3>Local publishing exports</h3>
+                <p>
+                  Export from one saved manuscript revision. Pending edits are
+                  saved first and the project remains authoritative.
+                </p>
+                {exportAction}
+                <p>
+                  EPUB is reflowable and DOCX preserves manuscript content, not
+                  exact page layout.
+                </p>
+              </div>
+            ) : (
+              <div className="tool-intro">
+                <h3>From manuscript to book.</h3>
+                <p>
+                  Planned local exports. Your manuscript will remain your
+                  original.
+                </p>
+                {[
+                  ["EPUB", "A reflowable ebook for digital readers"],
+                  ["Print PDF", "A carefully typeset print interior"],
+                  ["DOCX", "An editable copy of your manuscript"],
+                ].map(([name, description]) => (
+                  <div className="export-option" key={name}>
+                    <Icon name="page" />
+                    <div>
+                      <strong>{name}</strong>
+                      <p>{description}</p>
+                    </div>
+                    <span className="mock-tag">Planned</span>
+                  </div>
+                ))}
+                <button disabled className="primary-button planned-export">
+                  Export unavailable
+                </button>
+                <p className="mock-explanation">
+                  This is a layout mock. No file will be created.
+                </p>
+              </div>
+            ))}
+          <div hidden={panel !== "locations"}>
+            {locationsVisited &&
               (locations ?? (
                 <div className="tool-intro">
                   <h3>Story bible locations</h3>
                   <p>Location records are not available for this project.</p>
                 </div>
               ))}
-            {panel === "search" && (
-              <div className="tool-intro">
-                <h3>Find the right words.</h3>
-                <label className="planned-field">
-                  Search manuscript
-                  <input disabled placeholder="A word, a place, a character…" />
-                </label>
-                <p className="mock-explanation">
-                  Manuscript search and replace are planned. This field is not
-                  active yet.
-                </p>
-              </div>
-            )}
-            {panel === "history" && (
-              <div className="tool-intro">
-                <h3>Room to try another draft.</h3>
-                <p>
-                  Chapter history browsing and explicit restore will live here.
-                </p>
-                <p className="mock-explanation">
-                  This panel is a mock. Local snapshots and startup crash
-                  recovery already work; this history browser is not available
-                  yet.
-                </p>
-              </div>
-            )}
           </div>
-        </aside>
-      )}
+          {panel === "search" && (
+            <div className="tool-intro">
+              <h3>Find the right words.</h3>
+              <label className="planned-field">
+                Search manuscript
+                <input disabled placeholder="A word, a place, a character…" />
+              </label>
+              <p className="mock-explanation">
+                Manuscript search and replace are planned. This field is not
+                active yet.
+              </p>
+            </div>
+          )}
+          {panel === "history" && (
+            <div className="tool-intro">
+              <h3>Room to try another draft.</h3>
+              <p>
+                Chapter history browsing and explicit restore will live here.
+              </p>
+              <p className="mock-explanation">
+                This panel is a mock. Local snapshots and startup crash recovery
+                already work; this history browser is not available yet.
+              </p>
+            </div>
+          )}
+        </div>
+      </aside>
       <div
         className="workspace-toolrail"
         role="toolbar"
@@ -492,7 +501,9 @@ export function WorkspaceLayout({
                     ? "Open book preview panel"
                     : name === "export" && exportAction
                       ? "Export your book"
-                      : `${panelNames[name]} (mock)`
+                      : name === "locations" && locations
+                        ? "Story bible locations"
+                        : `${panelNames[name]} (mock)`
             }
             title={
               name === "details" && publicationAction
@@ -503,10 +514,14 @@ export function WorkspaceLayout({
                     ? "Book preview"
                     : name === "export" && exportAction
                       ? "Export your book"
-                      : `${panelNames[name]} · mock`
+                      : name === "locations" && locations
+                        ? "Story bible locations"
+                        : `${panelNames[name]} · mock`
             }
             aria-pressed={panel === name}
-            onClick={() => setPanel(panel === name ? null : name)}
+            onClick={() =>
+              panel === name ? setPanel(null) : selectPanel(name)
+            }
           >
             <Icon name={icon} />
           </button>
