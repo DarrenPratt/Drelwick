@@ -2578,3 +2578,46 @@ describe("location draft project lifecycle", () => {
     expect(closeProject).toHaveBeenCalledOnce();
   });
 });
+
+describe("canon/research draft project lifecycle", () => {
+  it.each(["canon", "note"])(
+    "blocks project switching, backup, restore and shutdown while %s is invalid",
+    async (kind) => {
+      await click("Open project");
+      await click("Canon & research");
+      await input(`${kind}-title`, " ");
+      await act(async () => {
+        for (const callback of menuListeners) callback("close-project");
+      });
+      expect(closeProject).not.toHaveBeenCalled();
+      await click("Open project");
+      expect(open).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        for (const callback of menuListeners) callback("new-project");
+      });
+      expect(container.querySelector("dialog")).toBeNull();
+      vi.spyOn(window, "confirm").mockReturnValue(true);
+      await act(async () => {
+        for (const callback of menuListeners) callback("backup-project");
+      });
+      expect(backupProject).not.toHaveBeenCalled();
+      await act(async () => {
+        for (const callback of menuListeners) callback("restore-project");
+      });
+      expect(restoreProject).not.toHaveBeenCalled();
+      let allowed: boolean | undefined;
+      await act(async () => {
+        for (const callback of shutdownListeners) allowed = await callback();
+      });
+      expect(allowed).toBe(false);
+      expect(
+        container.querySelector<HTMLInputElement>(`#${kind}-title`)!.value,
+      ).toBe(" ");
+      await click("Discard changes");
+      await act(async () => {
+        for (const callback of menuListeners) callback("close-project");
+      });
+      expect(closeProject).toHaveBeenCalledOnce();
+    },
+  );
+});

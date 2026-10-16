@@ -77,6 +77,10 @@ or **Cancel startup** before editing. See [manuscript recovery](docs/manuscript-
 [project creation UI](docs/project-creation-ui.md) and
 [project opening UI](docs/project-open-ui.md).
 
+Use **Canon & research** to manage local canon facts and research/general notes.
+Both forms autosave, retain failed drafts and keep private reference content out
+of manuscript exports. See [canon and research workflows](docs/canon-research.md).
+
 Use **Book design → Print settings** to save local trim size, mirrored margins,
 gutter, chapter starts, headers and page numbers. See [Community print settings](docs/print-settings.md).
 Select **Standard print** or **Large print** there to retain independent typography

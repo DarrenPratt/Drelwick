@@ -102,3 +102,26 @@ it("preserves Unicode, escaped quotes, newlines and empty prose", () => {
   expect(parseReferenceJson(JSON.stringify(value))).toEqual(value);
   expect(ReferenceRecordSchema.parse(value)).toEqual(value);
 });
+
+it.each([
+  ["canon", { category: "organisation" }],
+  ["canon", { category: "Technology" }],
+  ["canon", { category: "" }],
+  ["canon", { statement: null }],
+  ["canon", { statement: "bad\0text" }],
+  ["canon", { title: " " }],
+  ["note", { body: null }],
+  ["note", { body: "\ud800" }],
+  ["note", { source: "x".repeat(2001) }],
+  ["note", { schemaVersion: 2 }],
+  ["note", { kind: "organisation" }],
+  ["note", { title: " " }],
+])(
+  "rejects malformed %s records without coercing their format",
+  (kind, patch) => {
+    const base = examples.find((record) => record.kind === kind)!;
+    expect(ReferenceRecordSchema.safeParse({ ...base, ...patch }).success).toBe(
+      false,
+    );
+  },
+);

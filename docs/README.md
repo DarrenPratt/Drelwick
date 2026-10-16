@@ -50,6 +50,7 @@ Operational documents:
 - [Story bible persistence, linking and product boundaries (design; #160)](story-bible.md)
 - [Story bible storage and restricted IPC implementation (#161)](story-bible-storage.md)
 - [Local story bible location management (#163)](location-management.md)
+- [Local canon records and research notes (#164)](canon-research.md)
 - [Project format, version detection and recoverable migrations](project-format.md)
 - [Repository audit and reconciliations](planning/repository-audit.md)
 - [Development workflow and product classification](development.md)

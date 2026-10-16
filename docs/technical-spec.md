@@ -2145,6 +2145,8 @@ Canon uses title, category, statement and optional notes in the shared envelope.
 Research/general notes are a distinct `note` kind with title, body and optional
 source. The seven canon categories and exact fields are defined in the
 [record contract](story-bible.md#version-1-record-schema).
+The [canon/research editor](canon-research.md) uses the implemented #161 schema,
+core storage and restricted IPC without changing project format versions.
 
 # 69. Timeline Model
 
