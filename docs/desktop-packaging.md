@@ -39,6 +39,16 @@ It accepts `--inspect-only` and `--app-dir=<path>` (absolute or relative to
 `apps/desktop`), for example `--app-dir=release/portable/win-unpacked` or
 `--app-dir=release/nsis/win-unpacked`. This checks the actual target staging
 directory; it does not test the installer itself.
+The renderer smoke marker has a bounded 60-second deadline for cold startup on
+hosted runners; a missing marker still fails validation. Early process exits and
+launch errors fail immediately. The Linux CI invocation uses
+`dbus-run-session -- xvfb-run -a pnpm --filter @drelwick/desktop exec node scripts/validate-package.mjs`
+to supply an isolated session bus as well as an X display. The session bus exits
+with the command; sandboxing remains enabled. See the
+[upstream session-bus command documentation](https://dbus.freedesktop.org/doc/dbus-run-session.1.html).
+This startup hardening responds to PR #221's Linux smoke timeout; a successful
+Linux rerun is still required before treating that failure as resolved.
+
 On Unix it force-stops that manuscript-free smoke process and waits for its exit
 before removing the profile; Electron's normal graceful-shutdown handling can
 otherwise leave the validator running after successful validation.
