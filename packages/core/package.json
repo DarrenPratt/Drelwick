@@ -13,6 +13,10 @@
       "types": "./dist/manuscript-search.d.ts",
       "import": "./dist/manuscript-search.js"
     },
+    "./timeline": {
+      "types": "./dist/timeline.d.ts",
+      "import": "./dist/timeline.js"
+    },
     "./autosave": {
       "types": "./dist/autosave.d.ts",
       "import": "./dist/autosave.js"

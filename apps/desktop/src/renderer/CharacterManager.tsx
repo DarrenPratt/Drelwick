@@ -69,9 +69,13 @@ function toContent(draft: Draft): ReferenceInput {
 
 export interface CharacterManagerProps {
   projectId: string;
+  execute?: typeof window.drelwick.references.execute;
 }
 
-export function CharacterManager({ projectId }: CharacterManagerProps) {
+export function CharacterManager({
+  projectId,
+  execute = window.drelwick.references.execute,
+}: CharacterManagerProps) {
   const [records, setRecords] = useState<ReferenceSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [record, setRecord] = useState<Character | null>(null);
@@ -93,7 +97,7 @@ export function CharacterManager({ projectId }: CharacterManagerProps) {
   async function loadList(selectFirst = true) {
     setLoading(true);
     setError("");
-    const result = await window.drelwick.references.execute({
+    const result = await execute({
       operation: "list",
       projectId,
     });
@@ -123,7 +127,7 @@ export function CharacterManager({ projectId }: CharacterManagerProps) {
   }
 
   async function openRecord(id: string) {
-    const result = await window.drelwick.references.execute({
+    const result = await execute({
       operation: "read",
       projectId,
       kind: "character",
@@ -181,7 +185,7 @@ export function CharacterManager({ projectId }: CharacterManagerProps) {
     setStatus("");
     try {
       const content = toContent(draftRef.current);
-      const result = await window.drelwick.references.execute(
+      const result = await execute(
         creating
           ? { operation: "create", projectId, content, generation: 1 }
           : {
@@ -247,7 +251,7 @@ export function CharacterManager({ projectId }: CharacterManagerProps) {
       return;
     setDeleting(true);
     setError("");
-    const result = await window.drelwick.references.execute({
+    const result = await execute({
       operation: "delete",
       projectId,
       kind: "character",

@@ -77,6 +77,10 @@ or **Cancel startup** before editing. See [manuscript recovery](docs/manuscript-
 [project creation UI](docs/project-creation-ui.md) and
 [project opening UI](docs/project-open-ui.md).
 
+Use **Timeline** to manage local events with optional fictional dates, explicit
+sequence and stable chapter/character/location associations. See
+[timeline management](docs/timeline-management.md).
+
 Use **Canon & research** to manage local canon facts and research/general notes.
 Both forms autosave, retain failed drafts and keep private reference content out
 of manuscript exports. See [canon and research workflows](docs/canon-research.md).

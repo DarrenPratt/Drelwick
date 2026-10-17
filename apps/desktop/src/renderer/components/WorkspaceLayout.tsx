@@ -10,6 +10,7 @@ type Panel =
   | "history"
   | "export"
   | "canon-research"
+  | "timeline"
   | "locations"
   | "story-bible";
 const panelNames: Record<Panel, string> = {
@@ -20,6 +21,7 @@ const panelNames: Record<Panel, string> = {
   history: "Version history",
   export: "Export your book",
   "canon-research": "Canon and research",
+  timeline: "Timeline",
   locations: "Story bible locations",
   "story-bible": "Story bible",
 };
@@ -37,6 +39,7 @@ export interface WorkspaceLayoutProps {
   publicationAction?: ReactNode;
   exportAction?: ReactNode;
   canonResearch?: ReactNode;
+  timeline?: ReactNode;
   locations?: ReactNode;
   storyBible?: ReactNode;
 }
@@ -55,11 +58,13 @@ export function WorkspaceLayout({
   publicationAction,
   exportAction,
   canonResearch,
+  timeline,
   locations,
   storyBible,
 }: WorkspaceLayoutProps) {
   const [panel, setPanel] = useState<Panel | null>("preview");
   const [canonResearchVisited, setCanonResearchVisited] = useState(false);
+  const [timelineVisited, setTimelineVisited] = useState(false);
   const [locationsVisited, setLocationsVisited] = useState(false);
   const [navigationOpen, setNavigationOpen] = useState(
     () => window.innerWidth > 850,
@@ -71,6 +76,7 @@ export function WorkspaceLayout({
   const rail = useRef<HTMLDivElement>(null);
   const selectPanel = (next: Panel) => {
     if (next === "canon-research") setCanonResearchVisited(true);
+    if (next === "timeline") setTimelineVisited(true);
     if (next === "locations") setLocationsVisited(true);
     setPanel(next);
   };
@@ -211,6 +217,16 @@ export function WorkspaceLayout({
               Canon &amp; research
             </button>
           )}
+          {timeline && (
+            <button
+              className="text-button"
+              type="button"
+              aria-pressed={panel === "timeline"}
+              onClick={() => selectPanel("timeline")}
+            >
+              Timeline
+            </button>
+          )}
           {locations && (
             <button
               className="text-button"
@@ -324,9 +340,11 @@ export function WorkspaceLayout({
                       ? "Local DOCX"
                       : panel === "canon-research" && canonResearch
                         ? "Private · local"
-                        : panel === "locations" && locations
+                        : panel === "timeline" && timeline
                           ? "Private · local"
-                          : "Feature mock"}
+                          : panel === "locations" && locations
+                            ? "Private · local"
+                            : "Feature mock"}
             </span>
           </div>
           <button
@@ -455,6 +473,7 @@ export function WorkspaceLayout({
           <div hidden={panel !== "canon-research"}>
             {canonResearchVisited && canonResearch}
           </div>
+          <div hidden={panel !== "timeline"}>{timelineVisited && timeline}</div>
           <div hidden={panel !== "locations"}>
             {locationsVisited &&
               (locations ?? (
@@ -507,6 +526,7 @@ export function WorkspaceLayout({
             ["history", "history"],
             ["export", "export"],
             ["locations", "book"],
+            ["timeline", "book"],
             ["canon-research", "book"],
           ] as const
         ).map(([name, icon]) => (
@@ -525,9 +545,11 @@ export function WorkspaceLayout({
                       ? "Export your book"
                       : name === "canon-research" && canonResearch
                         ? "Canon and research"
-                        : name === "locations" && locations
-                          ? "Story bible locations"
-                          : `${panelNames[name]} (mock)`
+                        : name === "timeline" && timeline
+                          ? "Story bible timeline"
+                          : name === "locations" && locations
+                            ? "Story bible locations"
+                            : `${panelNames[name]} (mock)`
             }
             title={
               name === "details" && publicationAction
@@ -540,9 +562,11 @@ export function WorkspaceLayout({
                       ? "Export your book"
                       : name === "canon-research" && canonResearch
                         ? "Canon and research"
-                        : name === "locations" && locations
-                          ? "Story bible locations"
-                          : `${panelNames[name]} · mock`
+                        : name === "timeline" && timeline
+                          ? "Story bible timeline"
+                          : name === "locations" && locations
+                            ? "Story bible locations"
+                            : `${panelNames[name]} · mock`
             }
             aria-pressed={panel === name}
             onClick={() =>

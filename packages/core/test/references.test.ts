@@ -233,7 +233,9 @@ it.each(
     "after-snapshot",
     "after-temporary",
     "before-commit",
-  ].flatMap((point) => ["canon", "note"].map((kind) => ({ point, kind }))),
+  ].flatMap((point) =>
+    ["canon", "note", "timeline"].map((kind) => ({ point, kind })),
+  ),
 )(
   "preserves previous $kind bytes at $point and keeps recoverable work",
   async ({ point, kind }) => {
@@ -711,5 +713,145 @@ it.each(["Organisation", "Technology", "General research"])(
       schemaVersion: 1,
       ...content,
     });
+  },
+);
+
+it("orders timeline sequences and ties by stable ID, ignoring fictional and absent dates after reopen", async () => {
+  const f = await fixture();
+  const events: ReferenceSaved[] = [];
+  for (const fields of [
+    { title: "Z", sequence: 0, date: "Year of the dragon" },
+    { title: "A", sequence: -5 },
+    { title: "B", sequence: 0, date: "1900-01-01" },
+    { title: "D", date: "Before time" },
+    { title: "C" },
+    { title: "E", sequence: Number.MAX_SAFE_INTEGER },
+  ])
+    events.push(
+      await create(f, { kind: "timeline", tags: [], links: [], ...fields }),
+    );
+  await openProject(f.root);
+  const listed = await run(f, { operation: "list" });
+  if (listed.type !== "list") throw new Error("Expected list");
+  const expected = [
+    events[1]!,
+    ...[events[0]!, events[2]!].sort((a, b) =>
+      a.record.id < b.record.id ? -1 : 1,
+    ),
+    events[5]!,
+    ...[events[3]!, events[4]!].sort((a, b) =>
+      a.record.id < b.record.id ? -1 : 1,
+    ),
+  ];
+  expect(listed.records.map((r) => r.id)).toEqual(
+    expected.map((r) => r.record.id),
+  );
+  expect(listed.records.map((r) => r.sequence)).toEqual([
+    -5,
+    0,
+    0,
+    Number.MAX_SAFE_INTEGER,
+    undefined,
+    undefined,
+  ]);
+});
+
+it("retains timeline association identities through target renames, deletion, missing chapters and event edits", async () => {
+  const f = await fixture();
+  const character = await create(f, contents[0]);
+  const location = await create(f, contents[1]);
+  let event = await create(f, {
+    kind: "timeline",
+    title: "Departure",
+    date: "Second moon",
+    sequence: 0,
+    description: "Private event",
+    tags: [],
+    links: [
+      { target: { kind: "character", id: character.record.id } },
+      { target: { kind: "location", id: location.record.id } },
+      { target: { kind: "chapter", id: f.chapterId } },
+    ],
+  });
+  const links = event.record.links;
+  const renamed = saved(
+    await run(f, {
+      ...mutation(character, "update"),
+      content: { ...input(character), name: "Renamed navigator" },
+    } as Omit<ReferenceRequest, "projectId">),
+  );
+  const chapterPath = join(f.root, "manuscript", `${f.chapterId}.json`);
+  const chapter = JSON.parse(await readFile(chapterPath, "utf8"));
+  await writeFile(
+    chapterPath,
+    JSON.stringify({ ...chapter, title: "Renamed chapter" }),
+  );
+  const resolution = () =>
+    run(f, {
+      operation: "links",
+      target: { kind: "timeline", id: event.record.id },
+    } as Omit<ReferenceRequest, "projectId">);
+  expect(await resolution()).toMatchObject({
+    outgoing: links.map(() => ({ status: "resolved" })),
+  });
+  await run(f, mutation(renamed, "delete"));
+  await unlink(path(f, location));
+  const manifestPath = join(f.root, "project.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.manuscript.order = manifest.manuscript.order.filter(
+    (id: string) => id !== f.chapterId,
+  );
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  expect(await resolution()).toMatchObject({
+    outgoing: [
+      { status: "deleted" },
+      { status: "missing" },
+      { status: "missing" },
+    ],
+  });
+  // Removing a live target leaves its durable create draft pending. Explicitly
+  // discard that recovery candidate before unrelated writes, as the store requires.
+  for (const candidate of await recoveries(f)) {
+    if (
+      candidate.recordId === location.record.id &&
+      candidate.status === "pending"
+    )
+      await run(f, {
+        operation: "recovery-discard",
+        candidate: key(candidate),
+        fingerprint: candidate.fingerprint,
+        confirmed: true,
+      } as Omit<ReferenceRequest, "projectId">);
+  }
+  event = saved(
+    await run(f, {
+      ...mutation(event, "update"),
+      content: { ...input(event), title: "Revised departure" },
+    } as Omit<ReferenceRequest, "projectId">),
+  );
+  expect(event.record.links).toEqual(links);
+  await openProject(f.root);
+  expect(
+    await run(f, {
+      operation: "read",
+      kind: "timeline",
+      id: event.record.id,
+    } as Omit<ReferenceRequest, "projectId">),
+  ).toMatchObject({ value: event });
+});
+
+it.each([1.5, Number.MAX_SAFE_INTEGER + 1, NaN])(
+  "rejects malformed timeline sequence %s without replacing valid data",
+  async (sequence) => {
+    const f = await fixture();
+    const event = await create(f, contents[3]);
+    const before = await readFile(path(f, event));
+    await expect(
+      run(f, {
+        ...mutation(event, "update"),
+        content: { ...input(event), sequence },
+      } as Omit<ReferenceRequest, "projectId">),
+    ).rejects.toMatchObject({ code: "REFERENCE_INPUT_INVALID" });
+    expect(await readFile(path(f, event))).toEqual(before);
   },
 );

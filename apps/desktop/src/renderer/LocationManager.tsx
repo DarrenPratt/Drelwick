@@ -46,6 +46,7 @@ export interface LocationEditorHandle {
 }
 export interface LocationManagerProps {
   projectId: string;
+  execute?: typeof window.drelwick.references.execute;
   ref?: Ref<LocationEditorHandle>;
   disabled?: boolean;
 }
@@ -58,6 +59,7 @@ function LocationEditor({
   projectId,
   ref,
   disabled = false,
+  execute = window.drelwick.references.execute,
 }: LocationManagerProps) {
   const initial = () => ({
     records: [] as ReferenceSummary[],
@@ -133,7 +135,7 @@ function LocationEditor({
     s.status = "Saving…";
     notify();
     try {
-      const result = await window.drelwick.references.execute(
+      const result = await execute(
         s.record
           ? {
               operation: "update",
@@ -206,7 +208,7 @@ function LocationEditor({
 
   async function read(id: string, request = state.current.loadRequest) {
     const s = state.current;
-    const result = await window.drelwick.references.execute({
+    const result = await execute({
       operation: "read",
       projectId,
       kind: "location",
@@ -230,7 +232,7 @@ function LocationEditor({
     s.error = "";
     notify();
     try {
-      const result = await window.drelwick.references.execute({
+      const result = await execute({
         operation: "list",
         projectId,
         includeDeleted: true,
@@ -249,7 +251,7 @@ function LocationEditor({
       if (result.value.diagnostics.length || s.readOnly)
         s.error =
           "Some story bible files need review. Available locations can be read; changes are disabled while the store is read-only.";
-      const recovery = await window.drelwick.references.execute({
+      const recovery = await execute({
         operation: "recovery-list",
         projectId,
       });
@@ -325,7 +327,7 @@ function LocationEditor({
     s.error = "";
     notify();
     try {
-      const result = await window.drelwick.references.execute({
+      const result = await execute({
         operation: restoring ? "restore" : "delete",
         projectId,
         kind: "location",

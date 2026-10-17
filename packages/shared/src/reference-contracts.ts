@@ -87,6 +87,8 @@ export interface ReferenceDiagnostic {
   kind?: ReferenceKind;
 }
 export interface ReferenceSummary {
+  /** Timeline ordering metadata; not a new persisted field. */
+  sequence?: number | undefined;
   id: string;
   kind: ReferenceKind;
   title: string;

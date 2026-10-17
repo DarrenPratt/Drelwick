@@ -64,6 +64,13 @@ The existing GitHub milestone names are retained. Dependencies below are actual 
 | [#138 — Add optional local writing goals and progress tracking](https://github.com/DarrenPratt/Drelwick/issues/138)                     | v1.0 / later design  | [#28](https://github.com/DarrenPratt/Drelwick/issues/28), [#32](https://github.com/DarrenPratt/Drelwick/issues/32)                                                                                                                                                                                                                                                 |
 | [#139 — Explore optional user-owned Google Drive Wasabi and Git repository backups](https://github.com/DarrenPratt/Drelwick/issues/139) | Unscheduled research | None                                                                                                                                                                                                                                                                                                                                                               |
 
+## Timeline implementation (#165)
+
+The [local timeline workflow](../timeline-management.md) adds event CRUD, explicit
+sequence ordering and stable chapter/character/location associations on the #161
+store. It remains CORE and offline, without manuscript/export inclusion or changes
+to the deferred #166/#167 scopes. See its dependency and acceptance evidence.
+
 ## Release gates and existing issue reconciliation
 
 - v0.1 remains governed by #51 and its existing prerequisites; #107 supplies standalone packaging. New DOCX/publishing work does not become a v0.1 requirement.
