@@ -9,6 +9,7 @@ type Panel =
   | "search"
   | "history"
   | "export"
+  | "canon-research"
   | "locations"
   | "story-bible";
 const panelNames: Record<Panel, string> = {
@@ -18,6 +19,7 @@ const panelNames: Record<Panel, string> = {
   search: "Find in manuscript",
   history: "Version history",
   export: "Export your book",
+  "canon-research": "Canon and research",
   locations: "Story bible locations",
   "story-bible": "Story bible",
 };
@@ -34,6 +36,7 @@ export interface WorkspaceLayoutProps {
   bookDesign?: ReactNode;
   publicationAction?: ReactNode;
   exportAction?: ReactNode;
+  canonResearch?: ReactNode;
   locations?: ReactNode;
   storyBible?: ReactNode;
 }
@@ -51,10 +54,12 @@ export function WorkspaceLayout({
   bookDesign,
   publicationAction,
   exportAction,
+  canonResearch,
   locations,
   storyBible,
 }: WorkspaceLayoutProps) {
   const [panel, setPanel] = useState<Panel | null>("preview");
+  const [canonResearchVisited, setCanonResearchVisited] = useState(false);
   const [locationsVisited, setLocationsVisited] = useState(false);
   const [navigationOpen, setNavigationOpen] = useState(
     () => window.innerWidth > 850,
@@ -65,6 +70,7 @@ export function WorkspaceLayout({
   const [samplePage, setSamplePage] = useState(0);
   const rail = useRef<HTMLDivElement>(null);
   const selectPanel = (next: Panel) => {
+    if (next === "canon-research") setCanonResearchVisited(true);
     if (next === "locations") setLocationsVisited(true);
     setPanel(next);
   };
@@ -195,6 +201,16 @@ export function WorkspaceLayout({
             <span>Export</span>
             {!exportAction && <span className="mode-mock">Mock</span>}
           </button>
+          {canonResearch && (
+            <button
+              className="text-button"
+              type="button"
+              aria-pressed={panel === "canon-research"}
+              onClick={() => selectPanel("canon-research")}
+            >
+              Canon &amp; research
+            </button>
+          )}
           {locations && (
             <button
               className="text-button"
@@ -306,9 +322,11 @@ export function WorkspaceLayout({
                     ? "Publication"
                     : panel === "export" && exportAction
                       ? "Local DOCX"
-                      : panel === "locations" && locations
+                      : panel === "canon-research" && canonResearch
                         ? "Private · local"
-                        : "Feature mock"}
+                        : panel === "locations" && locations
+                          ? "Private · local"
+                          : "Feature mock"}
             </span>
           </div>
           <button
@@ -434,6 +452,9 @@ export function WorkspaceLayout({
                 </p>
               </div>
             ))}
+          <div hidden={panel !== "canon-research"}>
+            {canonResearchVisited && canonResearch}
+          </div>
           <div hidden={panel !== "locations"}>
             {locationsVisited &&
               (locations ?? (
@@ -486,6 +507,7 @@ export function WorkspaceLayout({
             ["history", "history"],
             ["export", "export"],
             ["locations", "book"],
+            ["canon-research", "book"],
           ] as const
         ).map(([name, icon]) => (
           <button
@@ -501,9 +523,11 @@ export function WorkspaceLayout({
                     ? "Open book preview panel"
                     : name === "export" && exportAction
                       ? "Export your book"
-                      : name === "locations" && locations
-                        ? "Story bible locations"
-                        : `${panelNames[name]} (mock)`
+                      : name === "canon-research" && canonResearch
+                        ? "Canon and research"
+                        : name === "locations" && locations
+                          ? "Story bible locations"
+                          : `${panelNames[name]} (mock)`
             }
             title={
               name === "details" && publicationAction
@@ -514,9 +538,11 @@ export function WorkspaceLayout({
                     ? "Book preview"
                     : name === "export" && exportAction
                       ? "Export your book"
-                      : name === "locations" && locations
-                        ? "Story bible locations"
-                        : `${panelNames[name]} · mock`
+                      : name === "canon-research" && canonResearch
+                        ? "Canon and research"
+                        : name === "locations" && locations
+                          ? "Story bible locations"
+                          : `${panelNames[name]} · mock`
             }
             aria-pressed={panel === name}
             onClick={() =>

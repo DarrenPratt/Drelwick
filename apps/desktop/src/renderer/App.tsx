@@ -1,6 +1,10 @@
+import {
+  CanonResearchManager,
+  type CanonResearchEditorHandle,
+} from "./CanonResearchManager.js";
 import { PrintSettingsDialog } from "./PrintSettingsDialog.js";
 import { lazy, Suspense } from "react";
-import type { PrintPreview } from "@drelwick/shared";
+import type { PrintPreview, ReferenceRequest } from "@drelwick/shared";
 import type { PrintConfigurationState } from "@drelwick/shared";
 import { exportSavedDocx } from "./docx-export.js";
 import { exportSavedEpub } from "./epub-export.js";
@@ -67,6 +71,31 @@ const PrintPreviewDialog = lazy(() =>
 );
 
 export function App() {
+  // Both forms stay mounted. Serialize their IPC against each other because
+  // the privileged project guard rejects overlapping operations.
+  const referenceQueue = useRef<Promise<void>>(Promise.resolve());
+  const executeCanonResearch = useCallback((request: ReferenceRequest) => {
+    const operation = referenceQueue.current.then(() =>
+      window.drelwick.references.execute(request),
+    );
+    referenceQueue.current = operation.then(
+      () => undefined,
+      () => undefined,
+    );
+    return operation;
+  }, []);
+  const canonEditor = useRef<CanonResearchEditorHandle | null>(null);
+  const noteEditor = useRef<CanonResearchEditorHandle | null>(null);
+  const flushCanonResearch = useCallback(async () => {
+    const canonSaved = (await canonEditor.current?.flush()) ?? true;
+    const notesSaved = (await noteEditor.current?.flush()) ?? true;
+    return (
+      canonSaved &&
+      notesSaved &&
+      !canonEditor.current?.isDirty() &&
+      !noteEditor.current?.isDirty()
+    );
+  }, []);
   const locationEditor = useRef<LocationEditorHandle | null>(null);
   const [printPreview, setPrintPreview] = useState<PrintPreview | null>(null);
   const [printConfiguration, setPrintConfiguration] =
@@ -381,7 +410,9 @@ export function App() {
         setError("Wait for the current project operation before closing.");
         return false;
       }
-      const locationsSaved = (await locationEditor.current?.flush()) ?? true;
+      const referencesSaved = await flushCanonResearch();
+      const locationsSaved =
+        ((await locationEditor.current?.flush()) ?? true) && referencesSaved;
       const saved =
         ((await autosave.current?.flush()) ?? true) && locationsSaved;
       if (!saved) {
@@ -389,12 +420,18 @@ export function App() {
           "Unable to save changes before closing. Your edits remain available; try closing again.",
         );
       }
-      return saved && !locationEditor.current?.isDirty();
+      return (
+        saved &&
+        !locationEditor.current?.isDirty() &&
+        !canonEditor.current?.isDirty() &&
+        !noteEditor.current?.isDirty()
+      );
     });
-  }, []);
+  }, [flushCanonResearch]);
 
   const saveActiveChapter = useCallback(() => {
     void locationEditor.current?.flush();
+    void flushCanonResearch();
     if (!documentReady || changingDocument) return;
     setError("");
     const coordinator = autosave.current;
@@ -403,7 +440,7 @@ export function App() {
     void coordinator.flush().finally(() => {
       saveSource.current = "autosave";
     });
-  }, [documentReady, changingDocument]);
+  }, [documentReady, changingDocument, flushCanonResearch]);
 
   useEffect(() => {
     const find = (event: KeyboardEvent) => {
@@ -519,6 +556,13 @@ export function App() {
   }, [saveActiveChapter]);
 
   const canLeaveChapter = useCallback(() => {
+    if (canonEditor.current?.isDirty() || noteEditor.current?.isDirty()) {
+      void flushCanonResearch();
+      setError(
+        "Save or discard unsaved canon/research changes before switching projects.",
+      );
+      return false;
+    }
     if (locationEditor.current?.isDirty()) {
       void locationEditor.current.flush();
       setError(
@@ -543,7 +587,7 @@ export function App() {
       return false;
     }
     return true;
-  }, [changingDocument]);
+  }, [changingDocument, flushCanonResearch]);
 
   async function selectChapter(chapterId: string) {
     if (
@@ -713,9 +757,12 @@ export function App() {
           return;
         }
       }
-      if (!((await locationEditor.current?.flush()) ?? true)) {
+      if (
+        !(await flushCanonResearch()) ||
+        !((await locationEditor.current?.flush()) ?? true)
+      ) {
         setError(
-          "Save or discard location changes before backing up the project.",
+          "Save or discard story bible changes before backing up the project.",
         );
         return;
       }
@@ -731,7 +778,15 @@ export function App() {
       pending.current = false;
       setProjectTask(null);
     }
-  }, [activeChapterId, creating, documentReady, opening, project, projectTask]);
+  }, [
+    activeChapterId,
+    creating,
+    documentReady,
+    opening,
+    project,
+    projectTask,
+    flushCanonResearch,
+  ]);
 
   const restoreProject = useCallback(async () => {
     if (pending.current || opening || creating || projectTask) return;
@@ -762,9 +817,12 @@ export function App() {
           return;
         }
       }
-      if (!((await locationEditor.current?.flush()) ?? true)) {
+      if (
+        !(await flushCanonResearch()) ||
+        !((await locationEditor.current?.flush()) ?? true)
+      ) {
         setError(
-          "Save or discard location changes before restoring a project.",
+          "Save or discard story bible changes before restoring a project.",
         );
         return;
       }
@@ -797,6 +855,7 @@ export function App() {
     project,
     projectTask,
     refreshRecents,
+    flushCanonResearch,
   ]);
 
   const startImport = useCallback(() => {
@@ -1495,6 +1554,28 @@ export function App() {
               </div>
             </div>
           }
+          canonResearch={
+            <>
+              <CanonResearchManager
+                ref={canonEditor}
+                execute={executeCanonResearch}
+                kind="canon"
+                projectId={project.projectId}
+                disabled={
+                  opening || creating || importing || projectTask !== null
+                }
+              />
+              <CanonResearchManager
+                ref={noteEditor}
+                execute={executeCanonResearch}
+                kind="note"
+                projectId={project.projectId}
+                disabled={
+                  opening || creating || importing || projectTask !== null
+                }
+              />
+            </>
+          }
           locations={
             <LocationManager
               ref={locationEditor}
@@ -2128,7 +2209,10 @@ export function App() {
         <ImportManuscriptDialog
           onCancel={endImport}
           beforeOpen={async () => {
-            if (!((await locationEditor.current?.flush()) ?? true))
+            if (
+              !(await flushCanonResearch()) ||
+              !((await locationEditor.current?.flush()) ?? true)
+            )
               return false;
             const saved = (await autosave.current?.flush()) ?? true;
             return (

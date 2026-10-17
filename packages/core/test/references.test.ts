@@ -226,17 +226,22 @@ it("serializes concurrent saves and rejects stale/external updates", async () =>
     code: "REFERENCE_STALE",
   });
 });
-it.each([
-  "before-draft",
-  "after-draft",
-  "after-snapshot",
-  "after-temporary",
-  "before-commit",
-] as const)(
-  "preserves previous bytes at %s and keeps recoverable work",
-  async (point) => {
+it.each(
+  [
+    "before-draft",
+    "after-draft",
+    "after-snapshot",
+    "after-temporary",
+    "before-commit",
+  ].flatMap((point) => ["canon", "note"].map((kind) => ({ point, kind }))),
+)(
+  "preserves previous $kind bytes at $point and keeps recoverable work",
+  async ({ point, kind }) => {
     const f = await fixture(),
-      s = await create(f),
+      s = await create(
+        f,
+        contents.find((content) => content.kind === kind)!,
+      ),
       before = await readFile(path(f, s));
     await expect(
       run(f, mutation(s, "update"), {
@@ -630,3 +635,81 @@ it("excludes every reference and recovery source from semantic assembly, EPUB an
     ).not.toContain("PRIVATE_REFERENCE_CANARY");
   }
 });
+
+it.each([
+  "character",
+  "technology",
+  "location",
+  "history",
+  "relationship",
+  "terminology",
+  "other",
+] as const)(
+  "persists canon category %s through CRUD and reopen",
+  async (category) => {
+    const f = await fixture();
+    let s = await create(f, {
+      kind: "canon",
+      title: "Rule",
+      category,
+      statement: "  e\u0301 港 🌊\n",
+      notes: "<script>inert</script>",
+      tags: ["a,b\nc"],
+      links: [],
+    });
+    await openProject(f.root);
+    expect(
+      saved(
+        await run(f, {
+          operation: "read",
+          kind: "canon",
+          id: s.record.id,
+        } as Omit<ReferenceRequest, "projectId">),
+      ),
+    ).toEqual(s);
+    s = saved(
+      await run(f, {
+        ...mutation(s, "update"),
+        content: { ...input(s), title: "Updated rule" },
+      } as Omit<ReferenceRequest, "projectId">),
+    );
+    expect(s.record).toMatchObject({
+      category,
+      title: "Updated rule",
+      revision: 2,
+    });
+    s = saved(await run(f, mutation(s, "delete")));
+    await openProject(f.root);
+    expect(s.record.deletedAt).not.toBeNull();
+    expect(JSON.parse(await readFile(path(f, s), "utf8"))).toEqual(s.record);
+  },
+);
+it.each(["Organisation", "Technology", "General research"])(
+  "round-trips %s as plain-text versioned notes",
+  async (title) => {
+    const f = await fixture();
+    const content = {
+      kind: "note" as const,
+      title,
+      body: "  e\u0301 港 🌊\n<script>inert</script>\n# Not rendered Markdown",
+      source: "https://example.invalid/citation",
+      tags: ["a,b\nc"],
+      links: [],
+    };
+    const s = await create(f, content);
+    await openProject(f.root);
+    expect(
+      saved(
+        await run(f, {
+          operation: "read",
+          kind: "note",
+          id: s.record.id,
+        } as Omit<ReferenceRequest, "projectId">),
+      ),
+    ).toEqual(s);
+    expect(JSON.parse(await readFile(path(f, s), "utf8"))).toMatchObject({
+      schemaVersion: 1,
+      ...content,
+    });
+  },
+);
