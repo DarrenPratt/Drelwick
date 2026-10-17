@@ -1,3 +1,4 @@
+import { compareTimelineEvents } from "./timeline.js";
 import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -664,6 +665,13 @@ export async function executeReferenceOperation(
             (e) => request.includeDeleted || e.record.deletedAt === null,
           );
           entries.sort((a, b) => {
+            // Keep timelines together so mixed-kind lists have a transitive order.
+            if (a.record.kind === "timeline" && b.record.kind !== "timeline")
+              return 1;
+            if (a.record.kind !== "timeline" && b.record.kind === "timeline")
+              return -1;
+            if (a.record.kind === "timeline" && b.record.kind === "timeline")
+              return compareTimelineEvents(a.record, b.record);
             const x = "name" in a.record ? a.record.name : a.record.title,
               y = "name" in b.record ? b.record.name : b.record.title;
             const left = Array.from(x, (c) => c.codePointAt(0)!),
@@ -685,6 +693,9 @@ export async function executeReferenceOperation(
               title: "name" in r ? r.name : r.title,
               revision: r.revision,
               deletedAt: r.deletedAt,
+              ...(r.kind === "timeline" && r.sequence !== undefined
+                ? { sequence: r.sequence }
+                : {}),
             })),
             diagnostics: store.diagnostics,
             readOnly: store.diagnostics.length > 0,

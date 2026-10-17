@@ -2156,6 +2156,8 @@ Chapter/character/location IDs are derived from authoritative
 [links](story-bible.md#link-schema-and-resolution), not parallel persisted arrays.
 That contract defines ordering, backlinks and deletion/split/merge behaviour.
 Scene/range links await a stable-anchor design.
+The [timeline editor](timeline-management.md) implements #165 using the existing
+version-1 schema, atomic reference service and restricted IPC.
 
 # 70. Search Architecture
 

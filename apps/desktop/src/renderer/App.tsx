@@ -1,4 +1,8 @@
 import {
+  TimelineManager,
+  type TimelineEditorHandle,
+} from "./TimelineManager.js";
+import {
   CanonResearchManager,
   type CanonResearchEditorHandle,
 } from "./CanonResearchManager.js";
@@ -71,10 +75,10 @@ const PrintPreviewDialog = lazy(() =>
 );
 
 export function App() {
-  // Both forms stay mounted. Serialize their IPC against each other because
+  // Reference editors stay mounted. Serialize their IPC against each other because
   // the privileged project guard rejects overlapping operations.
   const referenceQueue = useRef<Promise<void>>(Promise.resolve());
-  const executeCanonResearch = useCallback((request: ReferenceRequest) => {
+  const executeReferences = useCallback((request: ReferenceRequest) => {
     const operation = referenceQueue.current.then(() =>
       window.drelwick.references.execute(request),
     );
@@ -96,6 +100,7 @@ export function App() {
       !noteEditor.current?.isDirty()
     );
   }, []);
+  const timelineEditor = useRef<TimelineEditorHandle | null>(null);
   const locationEditor = useRef<LocationEditorHandle | null>(null);
   const [printPreview, setPrintPreview] = useState<PrintPreview | null>(null);
   const [printConfiguration, setPrintConfiguration] =
@@ -410,7 +415,9 @@ export function App() {
         setError("Wait for the current project operation before closing.");
         return false;
       }
-      const referencesSaved = await flushCanonResearch();
+      const referencesSaved =
+        (await flushCanonResearch()) &&
+        ((await timelineEditor.current?.flush()) ?? true);
       const locationsSaved =
         ((await locationEditor.current?.flush()) ?? true) && referencesSaved;
       const saved =
@@ -422,6 +429,7 @@ export function App() {
       }
       return (
         saved &&
+        !timelineEditor.current?.isDirty() &&
         !locationEditor.current?.isDirty() &&
         !canonEditor.current?.isDirty() &&
         !noteEditor.current?.isDirty()
@@ -430,6 +438,7 @@ export function App() {
   }, [flushCanonResearch]);
 
   const saveActiveChapter = useCallback(() => {
+    void timelineEditor.current?.flush();
     void locationEditor.current?.flush();
     void flushCanonResearch();
     if (!documentReady || changingDocument) return;
@@ -560,6 +569,13 @@ export function App() {
       void flushCanonResearch();
       setError(
         "Save or discard unsaved canon/research changes before switching projects.",
+      );
+      return false;
+    }
+    if (timelineEditor.current?.isDirty()) {
+      void timelineEditor.current.flush();
+      setError(
+        "Save or discard unsaved timeline changes before switching projects.",
       );
       return false;
     }
@@ -759,6 +775,7 @@ export function App() {
       }
       if (
         !(await flushCanonResearch()) ||
+        !((await timelineEditor.current?.flush()) ?? true) ||
         !((await locationEditor.current?.flush()) ?? true)
       ) {
         setError(
@@ -819,6 +836,7 @@ export function App() {
       }
       if (
         !(await flushCanonResearch()) ||
+        !((await timelineEditor.current?.flush()) ?? true) ||
         !((await locationEditor.current?.flush()) ?? true)
       ) {
         setError(
@@ -1558,7 +1576,7 @@ export function App() {
             <>
               <CanonResearchManager
                 ref={canonEditor}
-                execute={executeCanonResearch}
+                execute={executeReferences}
                 kind="canon"
                 projectId={project.projectId}
                 disabled={
@@ -1567,7 +1585,7 @@ export function App() {
               />
               <CanonResearchManager
                 ref={noteEditor}
-                execute={executeCanonResearch}
+                execute={executeReferences}
                 kind="note"
                 projectId={project.projectId}
                 disabled={
@@ -1576,8 +1594,19 @@ export function App() {
               />
             </>
           }
+          timeline={
+            <TimelineManager
+              execute={executeReferences}
+              ref={timelineEditor}
+              projectId={project.projectId}
+              chapters={project.chapters}
+              onNavigateChapter={selectChapter}
+              disabled={changingDocument}
+            />
+          }
           locations={
             <LocationManager
+              execute={executeReferences}
               ref={locationEditor}
               projectId={project.projectId}
               disabled={
@@ -1649,7 +1678,12 @@ export function App() {
               <p className="project-path">Saved in {project.projectPath}</p>
             </>
           }
-          storyBible={<CharacterManager projectId={project.projectId} />}
+          storyBible={
+            <CharacterManager
+              projectId={project.projectId}
+              execute={executeReferences}
+            />
+          }
           notice={
             <>
               <ManuscriptSearch
@@ -2211,6 +2245,7 @@ export function App() {
           beforeOpen={async () => {
             if (
               !(await flushCanonResearch()) ||
+              !((await timelineEditor.current?.flush()) ?? true) ||
               !((await locationEditor.current?.flush()) ?? true)
             )
               return false;
