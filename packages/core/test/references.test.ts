@@ -17,6 +17,10 @@ import {
   type FixtureCopy,
 } from "../../../tests/helpers/fixture-projects.js";
 import {
+  createChapter,
+  organiseChapter,
+  deleteChapter,
+  renameChapter,
   executeReferenceOperation,
   REFERENCE_DIRECTORIES,
   openProject,
@@ -620,6 +624,7 @@ it("excludes every reference and recovery source from semantic assembly, EPUB an
     const s = await create(f, {
       ...content,
       tags: ["PRIVATE_REFERENCE_CANARY"],
+      links: [{ target: { kind: "chapter", id: f.chapterId } }],
     });
     await run(f, mutation(s, "delete"));
   }
@@ -855,3 +860,254 @@ it.each([1.5, Number.MAX_SAFE_INTEGER + 1, NaN])(
     expect(await readFile(path(f, event))).toEqual(before);
   },
 );
+
+const linkCommand = (
+  record: ReferenceSaved,
+  operation: "link-attach" | "link-remove" | "link-retarget",
+  chapterId: string,
+  linkId?: string,
+) => ({
+  kind: record.record.kind,
+  id: record.record.id,
+  expectedRevision: record.record.revision,
+  expectedFingerprint: record.fingerprint,
+  generation: record.record.revision + 1,
+  operation,
+  ...(operation === "link-remove" ? {} : { chapterId }),
+  ...(operation === "link-attach" ? {} : { linkId }),
+});
+
+it.each(contents)(
+  "attaches/removes chapter links for $kind, preserves IDs across rename and rebuilds both directions on reopen",
+  async (content) => {
+    const f = await fixture();
+    const before = await readFile(
+      join(f.root, "manuscript", `${f.chapterId}.json`),
+    );
+    let record = await create(f, content);
+    record = saved(
+      await run(f, linkCommand(record, "link-attach", f.chapterId)),
+    );
+    const edge = record.record.links[0]!;
+    await expect(
+      run(f, linkCommand(record, "link-attach", f.chapterId)),
+    ).rejects.toMatchObject({ code: "REFERENCE_INPUT_INVALID" });
+    const renamed = {
+      ...input(record),
+      ...("name" in record.record
+        ? { name: "Renamed reference" }
+        : { title: "Renamed reference" }),
+    };
+    record = saved(
+      await run(f, { ...mutation(record, "update"), content: renamed } as Omit<
+        ReferenceRequest,
+        "projectId"
+      >),
+    );
+    expect(record.record.links).toEqual([edge]);
+    await openProject(f.root);
+    const request = {
+      operation: "links",
+      target: { kind: "chapter", id: f.chapterId },
+    } as Omit<ReferenceRequest, "projectId">;
+    const first = await run(f, request);
+    expect(first).toMatchObject({
+      incoming: [
+        { sourceId: record.record.id, link: edge, status: "resolved" },
+      ],
+    });
+    expect(await run(f, request)).toEqual(first);
+    expect(
+      await run(f, {
+        operation: "links",
+        target: { kind: record.record.kind, id: record.record.id },
+      } as Omit<ReferenceRequest, "projectId">),
+    ).toMatchObject({ outgoing: [{ link: edge, status: "resolved" }] });
+    record = saved(
+      await run(f, linkCommand(record, "link-remove", f.chapterId, edge.id)),
+    );
+    expect(record.record.links).toEqual([]);
+    expect(await run(f, request)).toMatchObject({ incoming: [] });
+    record = saved(
+      await run(f, linkCommand(record, "link-attach", f.chapterId)),
+    );
+    expect(record.record.links[0]!.id).not.toBe(edge.id);
+    expect(
+      await readFile(join(f.root, "manuscript", `${f.chapterId}.json`)),
+    ).toEqual(before);
+  },
+);
+
+it("keeps links on original chapters across real duplicate/split/merge/delete operations and offers explicit retargeting", async () => {
+  const f = await fixture();
+  let record = saved(
+    await run(f, linkCommand(await create(f), "link-attach", f.chapterId)),
+  );
+  const original = record.record.links[0]!;
+  const organise = async (request: object) => {
+    const session = await openProject(f.root);
+    return organiseChapter({
+      projectPath: f.root,
+      projectId: f.projectId,
+      expectedOrder: session.project.manuscript.order,
+      ...request,
+    } as Parameters<typeof organiseChapter>[0]);
+  };
+  const duplicate = await organise({
+    operation: "duplicate",
+    chapterId: f.chapterId,
+  });
+  const links = (id: string) =>
+    run(f, { operation: "links", target: { kind: "chapter", id } } as Omit<
+      ReferenceRequest,
+      "projectId"
+    >);
+  expect(await links(duplicate.chapterId)).toMatchObject({ incoming: [] });
+  const split = await organise({
+    operation: "split",
+    chapterId: f.chapterId,
+    position: 2,
+    expectedContent: JSON.parse(
+      await readFile(join(f.root, "manuscript", `${f.chapterId}.json`), "utf8"),
+    ).content,
+  });
+  expect(await links(split.chapterId)).toMatchObject({ incoming: [] });
+  expect(await links(f.chapterId)).toMatchObject({
+    incoming: [{ link: original }],
+  });
+  record = saved(
+    await run(f, linkCommand(record, "link-attach", split.chapterId)),
+  );
+  const splitLink = record.record.links.find(
+    (link) => link.target.id === split.chapterId,
+  )!;
+  await organise({
+    operation: "merge",
+    chapterIds: [f.chapterId, split.chapterId],
+    confirmed: true,
+  });
+  expect(await links(split.chapterId)).toMatchObject({
+    incoming: [{ status: "missing" }],
+  });
+  record = saved(
+    await run(
+      f,
+      linkCommand(record, "link-retarget", duplicate.chapterId, splitLink.id),
+    ),
+  );
+  expect(
+    record.record.links.find((link) => link.id === splitLink.id)?.target.id,
+  ).toBe(duplicate.chapterId);
+  await renameChapter({
+    projectPath: f.root,
+    chapterId: f.chapterId,
+    title: "Renamed chapter",
+  });
+  expect(await links(f.chapterId)).toMatchObject({
+    incoming: [{ link: original, status: "resolved" }],
+  });
+  await deleteChapter({ projectPath: f.root, chapterId: f.chapterId });
+  expect(await links(f.chapterId)).toMatchObject({
+    incoming: [{ link: original, status: "missing" }],
+  });
+  const reopened = saved(
+    await run(f, {
+      operation: "read",
+      kind: record.record.kind,
+      id: record.record.id,
+    } as Omit<ReferenceRequest, "projectId">),
+  );
+  expect(reopened.record.links).toEqual(record.record.links);
+});
+
+it.each([
+  "before-draft",
+  "after-draft",
+  "after-snapshot",
+  "after-temporary",
+  "before-commit",
+])(
+  "preserves authoritative links after a failed link write at %s",
+  async (point) => {
+    const f = await fixture();
+    const record = await create(f);
+    const before = await readFile(path(f, record));
+    await expect(
+      run(f, linkCommand(record, "link-attach", f.chapterId), {
+        checkpoint: async (current) => {
+          if (current === point) throw new Error("private content");
+        },
+      }),
+    ).rejects.not.toThrow("private content");
+    expect(await readFile(path(f, record))).toEqual(before);
+  },
+);
+
+it("rebuilds deterministic backlinks from multiple sources independent of scan order and rejects stale link writes", async () => {
+  const f = await fixture();
+  const sources = [];
+  for (const content of contents) {
+    const record = await create(f, content);
+    const linked = saved(
+      await run(f, linkCommand(record, "link-attach", f.chapterId)),
+    );
+    sources.push(linked.record.id);
+    await expect(
+      run(f, linkCommand(record, "link-attach", f.chapterId)),
+    ).rejects.toMatchObject({ code: "REFERENCE_STALE" });
+  }
+  const request = {
+    operation: "links",
+    target: { kind: "chapter", id: f.chapterId },
+  } as Omit<ReferenceRequest, "projectId">;
+  const first = await run(f, request);
+  expect(first.type).toBe("links");
+  if (first.type !== "links") throw new Error("Expected links");
+  expect(first.incoming.map((edge) => edge.sourceId)).toEqual(sources.sort());
+  await openProject(f.root);
+  expect(await run(f, request)).toEqual(first);
+});
+
+it("canonicalizes chapter identity, reports unsupported/invalid targets and preserves unresolved edges", async () => {
+  const f = await fixture();
+  const chapter = await createChapter({
+    projectPath: f.root,
+    title: "Identity",
+  });
+  const record = saved(
+    await run(
+      f,
+      linkCommand(
+        await create(f),
+        "link-attach",
+        chapter.chapter.id.toUpperCase(),
+      ),
+    ),
+  );
+  expect(record.record.links[0]!.target.id).toBe(chapter.chapter.id);
+  const chapterPath = join(f.root, "manuscript", `${chapter.chapter.id}.json`);
+  const raw = JSON.parse(await readFile(chapterPath, "utf8"));
+  const request = {
+    operation: "links",
+    target: { kind: "chapter", id: chapter.chapter.id.toUpperCase() },
+  } as Omit<ReferenceRequest, "projectId">;
+  expect(await run(f, request)).toMatchObject({
+    incoming: [{ status: "resolved" }],
+  });
+  for (const [schemaVersion, status] of [
+    [2, "unsupported"],
+    [1.5, "invalid"],
+  ] as const) {
+    await writeFile(chapterPath, JSON.stringify({ ...raw, schemaVersion }));
+    expect(await run(f, request)).toMatchObject({ incoming: [{ status }] });
+    expect(
+      saved(
+        await run(f, {
+          operation: "read",
+          kind: record.record.kind,
+          id: record.record.id,
+        } as Omit<ReferenceRequest, "projectId">),
+      ).record.links,
+    ).toEqual(record.record.links);
+  }
+});

@@ -1,4 +1,8 @@
 import {
+  ChapterReferences,
+  type ChapterReferencesHandle,
+} from "./ChapterReferences.js";
+import {
   TimelineManager,
   type TimelineEditorHandle,
 } from "./TimelineManager.js";
@@ -75,6 +79,8 @@ const PrintPreviewDialog = lazy(() =>
 );
 
 export function App() {
+  const [chapterLinksVisited, setChapterLinksVisited] = useState(false);
+  const chapterLinks = useRef<ChapterReferencesHandle | null>(null);
   // Reference editors stay mounted. Serialize their IPC against each other because
   // the privileged project guard rejects overlapping operations.
   const referenceQueue = useRef<Promise<void>>(Promise.resolve());
@@ -411,7 +417,7 @@ export function App() {
 
   useEffect(() => {
     return window.drelwick.onShutdownRequested(async () => {
-      if (pending.current) {
+      if (pending.current || chapterLinks.current?.isBusy()) {
         setError("Wait for the current project operation before closing.");
         return false;
       }
@@ -1686,6 +1692,33 @@ export function App() {
           }
           notice={
             <>
+              <details
+                onToggle={(event) => {
+                  if (event.currentTarget.open) setChapterLinksVisited(true);
+                }}
+              >
+                <summary>Chapter references and backlinks</summary>
+                {chapterLinksVisited && (
+                  <ChapterReferences
+                    ref={chapterLinks}
+                    key={project.projectId}
+                    projectId={project.projectId}
+                    chapterId={activeChapterId}
+                    chapters={project.chapters}
+                    execute={executeReferences}
+                    disabled={changingDocument}
+                    flush={async () => {
+                      const saved = (await autosave.current?.flush()) ?? true;
+                      return (
+                        saved &&
+                        !savePending.current &&
+                        !isDocumentDirty(documentRef.current)
+                      );
+                    }}
+                    navigate={selectChapter}
+                  />
+                )}
+              </details>
               <ManuscriptSearch
                 key={project.projectId}
                 project={project}

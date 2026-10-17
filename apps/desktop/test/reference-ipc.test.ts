@@ -164,3 +164,74 @@ it("authorizes the active project/top frame and validates typed reference payloa
     await f.runtime.stopHistory();
   }
 });
+
+it("validates and authorizes chapter-link mutations through the restricted IPC", async () => {
+  const f = await setup();
+  try {
+    await f.invoke(IPC.PROJECT_OPEN);
+    const result = await f.invoke(IPC.REFERENCE_EXECUTE, {
+      operation: "create",
+      projectId: f.projectId,
+      generation: 1,
+      content: {
+        kind: "note",
+        title: "Private",
+        body: "PRIVATE_LINK_CONTENT",
+        tags: [],
+        links: [],
+      },
+    });
+    if (!result.ok || result.value.type !== "record")
+      throw new Error("Expected reference");
+    const saved = result.value.value;
+    const chapterId = (await openProject(f.projectPath)).project.manuscript
+      .order[0]!;
+    const command = {
+      operation: "link-attach",
+      projectId: f.projectId,
+      kind: "note",
+      id: saved.record.id,
+      expectedRevision: saved.record.revision,
+      expectedFingerprint: saved.fingerprint,
+      chapterId,
+      generation: 2,
+    };
+    for (const request of [
+      { ...command, chapterId: "../book" },
+      { ...command, path: f.projectPath },
+      { ...command, expectedFingerprint: "invalid" },
+    ])
+      expect(await f.invoke(IPC.REFERENCE_EXECUTE, request)).toMatchObject({
+        ok: false,
+        error: { code: "REFERENCE_INPUT_INVALID" },
+      });
+    expect(
+      await f.invoke(IPC.REFERENCE_EXECUTE, command, {
+        ...f.event,
+        sender: {},
+      } as IpcMainInvokeEvent),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_ACCESS_DENIED" } });
+    expect(
+      await f.invoke(IPC.REFERENCE_EXECUTE, {
+        ...command,
+        projectId: "00000000-0000-4000-8000-000000000099",
+      }),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_NOT_OPEN" } });
+    expect(await f.invoke(IPC.REFERENCE_EXECUTE, command)).toMatchObject({
+      ok: true,
+      value: {
+        type: "record",
+        value: {
+          record: { links: [{ target: { kind: "chapter", id: chapterId } }] },
+        },
+      },
+    });
+    expect(
+      JSON.stringify(
+        Object.values(f.logger).map((method) => method.mock.calls),
+      ),
+    ).not.toContain("PRIVATE_LINK_CONTENT");
+  } finally {
+    await f.runtime.stopHistory();
+  }
+});

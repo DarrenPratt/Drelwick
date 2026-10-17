@@ -184,7 +184,10 @@ export function CharacterManager({
     setError("");
     setStatus("");
     try {
-      const content = toContent(draftRef.current);
+      const content = {
+        ...toContent(draftRef.current),
+        links: creating ? [] : (record?.links ?? []),
+      };
       const result = await execute(
         creating
           ? { operation: "create", projectId, content, generation: 1 }

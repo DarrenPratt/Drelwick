@@ -234,17 +234,29 @@ async function targetStatus(
   target: ReferenceTarget,
 ): Promise<ReferenceEdge["status"]> {
   if (target.kind === "chapter") {
-    if (!ctx.project.manuscript.order.includes(target.id)) return "missing";
+    const chapterId = ctx.project.manuscript.order.find(
+      (id) => id.toLowerCase() === target.id.toLowerCase(),
+    );
+    if (!chapterId) return "missing";
     try {
-      const path = join(ctx.root, "manuscript", `${target.id}.json`);
+      const path = join(ctx.root, "manuscript", `${chapterId}.json`);
       const bytes = await referenceRead(path, 512 * 1024 ** 2);
       const hash = referenceHash(bytes);
       if (ctx.chapterHashes.has(path) && ctx.chapterHashes.get(path) !== hash)
         throw referenceError("REFERENCE_STALE");
       ctx.chapterHashes.set(path, hash);
       const raw = decodeReference(bytes);
+      if (
+        typeof raw === "object" &&
+        raw !== null &&
+        "schemaVersion" in raw &&
+        typeof raw.schemaVersion === "number" &&
+        Number.isInteger(raw.schemaVersion) &&
+        raw.schemaVersion > 1
+      )
+        return "unsupported";
       const chapter = ChapterFileSchema.safeParse(raw);
-      return chapter.success && chapter.data.id === target.id
+      return chapter.success && chapter.data.id === chapterId
         ? "resolved"
         : "invalid";
     } catch (e) {
@@ -252,7 +264,7 @@ async function targetStatus(
         throw e;
       if (isMissing(e))
         ctx.chapterHashes.set(
-          join(ctx.root, "manuscript", `${target.id}.json`),
+          join(ctx.root, "manuscript", `${chapterId}.json`),
           null,
         );
       return isMissing(e) ? "missing" : "invalid";
@@ -723,7 +735,8 @@ export async function executeReferenceOperation(
                 status: await targetStatus(ctx, store, link.target),
               };
               if (
-                link.target.id === request.target.id &&
+                link.target.id.toLowerCase() ===
+                  request.target.id.toLowerCase() &&
                 link.target.kind === request.target.kind
               )
                 incoming.push(edge);
@@ -734,6 +747,17 @@ export async function executeReferenceOperation(
                 outgoing.push(edge);
             }
           }
+          const compare = (a: ReferenceEdge, b: ReferenceEdge) =>
+            a.sourceId < b.sourceId
+              ? -1
+              : a.sourceId > b.sourceId
+                ? 1
+                : a.link.id < b.link.id
+                  ? -1
+                  : a.link.id > b.link.id
+                    ? 1
+                    : 0;
+          incoming.sort(compare);
           await unchanged(ctx, store);
           return {
             type: "links",
@@ -906,7 +930,49 @@ export async function executeReferenceOperation(
             previous.fingerprint !== request.expectedFingerprint
           )
             throw referenceError("REFERENCE_STALE");
-          if (request.operation === "update") {
+          if (
+            request.operation === "link-attach" ||
+            request.operation === "link-remove" ||
+            request.operation === "link-retarget"
+          ) {
+            if (previous.record.deletedAt !== null)
+              throw referenceError("REFERENCE_DELETED");
+            const chapterId =
+              request.operation === "link-remove"
+                ? undefined
+                : ctx.project.manuscript.order.find(
+                    (id) =>
+                      id.toLowerCase() === request.chapterId.toLowerCase(),
+                  );
+            if (request.operation !== "link-remove" && !chapterId)
+              throw referenceError("REFERENCE_TARGET_INVALID");
+            const links = previous.record.links.map((link) => ({ ...link }));
+            if (request.operation !== "link-attach") {
+              const index = links.findIndex(
+                (link) => link.id === request.linkId,
+              );
+              if (index < 0 || links[index]!.target.kind !== "chapter")
+                throw referenceError("REFERENCE_INPUT_INVALID");
+              if (request.operation === "link-remove") links.splice(index, 1);
+              else
+                links[index] = {
+                  ...links[index]!,
+                  target: { kind: "chapter", id: chapterId! },
+                };
+            } else
+              links.push({
+                id: createUuid(),
+                target: { kind: "chapter", id: chapterId! },
+              });
+            record = checkedRecord({
+              ...previous.record,
+              links,
+              revision: previous.record.revision + 1,
+              modified: [createIsoDate(), previous.record.modified]
+                .sort()
+                .at(-1)!,
+            });
+          } else if (request.operation === "update") {
             if (previous.record.deletedAt !== null)
               throw referenceError("REFERENCE_DELETED");
             record = prepare(

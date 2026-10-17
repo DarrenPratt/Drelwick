@@ -2156,6 +2156,9 @@ Chapter/character/location IDs are derived from authoritative
 [links](story-bible.md#link-schema-and-resolution), not parallel persisted arrays.
 That contract defines ordering, backlinks and deletion/split/merge behaviour.
 Scene/range links await a stable-anchor design.
+[Chapter linking](chapter-reference-links.md) implements #166 through the existing
+version-1 record envelopes and restricted reference IPC, with derived backlinks
+and explicit lifecycle resolution.
 The [timeline editor](timeline-management.md) implements #165 using the existing
 version-1 schema, atomic reference service and restricted IPC.
 

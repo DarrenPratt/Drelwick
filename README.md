@@ -77,6 +77,10 @@ or **Cancel startup** before editing. See [manuscript recovery](docs/manuscript-
 [project creation UI](docs/project-creation-ui.md) and
 [project opening UI](docs/project-open-ui.md).
 
+Use **Chapter references and backlinks** above the manuscript to attach Story Bible
+records, inspect their linked chapters and navigate with pending edits preserved.
+See [chapter reference links](docs/chapter-reference-links.md).
+
 Use **Timeline** to manage local events with optional fictional dates, explicit
 sequence and stable chapter/character/location associations. See
 [timeline management](docs/timeline-management.md).

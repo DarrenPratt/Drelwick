@@ -136,6 +136,25 @@ export interface ReferenceCandidate extends ReferenceCandidateKey {
 }
 export const ReferenceRequestSchema = z.discriminatedUnion("operation", [
   z.strictObject({
+    ...expected,
+    operation: z.literal("link-attach"),
+    chapterId: projectId,
+    generation: revision,
+  }),
+  z.strictObject({
+    ...expected,
+    operation: z.literal("link-remove"),
+    linkId: ReferenceIdSchema,
+    generation: revision,
+  }),
+  z.strictObject({
+    ...expected,
+    operation: z.literal("link-retarget"),
+    linkId: ReferenceIdSchema,
+    chapterId: projectId,
+    generation: revision,
+  }),
+  z.strictObject({
     ...base,
     operation: z.literal("list"),
     includeDeleted: z.boolean().optional(),

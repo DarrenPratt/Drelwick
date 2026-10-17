@@ -166,3 +166,36 @@ it("soft-deletes the selected character after explicit confirmation", async () =
   );
   expect(container.textContent).toContain("Character deleted.");
 });
+
+it("preserves chapter link identities when editing a character", async () => {
+  const links = [
+    {
+      id: "00000000-0000-4000-8000-000000000107",
+      target: {
+        kind: "chapter" as const,
+        id: "00000000-0000-4000-8000-000000000108",
+      },
+    },
+  ];
+  const original = execute.getMockImplementation()!;
+  execute.mockImplementation(async (request) =>
+    request.operation === "read"
+      ? {
+          ok: true,
+          value: {
+            type: "record",
+            value: { record: { ...character, links }, fingerprint },
+          },
+        }
+      : original(request),
+  );
+  await render();
+  await change("character-name", "Renamed");
+  await act(async () => container.querySelector("form")!.requestSubmit());
+  expect(execute).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      operation: "update",
+      content: expect.objectContaining({ links }),
+    }),
+  );
+});
