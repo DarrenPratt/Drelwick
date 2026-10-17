@@ -69,7 +69,15 @@ The existing GitHub milestone names are retained. Dependencies below are actual 
 The [local timeline workflow](../timeline-management.md) adds event CRUD, explicit
 sequence ordering and stable chapter/character/location associations on the #161
 store. It remains CORE and offline, without manuscript/export inclusion or changes
-to the deferred #166/#167 scopes. See its dependency and acceptance evidence.
+to the separately scoped #166/#167 workflows. See its dependency and acceptance evidence.
+
+## Chapter linking implementation (#166)
+
+[Chapter references and backlinks](../chapter-reference-links.md) reuse the #161
+versioned reference records and #119 lifecycle rules. Both navigation directions,
+explicit attachment/removal/retargeting and unresolved references are local CORE
+work. Backlinks are derived, with no manuscript metadata or schema migration.
+Global search remains #167; no advanced commercial feature is included.
 
 ## Release gates and existing issue reconciliation
 
