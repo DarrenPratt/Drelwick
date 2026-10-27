@@ -64,6 +64,7 @@ export interface CanonResearchEditorHandle {
   flush(): Promise<boolean>;
 }
 export interface CanonResearchManagerProps {
+  onEdited?(): void;
   projectId: string;
   kind: Kind;
   execute?: typeof window.drelwick.references.execute;
@@ -78,6 +79,7 @@ export function CanonResearchManager(props: CanonResearchManagerProps) {
 }
 
 function CanonResearchEditor({
+  onEdited,
   projectId,
   kind,
   execute = window.drelwick.references.execute,
@@ -395,6 +397,7 @@ function CanonResearchEditor({
     const s = state.current;
     s.draft = { ...s.draft, [key]: value };
     s.generation++;
+    onEdited?.();
     s.status = "";
     s.error = "";
     coordinator.current?.edited();

@@ -5,6 +5,10 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
+    "./global-search": {
+      "types": "./dist/global-search.d.ts",
+      "import": "./dist/global-search.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"

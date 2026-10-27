@@ -57,6 +57,61 @@ async function setup() {
   };
   return { ...copy, projectId, frame, event, invoke, logger, runtime };
 }
+it("restricts global search snapshots and resolution to authorized IDs without transporting queries or paths", async () => {
+  const f = await setup();
+  try {
+    const request = { operation: "search-snapshot", projectId: f.projectId };
+    expect(await f.invoke(IPC.REFERENCE_EXECUTE, request)).toMatchObject({
+      ok: false,
+      error: { code: "PROJECT_NOT_OPEN" },
+    });
+    await f.invoke(IPC.PROJECT_OPEN);
+    expect(
+      await f.invoke(IPC.REFERENCE_EXECUTE, request, {
+        ...f.event,
+        sender: {},
+      } as IpcMainInvokeEvent),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_ACCESS_DENIED" } });
+    for (const invalid of [
+      { ...request, query: "private-query" },
+      { ...request, projectPath: f.projectPath },
+      {
+        operation: "search-resolve",
+        projectId: f.projectId,
+        target: { kind: "chapter", id: "../private" },
+        fingerprint: "a".repeat(64),
+      },
+      {
+        operation: "search-resolve",
+        projectId: f.projectId,
+        target: { kind: "chapter", id: f.projectId },
+        fingerprint: "private-content",
+      },
+    ])
+      expect(await f.invoke(IPC.REFERENCE_EXECUTE, invalid)).toMatchObject({
+        ok: false,
+        error: { code: "REFERENCE_INPUT_INVALID" },
+      });
+    const result = await f.invoke(IPC.REFERENCE_EXECUTE, request);
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.type !== "search-snapshot")
+      throw new Error("snapshot");
+    const entry = result.value.snapshot.entries[0]!;
+    expect(
+      await f.invoke(IPC.REFERENCE_EXECUTE, {
+        operation: "search-resolve",
+        projectId: f.projectId,
+        target: { kind: entry.kind, id: entry.id },
+        fingerprint: entry.fingerprint,
+      }),
+    ).toMatchObject({ ok: true, value: { type: "search-entry" } });
+    expect(JSON.stringify(f.logger)).not.toContain("private-query");
+    for (const log of Object.values(f.logger))
+      expect(JSON.stringify(log.mock.calls)).not.toContain("private-");
+  } finally {
+    await f.runtime.stopHistory();
+  }
+});
 it("authorizes the active project/top frame and validates typed reference payloads without logging content", async () => {
   const f = await setup();
   try {

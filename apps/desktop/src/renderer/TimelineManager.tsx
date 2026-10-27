@@ -53,6 +53,7 @@ export interface TimelineEditorHandle {
   flush(): Promise<boolean>;
 }
 export interface TimelineManagerProps {
+  onEdited?(): void;
   projectId: string;
   execute?: typeof window.drelwick.references.execute;
   ref?: Ref<TimelineEditorHandle>;
@@ -66,6 +67,7 @@ export function TimelineManager(props: TimelineManagerProps) {
 }
 
 function TimelineEditor({
+  onEdited,
   projectId,
   ref,
   disabled = false,
@@ -404,6 +406,7 @@ function TimelineEditor({
     const s = state.current;
     s.draft = { ...s.draft, [key]: value };
     s.generation++;
+    onEdited?.();
     s.status = "";
     s.error = "";
     coordinator.current?.edited();

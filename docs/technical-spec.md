@@ -2169,6 +2169,11 @@ Basic local search is CORE. #167 reuses manuscript search and adds the
 including Unicode matching, invalidation, cancellation and dirty-state rules.
 Reference data remains outside EPUB, DOCX and print PDF publication inputs.
 
+The [#167 implementation](global-search.md) uses a disposable bounded core index,
+the shared #118 matcher and authorized reference IPC snapshots/resolution. See its
+saved-editor flush policy, cancellation semantics, deterministic ordering and
+explicit source/index/result limits. No persistent format is added.
+
 # 71. SQLite
 
 No database is needed for the initial in-memory reference index. Any future

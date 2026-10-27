@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
-import { act, createElement } from "react";
+import { act, createElement, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { DrelwickApi, ReferenceRecord } from "@drelwick/shared";
-import { CharacterManager } from "../src/renderer/CharacterManager.js";
+import {
+  CharacterManager,
+  type CharacterEditorHandle,
+} from "../src/renderer/CharacterManager.js";
 
 const projectId = "00000000-0000-4000-8000-000000000101";
 const characterId = "00000000-0000-4000-8000-000000000102";
@@ -102,6 +105,61 @@ async function change(id: string, value: string) {
     node.dispatchEvent(new Event("input", { bubbles: true }));
   });
 }
+
+it("global search flush preserves edits made while the captured character save is in flight", async () => {
+  const ref = createRef<CharacterEditorHandle>();
+  await act(async () =>
+    root.render(createElement(CharacterManager, { projectId, ref })),
+  );
+  await change("character-name", "Captured name");
+  let release!: (
+    value: Awaited<ReturnType<DrelwickApi["references"]["execute"]>>,
+  ) => void;
+  execute.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  );
+  let pending!: Promise<boolean>;
+  await act(async () => {
+    pending = ref.current!.flush();
+  });
+  await change("character-name", "Newer unsaved name");
+  await act(async () =>
+    release({
+      ok: true,
+      value: {
+        type: "record",
+        value: {
+          record: { ...character, name: "Captured name", revision: 2 },
+          fingerprint: "b".repeat(64),
+        },
+      },
+    }),
+  );
+  expect(await pending).toBe(false);
+  expect(input("character-name").value).toBe("Newer unsaved name");
+  expect(ref.current!.isDirty()).toBe(true);
+});
+
+it("global search cannot flush an invalid character draft and does not discard it", async () => {
+  const ref = createRef<CharacterEditorHandle>();
+  await act(async () =>
+    root.render(createElement(CharacterManager, { projectId, ref })),
+  );
+  await change("character-name", "");
+  let saved = true;
+  await act(async () => {
+    saved = await ref.current!.flush();
+  });
+  expect(saved).toBe(false);
+  expect(input("character-name").value).toBe("");
+  expect(ref.current!.isDirty()).toBe(true);
+  expect(
+    execute.mock.calls.some(([request]) => request.operation === "update"),
+  ).toBe(false);
+});
 
 it("loads a character, saves edits, and exposes aliases and tags", async () => {
   await render();

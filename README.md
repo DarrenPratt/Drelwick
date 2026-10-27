@@ -131,6 +131,10 @@ whole manuscript. Replace One uses editor undo; Replace All requires an explicit
 scope/count review, flushes pending edits and keeps pre-operation history with
 recoverable multi-chapter writes. See [search semantics and recovery](docs/manuscript-search.md).
 
+Use **Search project** above the manuscript to search saved chapters and all Story
+Bible record types offline. Pending edits save first; results support type filters,
+keyboard navigation and stale-target checks. See [global search and index limits](docs/global-search.md).
+
 The welcome screen and workspace also list **Recent projects**. Select a title
 to reopen it or **Remove** to forget the entry without deleting the project.
 The list persists in application settings across restarts; project files remain

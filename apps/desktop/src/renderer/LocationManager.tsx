@@ -45,6 +45,7 @@ export interface LocationEditorHandle {
   flush(): Promise<boolean>;
 }
 export interface LocationManagerProps {
+  onEdited?(): void;
   projectId: string;
   execute?: typeof window.drelwick.references.execute;
   ref?: Ref<LocationEditorHandle>;
@@ -56,6 +57,7 @@ export function LocationManager(props: LocationManagerProps) {
 }
 
 function LocationEditor({
+  onEdited,
   projectId,
   ref,
   disabled = false,
@@ -367,6 +369,7 @@ function LocationEditor({
     const s = state.current;
     s.draft = { ...s.draft, [key]: value };
     s.generation++;
+    onEdited?.();
     s.status = "";
     s.error = "";
     coordinator.current?.edited();

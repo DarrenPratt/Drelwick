@@ -28,6 +28,11 @@ interface Run {
   offset: number;
 }
 
+/** Shared semantic extraction; global search keeps the same structural boundaries. */
+export function manuscriptSearchRuns(document: Record<string, unknown>): Run[] {
+  return runs(validated(document));
+}
+
 function validated(document: Record<string, unknown>): Node {
   const result = ManuscriptDocumentSchema.safeParse(document);
   if (!result.success) throw new Error("Invalid manuscript search document.");
@@ -68,6 +73,34 @@ function runs(document: Node): Run[] {
 const wordCharacter = /[\p{L}\p{M}\p{N}\p{Pc}]/u;
 const graphemes = new Intl.Segmenter("und", { granularity: "grapheme" });
 
+/** Shared literal matching policy. Offsets are UTF-16; input is never normalized. */
+export function* literalSearchMatches(
+  text: string,
+  options: SearchOptions,
+): Generator<{ start: number; end: number }> {
+  if (!options.query) return;
+  const escaped = options.query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const expression = new RegExp(escaped, options.matchCase ? "gu" : "giu");
+  // Most paragraphs do not match. Avoid segmenting them just to prove absence.
+  if (!expression.test(text)) return;
+  expression.lastIndex = 0;
+  const boundaries = new Set<number>();
+  for (const segment of graphemes.segment(text)) boundaries.add(segment.index);
+  boundaries.add(text.length);
+  for (const match of text.matchAll(expression)) {
+    const start = match.index;
+    const end = start + match[0].length;
+    if (!boundaries.has(start) || !boundaries.has(end)) continue;
+    if (options.wholeWord) {
+      const before =
+        [...text.slice(Math.max(0, start - 2), start)].at(-1) ?? "";
+      const after = String.fromCodePoint(text.codePointAt(end) ?? 0);
+      if (wordCharacter.test(before) || wordCharacter.test(after)) continue;
+    }
+    yield { start, end };
+  }
+}
+
 /** Literal, non-overlapping matches; no normalization or locale-dependent fold. */
 export function searchChapter(
   chapterId: string,
@@ -76,24 +109,9 @@ export function searchChapter(
 ): SearchMatch[] {
   const root = validated(document);
   if (!options.query) return [];
-  const escaped = options.query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const expression = new RegExp(escaped, options.matchCase ? "gu" : "giu");
   const matches: SearchMatch[] = [];
   for (const run of runs(root)) {
-    const boundaries = new Set(
-      [...graphemes.segment(run.text)].map((segment) => segment.index),
-    );
-    boundaries.add(run.text.length);
-    for (const match of run.text.matchAll(expression)) {
-      const start = match.index;
-      const end = start + match[0].length;
-      if (!boundaries.has(start) || !boundaries.has(end)) continue;
-      if (options.wholeWord) {
-        const before =
-          [...run.text.slice(Math.max(0, start - 2), start)].at(-1) ?? "";
-        const after = String.fromCodePoint(run.text.codePointAt(end) ?? 0);
-        if (wordCharacter.test(before) || wordCharacter.test(after)) continue;
-      }
+    for (const { start, end } of literalSearchMatches(run.text, options)) {
       matches.push({
         chapterId,
         from: run.from + start,

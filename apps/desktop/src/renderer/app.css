@@ -1902,3 +1902,36 @@ button svg {
   padding: 0;
   margin: 0 0 1rem;
 }
+.global-search {
+  padding: 0.6rem;
+  border-bottom: 1px solid currentColor;
+}
+.global-search label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.4rem;
+}
+.global-search-results {
+  max-height: 22rem;
+  overflow: auto;
+  padding-left: 1.8rem;
+}
+.global-search-results button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin-block: 0.4rem;
+}
+.global-search-context,
+.global-search-location {
+  display: block;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.global-search dd {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 16rem;
+  overflow: auto;
+}

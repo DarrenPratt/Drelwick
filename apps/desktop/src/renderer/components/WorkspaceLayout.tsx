@@ -66,6 +66,7 @@ export function WorkspaceLayout({
   const [canonResearchVisited, setCanonResearchVisited] = useState(false);
   const [timelineVisited, setTimelineVisited] = useState(false);
   const [locationsVisited, setLocationsVisited] = useState(false);
+  const [storyBibleVisited, setStoryBibleVisited] = useState(false);
   const [navigationOpen, setNavigationOpen] = useState(
     () => window.innerWidth > 850,
   );
@@ -78,6 +79,7 @@ export function WorkspaceLayout({
     if (next === "canon-research") setCanonResearchVisited(true);
     if (next === "timeline") setTimelineVisited(true);
     if (next === "locations") setLocationsVisited(true);
+    if (next === "story-bible") setStoryBibleVisited(true);
     setPanel(next);
   };
   const samplePreview = (
@@ -406,7 +408,9 @@ export function WorkspaceLayout({
                 {samplePreview}
               </>
             ))}
-          {panel === "story-bible" && storyBible}
+          {storyBibleVisited && (
+            <div hidden={panel !== "story-bible"}>{storyBible}</div>
+          )}
           {panel === "details" &&
             (publicationAction ?? (
               <div className="tool-intro">

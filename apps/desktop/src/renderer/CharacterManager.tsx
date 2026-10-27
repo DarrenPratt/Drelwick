@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useImperativeHandle,
+  type Ref,
+} from "react";
 import type {
   ReferenceInput,
   ReferenceRecord,
@@ -68,11 +74,20 @@ function toContent(draft: Draft): ReferenceInput {
 }
 
 export interface CharacterManagerProps {
+  onEdited?(): void;
+  ref?: Ref<CharacterEditorHandle>;
   projectId: string;
   execute?: typeof window.drelwick.references.execute;
 }
 
+export interface CharacterEditorHandle {
+  isDirty(): boolean;
+  flush(): Promise<boolean>;
+}
+
 export function CharacterManager({
+  onEdited,
+  ref,
   projectId,
   execute = window.drelwick.references.execute,
 }: CharacterManagerProps) {
@@ -89,10 +104,23 @@ export function CharacterManager({
   const [creating, setCreating] = useState(false);
   const draftRef = useRef(draft);
   const savedDraftRef = useRef("");
+  const savingRef = useRef(false);
 
   const draftKey = JSON.stringify(draft);
   draftRef.current = draft;
   const dirty = draftKey !== savedDraftRef.current;
+  useImperativeHandle(ref, () => ({
+    isDirty: () =>
+      savingRef.current ||
+      deleting ||
+      JSON.stringify(draftRef.current) !== savedDraftRef.current,
+    flush: async () => {
+      if (loading || deleting || savingRef.current) return false;
+      if (JSON.stringify(draftRef.current) === savedDraftRef.current)
+        return true;
+      return save();
+    },
+  }));
 
   async function loadList(selectFirst = true) {
     setLoading(true);
@@ -171,15 +199,20 @@ export function CharacterManager({
   }
 
   function updateDraft<K extends keyof Draft>(key: K, value: Draft[K]) {
-    setDraft((current) => ({ ...current, [key]: value }));
+    draftRef.current = { ...draftRef.current, [key]: value };
+    setDraft(draftRef.current);
+    onEdited?.();
     setStatus("");
   }
 
-  async function save() {
-    if (!draft.name.trim()) {
+  async function save(): Promise<boolean> {
+    if (savingRef.current) return false;
+    if (!draftRef.current.name.trim()) {
       setError("Enter a name before saving the character.");
-      return;
+      return false;
     }
+    savingRef.current = true;
+    const captured = JSON.stringify(draftRef.current);
     setSaving(true);
     setError("");
     setStatus("");
@@ -204,13 +237,13 @@ export function CharacterManager({
       );
       if (!result.ok) {
         setError(result.error.message);
-        return;
+        return false;
       }
       if (
         result.value.type !== "record" ||
         result.value.value.record.kind !== "character"
       )
-        return;
+        return false;
       const saved = result.value.value.record;
       setRecords((current) =>
         creating
@@ -235,10 +268,15 @@ export function CharacterManager({
       setFingerprint(result.value.value.fingerprint);
       setCreating(false);
       const nextDraft = toDraft(saved);
-      setDraft(nextDraft);
+      if (JSON.stringify(draftRef.current) === captured) {
+        draftRef.current = nextDraft;
+        setDraft(nextDraft);
+      }
       savedDraftRef.current = JSON.stringify(nextDraft);
       setStatus("Character saved.");
+      return JSON.stringify(draftRef.current) === savedDraftRef.current;
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }

@@ -67,6 +67,7 @@ Operational documents:
 - [Local Chapter History preview and restore](chapter-history.md)
 - [Manuscript semantic elements](manuscript-semantics.md)
 - [Manuscript Find and Replace](manuscript-search.md)
+- [Global local search, saved-source refresh and index limits](global-search.md)
 - [Local image assets and recovery](local-image-assets.md)
 - [Staged local manuscript import](manuscript-import.md)
 - [Manuscript import preview and approval workflow](import-review-ui.md)
