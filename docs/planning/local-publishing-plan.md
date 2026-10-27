@@ -81,6 +81,12 @@ Global search remains #167; no advanced commercial feature is included.
 
 ## Release gates and existing issue reconciliation
 
+Global local search (#167) reuses #118 matching and the #161 reference service for
+all five Story Bible kinds, including the #164/#165 editors. The
+[implementation and limits](../global-search.md) retain saved project files as the
+source, flush dirty editors, reject stale navigation and rebuild on reopen. This
+is CORE; no continuity, cloud, AI, SQLite or advanced commercial feature is included.
+
 - v0.1 remains governed by #51 and its existing prerequisites; #107 supplies standalone packaging. New DOCX/publishing work does not become a v0.1 requirement.
 - The v0.3 candidate adds #127, #107 and the deferred end-of-cycle validation #208 alongside #51 and existing governance prerequisites in #60. Issue #127 owns automated import -> edit -> reopen -> EPUB plus manuscript DOCX evidence; #208 owns native reader/accessibility and one-OS-at-a-time Linux/macOS validation. This does not authorize public release.
 - The print delivery gate is #131. Inspect generated PDF dimensions, fonts, pagination, images and content; an approximate HTML preview is not proof of final output.

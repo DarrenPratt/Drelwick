@@ -63,7 +63,13 @@ import {
   type LocationEditorHandle,
 } from "./LocationManager.js";
 import { RendererErrorBoundary } from "./RendererErrorBoundary.js";
-import { CharacterManager } from "./CharacterManager.js";
+import {
+  CharacterManager,
+  type CharacterEditorHandle,
+} from "./CharacterManager.js";
+import { GlobalSearch, type GlobalSearchHandle } from "./GlobalSearch.js";
+import { chapterSearchEntry } from "@drelwick/core/global-search";
+import type { GlobalSearchEntry, GlobalSearchHit } from "@drelwick/shared";
 import type { JSONContent } from "@tiptap/core";
 import {
   documentReducer,
@@ -79,21 +85,51 @@ const PrintPreviewDialog = lazy(() =>
 );
 
 export function App() {
+  const globalSearch = useRef<GlobalSearchHandle | null>(null);
+  const characterEditor = useRef<CharacterEditorHandle | null>(null);
+  const [globalSearchRevision, setGlobalSearchRevision] = useState(0);
+  const globalSelection = useRef<{
+    hit: GlobalSearchHit;
+    entry: GlobalSearchEntry;
+  } | null>(null);
+  const invalidateGlobalSearch = useCallback(() => {
+    globalSelection.current = null;
+    globalSearch.current?.invalidate();
+    setGlobalSearchRevision((value) => value + 1);
+  }, []);
   const [chapterLinksVisited, setChapterLinksVisited] = useState(false);
   const chapterLinks = useRef<ChapterReferencesHandle | null>(null);
   // Reference editors stay mounted. Serialize their IPC against each other because
   // the privileged project guard rejects overlapping operations.
   const referenceQueue = useRef<Promise<void>>(Promise.resolve());
-  const executeReferences = useCallback((request: ReferenceRequest) => {
-    const operation = referenceQueue.current.then(() =>
-      window.drelwick.references.execute(request),
-    );
-    referenceQueue.current = operation.then(
-      () => undefined,
-      () => undefined,
-    );
-    return operation;
-  }, []);
+  const executeReferences = useCallback(
+    (request: ReferenceRequest) => {
+      const operation = referenceQueue.current.then(async () => {
+        const result = await window.drelwick.references.execute(request);
+        if (
+          result.ok &&
+          [
+            "create",
+            "update",
+            "delete",
+            "restore",
+            "recovery-apply",
+            "link-attach",
+            "link-remove",
+            "link-retarget",
+          ].includes(request.operation)
+        )
+          invalidateGlobalSearch();
+        return result;
+      });
+      referenceQueue.current = operation.then(
+        () => undefined,
+        () => undefined,
+      );
+      return operation;
+    },
+    [invalidateGlobalSearch],
+  );
   const canonEditor = useRef<CanonResearchEditorHandle | null>(null);
   const noteEditor = useRef<CanonResearchEditorHandle | null>(null);
   const flushCanonResearch = useCallback(async () => {
@@ -174,11 +210,16 @@ export function App() {
   const [draggedChapterId, setDraggedChapterId] = useState<string | null>(null);
   const [documentState, reduceDocument] = useReducer(documentReducer, null);
   const documentRef = useRef<DocumentState | null>(null);
-  const dispatchDocument = useCallback((action: DocumentAction) => {
-    // Event handlers must see edits immediately, even before React commits a render.
-    documentRef.current = documentReducer(documentRef.current, action);
-    reduceDocument(action);
-  }, []);
+  const dispatchDocument = useCallback(
+    (action: DocumentAction) => {
+      // Event handlers must see edits immediately, even before React commits a render.
+      documentRef.current = documentReducer(documentRef.current, action);
+      if (action.type === "edited" || action.type === "saved")
+        invalidateGlobalSearch();
+      reduceDocument(action);
+    },
+    [invalidateGlobalSearch],
+  );
   const [editorError, setEditorError] = useState("");
   const [documentSession, setDocumentSession] = useState(0);
   const [deletingChapter, setDeletingChapter] = useState(false);
@@ -212,6 +253,52 @@ export function App() {
     deletingChapter ||
     switchingChapter ||
     projectTask !== null;
+
+  useEffect(() => {
+    const selection = globalSelection.current;
+    if (
+      !selection ||
+      !documentReady ||
+      !searchEditor ||
+      searchEditor.isDestroyed ||
+      documentState?.chapterId !== selection.hit.id
+    )
+      return;
+    const loadedFields = chapterSearchEntry(
+      {
+        id: selection.hit.id,
+        title: selection.entry.title,
+        content: documentState.content,
+      },
+      selection.entry.fingerprint,
+    ).fields;
+    if (
+      JSON.stringify(loadedFields) !== JSON.stringify(selection.entry.fields)
+    ) {
+      globalSelection.current = null;
+      return;
+    }
+    const fields = chapterSearchEntry(
+      {
+        id: selection.hit.id,
+        title: selection.entry.title,
+        content: searchEditor.getJSON(),
+      },
+      selection.entry.fingerprint,
+    ).fields;
+    if (JSON.stringify(fields) !== JSON.stringify(selection.entry.fields)) {
+      // A load can finish before the editor has received its new document.
+      return;
+    }
+    globalSelection.current = null;
+    if (selection.hit.from !== undefined && selection.hit.to !== undefined)
+      searchEditor
+        .chain()
+        .setTextSelection({ from: selection.hit.from, to: selection.hit.to })
+        .scrollIntoView()
+        .run();
+    searchEditor.commands.focus();
+  }, [documentReady, searchEditor, documentState]);
 
   const themeProjectId = project?.projectId;
   const themeProjectKey = JSON.stringify([themeProjectId, projectPath]);
@@ -1581,6 +1668,7 @@ export function App() {
           canonResearch={
             <>
               <CanonResearchManager
+                onEdited={invalidateGlobalSearch}
                 ref={canonEditor}
                 execute={executeReferences}
                 kind="canon"
@@ -1590,6 +1678,7 @@ export function App() {
                 }
               />
               <CanonResearchManager
+                onEdited={invalidateGlobalSearch}
                 ref={noteEditor}
                 execute={executeReferences}
                 kind="note"
@@ -1602,6 +1691,7 @@ export function App() {
           }
           timeline={
             <TimelineManager
+              onEdited={invalidateGlobalSearch}
               execute={executeReferences}
               ref={timelineEditor}
               projectId={project.projectId}
@@ -1612,6 +1702,7 @@ export function App() {
           }
           locations={
             <LocationManager
+              onEdited={invalidateGlobalSearch}
               execute={executeReferences}
               ref={locationEditor}
               projectId={project.projectId}
@@ -1686,12 +1777,80 @@ export function App() {
           }
           storyBible={
             <CharacterManager
+              onEdited={invalidateGlobalSearch}
+              ref={characterEditor}
               projectId={project.projectId}
               execute={executeReferences}
             />
           }
           notice={
             <>
+              <GlobalSearch
+                ref={globalSearch}
+                key={`global-${project.projectId}`}
+                projectId={project.projectId}
+                sourceVersion={JSON.stringify([
+                  globalSearchRevision,
+                  project.chapters,
+                  searchRefresh,
+                ])}
+                disabled={
+                  changingDocument ||
+                  reordering ||
+                  !!renamingChapterId ||
+                  replacementRecoveryRequired
+                }
+                execute={executeReferences}
+                flush={async () => {
+                  if (pending.current || (activeChapterId && !documentReady))
+                    return false;
+                  if (!((await autosave.current?.flush()) ?? true))
+                    return false;
+                  for (const editor of [
+                    characterEditor.current,
+                    locationEditor.current,
+                    canonEditor.current,
+                    noteEditor.current,
+                    timelineEditor.current,
+                  ]) {
+                    if (editor && !(await editor.flush())) return false;
+                  }
+                  return (
+                    !savePending.current &&
+                    !isDocumentDirty(documentRef.current) &&
+                    ![
+                      characterEditor.current,
+                      locationEditor.current,
+                      canonEditor.current,
+                      noteEditor.current,
+                      timelineEditor.current,
+                    ].some((editor) => editor?.isDirty())
+                  );
+                }}
+                navigate={async (hit, entry) => {
+                  globalSelection.current = { hit, entry };
+                  if (hit.id === activeChapterId && searchEditor) {
+                    const fields = chapterSearchEntry(
+                      {
+                        id: hit.id,
+                        title: entry.title,
+                        content: searchEditor.getJSON(),
+                      },
+                      entry.fingerprint,
+                    ).fields;
+                    if (JSON.stringify(fields) !== JSON.stringify(entry.fields))
+                      throw new Error("stale");
+                    if (hit.from !== undefined && hit.to !== undefined)
+                      searchEditor
+                        .chain()
+                        .setTextSelection({ from: hit.from, to: hit.to })
+                        .scrollIntoView()
+                        .run();
+                    searchEditor.commands.focus();
+                    globalSelection.current = null;
+                  } else await selectChapter(hit.id);
+                }}
+              />
               <details
                 onToggle={(event) => {
                   if (event.currentTarget.open) setChapterLinksVisited(true);

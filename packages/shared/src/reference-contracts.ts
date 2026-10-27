@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { isUuid } from "./identifiers.js";
+import type {
+  GlobalSearchEntry,
+  GlobalSearchSnapshot,
+} from "./global-search-contracts.js";
 
 export const ReferenceKindSchema = z.enum([
   "character",
@@ -135,6 +139,23 @@ export interface ReferenceCandidate extends ReferenceCandidateKey {
   revision?: number | undefined;
 }
 export const ReferenceRequestSchema = z.discriminatedUnion("operation", [
+  z.strictObject({ ...base, operation: z.literal("search-snapshot") }),
+  z.strictObject({
+    ...base,
+    operation: z.literal("search-resolve"),
+    target: z.strictObject({
+      kind: z.enum([
+        "chapter",
+        "character",
+        "location",
+        "canon",
+        "timeline",
+        "note",
+      ]),
+      id: projectId,
+    }),
+    fingerprint,
+  }),
   z.strictObject({
     ...expected,
     operation: z.literal("link-attach"),
@@ -218,6 +239,8 @@ export const ReferenceRequestSchema = z.discriminatedUnion("operation", [
 ]);
 export type ReferenceRequest = z.infer<typeof ReferenceRequestSchema>;
 export type ReferenceResponse = (
+  | { type: "search-snapshot"; snapshot: GlobalSearchSnapshot }
+  | { type: "search-entry"; entry: GlobalSearchEntry }
   | {
       type: "list";
       records: ReferenceSummary[];

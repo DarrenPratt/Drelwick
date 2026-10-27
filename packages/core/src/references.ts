@@ -1,4 +1,11 @@
 import { compareTimelineEvents } from "./timeline.js";
+import {
+  GlobalSearchIndex,
+  chapterSearchEntry,
+  referenceSearchEntry,
+} from "./global-search.js";
+import { GLOBAL_SEARCH_LIMITS, type GlobalSearchEntry } from "@drelwick/shared";
+import { assertReplacementReadable } from "./manuscript-replacement.js";
 import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -672,6 +679,76 @@ export async function executeReferenceOperation(
         assertReferenceActive(options);
         const ctx = await context(root, request.projectId),
           store = await scan(ctx);
+        if (
+          request.operation === "search-snapshot" ||
+          request.operation === "search-resolve"
+        ) {
+          await assertReplacementReadable(root);
+          const index = new GlobalSearchIndex();
+          index.incomplete = store.diagnostics.length > 0;
+          const target =
+            request.operation === "search-resolve" ? request.target : null;
+          let resolved: GlobalSearchEntry | undefined;
+          let sourceBytes = 0;
+          const chapterIds = target
+            ? target.kind === "chapter" &&
+              ctx.project.manuscript.order.includes(target.id)
+              ? [target.id]
+              : []
+            : ctx.project.manuscript.order.slice(
+                0,
+                GLOBAL_SEARCH_LIMITS.records,
+              );
+          if (
+            !target &&
+            chapterIds.length < ctx.project.manuscript.order.length
+          )
+            index.incomplete = true;
+          for (const id of chapterIds) {
+            assertReferenceActive(options);
+            try {
+              const path = join(root, "manuscript", `${id}.json`);
+              const bytes = await referenceRead(
+                path,
+                GLOBAL_SEARCH_LIMITS.chapterBytes,
+              );
+              sourceBytes += bytes.length;
+              if (sourceBytes > GLOBAL_SEARCH_LIMITS.sourceBytes) {
+                index.incomplete = true;
+                break;
+              }
+              const chapter = ChapterFileSchema.parse(decodeReference(bytes));
+              if (chapter.id !== id)
+                throw referenceError("REFERENCE_IDENTITY_INVALID");
+              const fingerprint = referenceHash(bytes);
+              ctx.chapterHashes.set(path, fingerprint);
+              const entry = chapterSearchEntry(chapter, fingerprint);
+              index.add(entry);
+              if (target) resolved = entry;
+            } catch {
+              index.incomplete = true;
+            }
+          }
+          for (const { record, fingerprint } of store.entries) {
+            if (
+              record.deletedAt !== null ||
+              (target &&
+                (record.id !== target.id || record.kind !== target.kind))
+            )
+              continue;
+            const entry = referenceSearchEntry(record, fingerprint);
+            index.add(entry);
+            if (target) resolved = entry;
+          }
+          await unchanged(ctx, store);
+          assertReferenceActive(options);
+          if (request.operation === "search-resolve") {
+            if (!resolved || resolved.fingerprint !== request.fingerprint)
+              throw referenceError("REFERENCE_STALE");
+            return { type: "search-entry", entry: resolved };
+          }
+          return { type: "search-snapshot", snapshot: index.snapshot() };
+        }
         if (request.operation === "list") {
           const entries = store.entries.filter(
             (e) => request.includeDeleted || e.record.deletedAt === null,

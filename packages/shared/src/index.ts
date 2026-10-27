@@ -13,6 +13,7 @@ import {
   type ReferenceResponse,
 } from "./reference-contracts.js";
 export * from "./reference-contracts.js";
+export * from "./global-search-contracts.js";
 import type { DocxExportReceipt } from "./docx-contracts.js";
 import type { EpubExportReceipt } from "./epub-contracts.js";
 export * from "./docx-contracts.js";
