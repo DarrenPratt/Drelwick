@@ -19,6 +19,11 @@ export * from "./chapter-loading.js";
 export * from "./chapter-saving.js";
 export * from "./chapter-rename.js";
 export * from "./history.js";
+export * from "./editorial-anchors.js";
+export * from "./editorial-undo.js";
+export * from "./editorial-transactions.js";
+export * from "./editorial-bundle.js";
+export * from "./editorial-service.js";
 export * from "./project-archive.js";
 export * from "./recovery.js";
 export * from "./project-migration.js";
@@ -42,11 +47,14 @@ import {
 import {
   BookMetadataSchema,
   ChapterFileSchema,
+  ChapterFileV2Schema,
   ChapterSummaryCacheSchema,
   CountedChapterSummarySchema,
   ProjectConfigSchema,
   ProjectConfigV2Schema,
-  ProjectFormatSchema,
+  ProjectFormatCurrentSchema,
+  ProjectFormatV2Schema,
+  EditorialStateSchema,
   type BookMetadata,
   type ChapterSummaryCache,
   type CountedChapterSummary,
@@ -216,7 +224,7 @@ async function loadProjectFiles(
   }
 
   const rawProject = await readJson("project.json");
-  assertKnownVersion(rawProject, 2);
+  assertKnownVersion(rawProject, 3);
   const migration = guardMigration
     ? await assertMigrationReadable(projectRoot, fileSystem)
     : null;
@@ -235,12 +243,34 @@ async function loadProjectFiles(
   const project = parsedProject.data;
   if (
     migration &&
-    (project.schemaVersion !== 2 || project.projectId !== migration.projectId)
+    (project.schemaVersion < 2 ||
+      project.schemaVersion > 3 ||
+      project.projectId !== migration.projectId)
   )
     throw migrationError("MIGRATION_STATE_INVALID");
-  if (project.schemaVersion === 2) {
+  if (project.schemaVersion === 2 || project.schemaVersion === 3) {
     const rawFormat = await readJson(project.formatFile);
-    assertKnownVersion(rawFormat, 1);
+    assertKnownVersion(rawFormat, project.schemaVersion === 3 ? 2 : 1);
+    if (project.schemaVersion === 3) {
+      const editorial = EditorialStateSchema.safeParse(
+        await readJson(project.editorialFile),
+      );
+      if (
+        !editorial.success ||
+        editorial.data.projectId !== project.projectId ||
+        editorial.data.generation !== project.generation
+      )
+        throw new ApplicationError(
+          "PROJECT_SCHEMA_INVALID",
+          "Invalid editorial state.",
+        );
+      const formatV2 = ProjectFormatV2Schema.safeParse(rawFormat);
+      if (!formatV2.success || formatV2.data.projectId !== project.projectId)
+        throw new ApplicationError(
+          "PROJECT_SCHEMA_INVALID",
+          "Invalid project format descriptor.",
+        );
+    }
     if (typeof rawFormat === "object" && rawFormat !== null) {
       for (const key of [
         "bookSchemaVersion",
@@ -253,11 +283,11 @@ async function loadProjectFiles(
                 ? rawFormat[key as keyof typeof rawFormat]
                 : undefined,
           },
-          1,
+          project.schemaVersion === 3 && key === "chapterSchemaVersion" ? 2 : 1,
         );
       }
     }
-    const format = ProjectFormatSchema.safeParse(rawFormat);
+    const format = ProjectFormatCurrentSchema.safeParse(rawFormat);
     if (!format.success || format.data.projectId !== project.projectId)
       throw new ApplicationError(
         "PROJECT_SCHEMA_INVALID",
@@ -290,6 +320,8 @@ async function loadProjectFiles(
     cache?.entries.map((entry) => [entry.summary.id, entry]),
   );
   const entries: ChapterSummaryCache["entries"] = [];
+  const editorialChapters: import("@drelwick/project-model").ChapterFileV2[] =
+    [];
   for (const id of project.manuscript.order) {
     const relativePath = `manuscript/${id}.json`;
     let before: Stats;
@@ -308,13 +340,20 @@ async function loadProjectFiles(
       throw error;
     }
     const cached = cachedEntries.get(id);
-    if (cached && sameFingerprint(cached, before)) {
+    if (
+      project.schemaVersion !== 3 &&
+      cached &&
+      sameFingerprint(cached, before)
+    ) {
       entries.push(cached);
       continue;
     }
     const rawChapter = await readJson(relativePath);
-    assertKnownVersion(rawChapter, 1);
-    const parsed = ChapterFileSchema.safeParse(rawChapter);
+    assertKnownVersion(rawChapter, project.schemaVersion === 3 ? 2 : 1);
+    const parsed =
+      project.schemaVersion === 3
+        ? ChapterFileV2Schema.safeParse(rawChapter)
+        : ChapterFileSchema.safeParse(rawChapter);
     if (!parsed.success) {
       throw new ApplicationError(
         "PROJECT_SCHEMA_INVALID",
@@ -327,6 +366,10 @@ async function loadProjectFiles(
         `Chapter ID does not match manuscript order: ${id}`,
       );
     }
+    if (project.schemaVersion === 3)
+      editorialChapters.push(
+        parsed.data as import("@drelwick/project-model").ChapterFileV2,
+      );
     if (!sameFingerprint(before, await inspect(relativePath))) {
       throw new ApplicationError(
         "PROJECT_CHANGED_DURING_OPEN",
@@ -339,8 +382,21 @@ async function loadProjectFiles(
       ctimeMs: before.ctimeMs,
       summary: CountedChapterSummarySchema.parse({
         ...parsed.data,
+        schemaVersion: 1,
         wordCount: countDocumentWords(parsed.data.content),
       }),
+    });
+  }
+  if (project.schemaVersion === 3) {
+    const rawEditorial = await readJson(project.editorialFile);
+    const editorial = EditorialStateSchema.parse(rawEditorial);
+    const { validateEditorialBundle } = await import("./editorial-bundle.js");
+    validateEditorialBundle({
+      projectId: project.projectId,
+      generation: project.generation,
+      chapterOrder: project.manuscript.order,
+      chapters: editorialChapters,
+      state: editorial,
     });
   }
   const nextCache: ChapterSummaryCache = {

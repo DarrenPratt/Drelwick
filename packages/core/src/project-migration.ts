@@ -45,6 +45,7 @@ import {
   syncDirectory,
 } from "./project-snapshot.js";
 import { recoverManuscriptReplacement } from "./manuscript-replacement.js";
+import { recoverEditorialTransactions } from "./editorial-transactions.js";
 
 export const MIGRATION_CHECKPOINTS = [
   "before-workspace",
@@ -154,7 +155,7 @@ async function canonicalRoot(projectPath: string): Promise<string> {
 
 async function inspectCompatibility(root: string): Promise<number> {
   const project = await regularJson(root, "project.json");
-  assertKnownVersion(project, 2);
+  assertKnownVersion(project, 3);
   return (project as { schemaVersion: number }).schemaVersion;
 }
 
@@ -165,6 +166,7 @@ export async function openProjectForEditing(
 ): Promise<OpenedProject> {
   const root = await canonicalRoot(projectPath);
   const version = await inspectCompatibility(root);
+  await recoverEditorialTransactions(root);
   await recoverManuscriptReplacement(root);
   if (version === 1 || (await exists(join(root, MIGRATION_DIRECTORY))))
     await migrateProject(root, options);
@@ -177,6 +179,7 @@ export async function recoverProjectMigration(
 ): Promise<void> {
   const root = await canonicalRoot(projectPath);
   await inspectCompatibility(root);
+  await recoverEditorialTransactions(root);
   await recoverManuscriptReplacement(root);
   if (await exists(join(root, MIGRATION_DIRECTORY))) await migrateProject(root);
 }
@@ -524,7 +527,7 @@ export async function migrateProject(
         throw migrationError("MIGRATION_STATE_INVALID");
       state = null;
     }
-    if (!state && version === 2) {
+    if (!state && (version === 2 || version === 3)) {
       await validateProjectFiles(root);
       return;
     }

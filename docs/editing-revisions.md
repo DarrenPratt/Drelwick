@@ -1,11 +1,14 @@
 # Local comments, annotations and revision workflow
 
-Status: normative technical design for #169; **not implemented runtime behaviour**.
+Status: normative technical design for #169. The #170 working branch contains a
+partial runtime implementation; it does not yet satisfy the complete #170
+acceptance matrix. See the implementation status in `editorial-format.md`.
 Product: CORE (`product:core`). Implementation owners are #170 (editorial storage
 and anchors), #171 (named snapshots), #172 (comparison) and #173 (revision mode).
 The [versioned schema contract](editorial-format.md), [synthetic examples](examples/editorial-v1/README.md)
 and [delivery reconciliation](planning/169-editorial-delivery.md) are part of this
-design. Current applications still write project v2 / chapter v1.
+design. Existing applications continue to open and create project v2 unless a
+project has been explicitly migrated with the #170 core migration operation.
 
 ## Evidence and architecture decision
 
@@ -32,8 +35,11 @@ also cannot atomically commit a shared thread split across two chapters. Therefo
 #170 introduces an explicit **project v3 gate**, chapter v2 envelopes, editorial
 state v1 and a recoverable multi-file transaction. This extends the existing
 operation-lock/atomic-write architecture; it does not claim that existing migration
-or replacement journals already implement this transaction. No v3 file is written
-by this documentation PR. Applications without v3 support reject it without writes.
+or replacement journals already implement this transaction. The #170 branch now
+has v3 schemas, a transactional migration service, recovery, and structural
+chapter-operation support. Desktop project opening does not migrate implicitly;
+the annotation sidebar offers an explicit confirmed upgrade from an open chapter.
+Applications without v3 support reject the format without writes.
 
 Manuscript/editorial project files remain authoritative and extractable as JSON.
 EPUB, PDF and DOCX publication outputs are projections, never authorities. A cache

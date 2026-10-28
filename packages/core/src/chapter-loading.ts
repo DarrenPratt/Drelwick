@@ -2,7 +2,9 @@ import { lstat, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { ApplicationError } from "@drelwick/shared";
 import {
+  ChapterFileV2Schema,
   ChapterFileSchema,
+  ProjectConfigSchema,
   ManuscriptDocumentSchema,
 } from "@drelwick/project-model";
 import { openProject } from "./index.js";
@@ -41,9 +43,14 @@ export async function loadChapter(
         "PROJECT_PATH_INVALID",
         "Expected a regular chapter file.",
       );
-    const parsed = ChapterFileSchema.safeParse(
-      JSON.parse(await readFile(path, "utf8")) as unknown,
+    const raw = JSON.parse(await readFile(path, "utf8")) as unknown;
+    const project = ProjectConfigSchema.parse(
+      JSON.parse(await readFile(join(root, "project.json"), "utf8")) as unknown,
     );
+    const parsed =
+      project.schemaVersion === 3
+        ? ChapterFileV2Schema.safeParse(raw)
+        : ChapterFileSchema.safeParse(raw);
     if (!parsed.success || parsed.data.id !== input.chapterId)
       throw new ApplicationError(
         "PROJECT_SCHEMA_INVALID",

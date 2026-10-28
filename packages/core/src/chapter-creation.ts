@@ -13,8 +13,11 @@ import { isAbsolute, join } from "node:path";
 import { ApplicationError, createIsoDate, createUuid } from "@drelwick/shared";
 import {
   ChapterFileSchema,
+  ChapterFileV2Schema,
   CountedChapterSummarySchema,
+  EditorialStateSchema,
   ProjectConfigSchema,
+  ProjectConfigV3Schema,
   type ChapterFile,
   type ProjectConfig,
 } from "@drelwick/project-model";
@@ -24,6 +27,7 @@ import {
   type OpenedProject,
   type ProjectLoadingFileSystem,
 } from "./index.js";
+import { commitEditorialTransaction } from "./editorial-transactions.js";
 
 export const CHAPTER_CREATION_LOCK = ".chapter-create.lock";
 
@@ -33,7 +37,7 @@ export interface CreateChapterInput {
 }
 
 export interface CreatedChapter {
-  chapter: ChapterFile;
+  chapter: ChapterFile | import("@drelwick/project-model").ChapterFileV2;
   session: OpenedProject;
   warning?: string;
 }
@@ -107,6 +111,13 @@ export async function createChapter(
     );
   }
   const lock = join(root, CHAPTER_CREATION_LOCK);
+  const header = ProjectConfigSchema.safeParse(
+    JSON.parse(
+      await fs.readFile(join(root, "project.json"), "utf8"),
+    ) as unknown,
+  );
+  if (header.success && header.data.schemaVersion === 3)
+    return createEditorialChapter(root, input.title.trim());
   try {
     await fs.mkdir(lock);
   } catch (error) {
@@ -219,4 +230,85 @@ export async function createChapter(
           "The chapter was created, but its creation lock could not be removed. Close other project processes and inspect the lock before creating another chapter.";
     }
   }
+}
+
+async function createEditorialChapter(
+  root: string,
+  title: string,
+): Promise<CreatedChapter> {
+  const session = await openProject(root, { rebuildSummaries: true });
+  if (session.project.schemaVersion !== 3)
+    throw new ApplicationError(
+      "PROJECT_CHANGED_DURING_CREATE",
+      "The project changed during chapter creation.",
+    );
+  const now = createIsoDate();
+  const id = createUuid();
+  for (const suffix of [".json", ".json.tmp"]) {
+    try {
+      await lstat(join(root, "manuscript", `${id}${suffix}`));
+      throw new ApplicationError(
+        "CHAPTER_ID_COLLISION",
+        "Unable to allocate a chapter identity. Retry the operation.",
+      );
+    } catch (error) {
+      if (!(
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ))
+        throw error;
+    }
+  }
+  const content = { type: "doc", content: [{ type: "paragraph" }] };
+  const chapter = ChapterFileV2Schema.parse({
+    schemaVersion: 2,
+    id,
+    title,
+    type: "chapter",
+    status: "draft",
+    created: now,
+    modified: now,
+    revision: 1,
+    content,
+    review: { schemaVersion: 1, mode: "off", proposed: content, pending: [] },
+  });
+  const state = EditorialStateSchema.parse(
+    JSON.parse(
+      await readFile(join(root, session.project.editorialFile), "utf8"),
+    ) as unknown,
+  );
+  const nextState = { ...state, generation: state.generation + 1 };
+  const nextProject = ProjectConfigV3Schema.parse({
+    ...session.project,
+    modified: now,
+    generation: session.project.generation + 1,
+    manuscript: {
+      ...session.project.manuscript,
+      order: [...session.project.manuscript.order, id],
+    },
+  });
+  const path = `manuscript/${id}.json`;
+  await commitEditorialTransaction({
+    projectPath: root,
+    projectId: session.project.projectId,
+    kind: "structure",
+    expectedGeneration: session.project.generation,
+    expectedBefore: { [path]: null },
+    changes: [
+      { path, after: Buffer.from(`${JSON.stringify(chapter, null, 2)}\n`) },
+      {
+        path: session.project.editorialFile,
+        after: Buffer.from(`${JSON.stringify(nextState, null, 2)}\n`),
+      },
+      {
+        path: "project.json",
+        after: Buffer.from(`${JSON.stringify(nextProject, null, 2)}\n`),
+      },
+    ],
+  });
+  return {
+    chapter,
+    session: await openProject(root, { rebuildSummaries: true }),
+  };
 }

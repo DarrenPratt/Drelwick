@@ -9,6 +9,8 @@ import { DOMParser as ProseMirrorDOMParser } from "@tiptap/pm/model";
 import { useEffect, useState } from "react";
 import { createManuscriptExtensions } from "./manuscript-extensions.js";
 import { SpellingPanel } from "./SpellingPanel.js";
+import { EditorialSidebar } from "../EditorialSidebar.js";
+import type { CapturedManuscriptTransaction } from "../document-state.js";
 
 const escapedCharacters: Record<string, string> = {
   "&": "&amp;",
@@ -103,6 +105,7 @@ export function sanitizePastedHtml(html: string): string {
 }
 
 interface EditorProps {
+  onEditorialDirtyChange?(dirty: boolean): void;
   onReady?(editor: TipTapEditor | null): void;
   projectId?: string;
   chapterId?: string;
@@ -111,7 +114,10 @@ interface EditorProps {
   editable?: boolean;
   title?: string;
   chapterLabel?: string;
-  onChange(content: JSONContent): void;
+  onChange(
+    content: JSONContent,
+    transaction?: CapturedManuscriptTransaction,
+  ): void;
 }
 
 export function Editor({
@@ -124,17 +130,27 @@ export function Editor({
   chapterId,
   prepareImageImport,
   onReady,
+  onEditorialDirtyChange,
 }: EditorProps) {
   const [linkError, setLinkError] = useState<string>();
   const [imageError, setImageError] = useState<string>();
   const [importing, setImporting] = useState(false);
   const [spellingOpen, setSpellingOpen] = useState(false);
+  const editorialApiAvailable =
+    typeof window !== "undefined" &&
+    typeof window.drelwick?.project?.editorial === "function";
   const editor = useEditor({
     extensions: createManuscriptExtensions(projectId),
     content,
     editable,
     immediatelyRender: false,
-    onUpdate: ({ editor: current }) => onChange(current.getJSON()),
+    onUpdate: ({ editor: current, transaction }) =>
+      onChange(current.getJSON(), {
+        before: transaction.before.toJSON() as JSONContent,
+        steps: transaction.steps.map(
+          (step) => step.toJSON() as Record<string, unknown>,
+        ),
+      }),
     editorProps: {
       attributes: {
         spellcheck: "false",
@@ -502,6 +518,21 @@ export function Editor({
         )}
         <EditorContent editor={editor} />
       </div>
+      {editor &&
+        editorialApiAvailable &&
+        projectId &&
+        chapterId &&
+        prepareImageImport && (
+          <EditorialSidebar
+            editor={editor}
+            projectId={projectId}
+            chapterId={chapterId}
+            flushManuscript={prepareImageImport}
+            {...(onEditorialDirtyChange
+              ? { onDirtyChange: onEditorialDirtyChange }
+              : {})}
+          />
+        )}
     </section>
   );
 }

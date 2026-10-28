@@ -117,6 +117,15 @@ describe("portable project archive", () => {
     const asset = Buffer.from("synthetic cover asset\n", "utf8");
     await mkdir(join(fixture.projectPath, "assets"), { recursive: true });
     await writeFile(join(fixture.projectPath, "assets", "cover.svg"), asset);
+    const editorial = Buffer.from(
+      '{"synthetic":"PRIVATE_EDITORIAL_CANARY"}\n',
+      "utf8",
+    );
+    await mkdir(join(fixture.projectPath, ".editorial"), { recursive: true });
+    await writeFile(
+      join(fixture.projectPath, ".editorial", "state.json"),
+      editorial,
+    );
     const history = Buffer.from('{"synthetic":"recovery history"}\n', "utf8");
     await mkdir(
       join(fixture.projectPath, ".history", "snapshots", "synthetic"),
@@ -143,6 +152,7 @@ describe("portable project archive", () => {
     );
     const names = (await readZip(archive)).map(({ name }) => name);
     expect(names).toContain("assets/cover.svg");
+    expect(names).toContain(".editorial/state.json");
     expect(names).toContain(".history/snapshots/synthetic/saved.json");
 
     const restored = await restoreProjectArchive({
@@ -164,6 +174,9 @@ describe("portable project archive", () => {
     expect(
       await readFile(join(restored.projectPath, "assets", "cover.svg")),
     ).toEqual(asset);
+    expect(
+      await readFile(join(restored.projectPath, ".editorial", "state.json")),
+    ).toEqual(editorial);
     expect(
       await readFile(
         join(

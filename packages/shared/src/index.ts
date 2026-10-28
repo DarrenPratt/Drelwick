@@ -140,6 +140,7 @@ export const IPC = {
   HISTORY_PREVIEW: "history:preview",
   HISTORY_RESTORE: "history:restore",
   CHAPTER_ORGANISE: "chapter:organise",
+  EDITORIAL_ACTION: "editorial:action",
   MANUSCRIPT_REPLACE: "manuscript:replace",
   MANUSCRIPT_CANCEL_REPLACE: "manuscript:cancel-replace",
   IMPORT_INSPECT: "import:inspect",
@@ -260,6 +261,91 @@ const PreviewIdentitySchema = z
     revision: z.string().regex(/^[0-9a-f]{64}$/),
   })
   .strict();
+export const EditorialActionSchema = z.discriminatedUnion("operation", [
+  z
+    .object({
+      operation: z.literal("update-comment"),
+      projectId: z.string().uuid(),
+      threadId: z.string().uuid(),
+      commentId: z.string().uuid(),
+      body: z.string().max(100_000).nullable(),
+    })
+    .strict(),
+  z
+    .object({ operation: z.literal("drafts"), projectId: z.string().uuid() })
+    .strict(),
+  z
+    .object({ operation: z.literal("migrate"), projectId: z.string().uuid() })
+    .strict(),
+  z
+    .object({
+      operation: z.literal("get"),
+      projectId: z.string().uuid(),
+      chapterId: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal("create"),
+      projectId: z.string().uuid(),
+      chapterId: z.string().uuid(),
+      from: z.number().int().nonnegative(),
+      to: z.number().int().nonnegative(),
+      kind: z.enum(["comment", "note", "highlight"]),
+      colour: z.enum(["yellow", "blue", "green", "pink"]).optional(),
+      body: z.string().max(100_000).optional(),
+      authorLabel: z.string().max(256).nullable().optional(),
+      evidence: z
+        .object({
+          slice: z
+            .object({
+              content: z.array(z.record(z.string(), z.unknown())),
+              openStart: z.number().int().nonnegative(),
+              openEnd: z.number().int().nonnegative(),
+            })
+            .strict(),
+          prefix: z.string().max(256),
+          suffix: z.string().max(256),
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal("reply"),
+      projectId: z.string().uuid(),
+      threadId: z.string().uuid(),
+      body: z.string().trim().min(1).max(100_000),
+      authorLabel: z.string().max(256).nullable().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal("resolve"),
+      projectId: z.string().uuid(),
+      threadId: z.string().uuid(),
+      resolved: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal("delete"),
+      projectId: z.string().uuid(),
+      annotationId: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal("reattach"),
+      projectId: z.string().uuid(),
+      anchorId: z.string().uuid(),
+      chapterId: z.string().uuid(),
+      from: z.number().int().nonnegative(),
+      to: z.number().int().nonnegative(),
+    })
+    .strict(),
+]);
+export type EditorialAction = z.infer<typeof EditorialActionSchema>;
 export interface RecentProject {
   id: string;
   path: string;
@@ -270,6 +356,7 @@ export type ProjectOperationResult<T> =
   | { ok: false; error: { code: string; message: string } };
 
 export const IpcRequestSchemas = {
+  [IPC.EDITORIAL_ACTION]: EditorialActionSchema,
   [IPC.REFERENCE_EXECUTE]: ReferenceRequestSchema,
   [IPC.PRINT_GET]: z.object({ projectId: z.string().uuid() }).strict(),
   [IPC.PRINT_EXPORT]: PrintExportRequestSchema,
@@ -448,6 +535,9 @@ export interface DrelwickApi {
   ): () => void;
   onShutdownRequested(callback: () => Promise<boolean>): () => void;
   project: {
+    editorial(
+      action: EditorialAction,
+    ): Promise<ProjectOperationResult<unknown>>;
     getPublication(input: {
       projectId: string;
     }): Promise<ProjectOperationResult<PublicationState>>;

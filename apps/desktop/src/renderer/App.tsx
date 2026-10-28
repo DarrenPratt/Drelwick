@@ -144,6 +144,10 @@ export function App() {
   }, []);
   const timelineEditor = useRef<TimelineEditorHandle | null>(null);
   const locationEditor = useRef<LocationEditorHandle | null>(null);
+  const editorialDirty = useRef(false);
+  const editorialDirtyChanged = useCallback((dirty: boolean) => {
+    editorialDirty.current = dirty;
+  }, []);
   const [printPreview, setPrintPreview] = useState<PrintPreview | null>(null);
   const [printConfiguration, setPrintConfiguration] =
     useState<PrintConfigurationState | null>(null);
@@ -481,6 +485,7 @@ export function App() {
       if (
         !pending.current &&
         !isDocumentDirty(documentRef.current) &&
+        !editorialDirty.current &&
         !savePending.current
       )
         return;
@@ -504,6 +509,12 @@ export function App() {
 
   useEffect(() => {
     return window.drelwick.onShutdownRequested(async () => {
+      if (editorialDirty.current) {
+        setError(
+          "Save or explicitly discard annotation drafts in the sidebar before closing.",
+        );
+        return false;
+      }
       if (pending.current || chapterLinks.current?.isBusy()) {
         setError("Wait for the current project operation before closing.");
         return false;
@@ -658,6 +669,12 @@ export function App() {
   }, [saveActiveChapter]);
 
   const canLeaveChapter = useCallback(() => {
+    if (editorialDirty.current) {
+      setError(
+        "Save or explicitly discard annotation drafts in the sidebar before switching.",
+      );
+      return false;
+    }
     if (canonEditor.current?.isDirty() || noteEditor.current?.isDirty()) {
       void flushCanonResearch();
       setError(
@@ -699,6 +716,12 @@ export function App() {
   }, [changingDocument, flushCanonResearch]);
 
   async function selectChapter(chapterId: string) {
+    if (editorialDirty.current) {
+      setError(
+        "Save or explicitly discard annotation drafts in the sidebar before changing chapters.",
+      );
+      return;
+    }
     if (
       pending.current ||
       replacing ||
@@ -2238,6 +2261,7 @@ export function App() {
               <>
                 {documentReady && documentState ? (
                   <Editor
+                    onEditorialDirtyChange={editorialDirtyChanged}
                     onReady={editorReady}
                     projectId={project.projectId}
                     prepareImageImport={async () =>
@@ -2253,11 +2277,12 @@ export function App() {
                     }
                     chapterLabel={`CHAPTER ${String(project.chapters.findIndex((chapter) => chapter.id === activeChapterId) + 1).padStart(2, "0")}`}
                     content={documentState.content}
-                    onChange={(content) => {
+                    onChange={(content, transaction) => {
                       dispatchDocument({
                         type: "edited",
                         key: chapterKey,
                         content,
+                        ...(transaction ? { transaction } : {}),
                       });
                       autosave.current?.edited();
                       if (!activeChapterId) return;

@@ -2,7 +2,9 @@ import { lstat, mkdir, readFile, realpath, rmdir } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { ApplicationError, createIsoDate } from "@drelwick/shared";
 import {
+  EditorialStateSchema,
   ProjectConfigSchema,
+  ProjectConfigV3Schema,
   type ProjectConfig,
 } from "@drelwick/project-model";
 import {
@@ -12,6 +14,7 @@ import {
   type OpenedProject,
   type ProjectLoadingFileSystem,
 } from "./index.js";
+import { commitEditorialTransaction } from "./editorial-transactions.js";
 
 export interface ReorderChaptersInput {
   projectPath: string;
@@ -88,6 +91,61 @@ export async function reorderChapters(
     );
   }
   const lock = join(root, CHAPTER_CREATION_LOCK);
+  const initial = await openProject(root, { rebuildSummaries: true }, fs);
+  if (initial.project.schemaVersion === 3) {
+    const currentSet = new Set(
+      initial.project.manuscript.order.map((id) => id.toLowerCase()),
+    );
+    if (
+      normalizedIds.length !== currentSet.size ||
+      normalizedIds.some((id) => !currentSet.has(id.toLowerCase()))
+    )
+      throw new ApplicationError(
+        "PROJECT_ORDER_INVALID",
+        "Chapter order must contain every chapter in the project exactly once.",
+      );
+    const now = createIsoDate();
+    const state = EditorialStateSchema.parse(
+      JSON.parse(
+        await fs.readFile(join(root, initial.project.editorialFile), "utf8"),
+      ) as unknown,
+    );
+    const nextState = { ...state, generation: state.generation + 1 };
+    const project = ProjectConfigV3Schema.parse({
+      ...initial.project,
+      modified: now,
+      generation: initial.project.generation + 1,
+      manuscript: { ...initial.project.manuscript, order: normalizedIds },
+    });
+    await commitEditorialTransaction({
+      projectPath: root,
+      projectId: project.projectId,
+      kind: "structure",
+      expectedGeneration: initial.project.generation,
+      changes: [
+        {
+          path: project.editorialFile,
+          after: Buffer.from(`${JSON.stringify(nextState, null, 2)}\n`),
+        },
+        {
+          path: "project.json",
+          after: Buffer.from(`${JSON.stringify(project, null, 2)}\n`),
+        },
+      ],
+    });
+    const byId = new Map(
+      initial.chapters.map((item) => [item.id.toLowerCase(), item]),
+    );
+    return {
+      session: {
+        ...initial,
+        project,
+        chapters: normalizedIds
+          .map((id) => byId.get(id.toLowerCase())!)
+          .filter(Boolean),
+      },
+    };
+  }
   try {
     await fs.mkdir(lock);
   } catch (error) {

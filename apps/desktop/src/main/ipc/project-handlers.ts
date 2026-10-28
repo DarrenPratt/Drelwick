@@ -33,6 +33,15 @@ import {
   reorderChapters,
   restoreProjectArchive,
   renameChapter,
+  createEditorialAnnotation,
+  readEditorialChapter,
+  replyToEditorialThread,
+  setEditorialThreadResolved,
+  tombstoneEditorialAnnotation,
+  reattachEditorialAnchor,
+  migrateProjectToEditorialV3,
+  listEditorialTransactionDrafts,
+  updateEditorialComment,
   type ReorderChaptersInput,
   type RenameChapterInput,
 } from "@drelwick/core";
@@ -2359,6 +2368,130 @@ export function registerProjectHandlers(
       }
     },
   );
+
+  ipcMain.handle(IPC.EDITORIAL_ACTION, async (event, payload: unknown) => {
+    if (!trusted(event))
+      return failure(
+        "PROJECT_ACCESS_DENIED",
+        "Project access is not permitted.",
+      );
+    const parsed = IpcRequestSchemas[IPC.EDITORIAL_ACTION].safeParse(payload);
+    if (!parsed.success)
+      return failure("EDITORIAL_INPUT_INVALID", "Invalid annotation request.");
+    if (!activeProjectPath || parsed.data.projectId !== activeProjectId)
+      return failure(
+        "PROJECT_NOT_OPEN",
+        "Open the project before using annotations.",
+      );
+    if (busy)
+      return failure(
+        "PROJECT_BUSY",
+        "Wait for the current project operation and retry.",
+      );
+    const projectPath = activeProjectPath;
+    busy = true;
+    try {
+      await history.settleProject(projectPath);
+      const action = parsed.data;
+      let value: unknown;
+      switch (action.operation) {
+        case "update-comment":
+          value = await updateEditorialComment({
+            projectPath,
+            threadId: action.threadId,
+            commentId: action.commentId,
+            body: action.body,
+          });
+          break;
+        case "drafts":
+          value = await listEditorialTransactionDrafts({
+            projectPath,
+            projectId: action.projectId,
+          });
+          break;
+        case "migrate":
+          value = await migrateProjectToEditorialV3(projectPath);
+          break;
+        case "get":
+          value = await readEditorialChapter({
+            projectPath,
+            chapterId: action.chapterId,
+          });
+          break;
+        case "create":
+          value = await createEditorialAnnotation({
+            projectPath,
+            chapterId: action.chapterId,
+            from: action.from,
+            to: action.to,
+            kind: action.kind,
+            evidence: action.evidence,
+            ...(action.colour !== undefined ? { colour: action.colour } : {}),
+            ...(action.body !== undefined ? { body: action.body } : {}),
+            ...(action.authorLabel !== undefined
+              ? { authorLabel: action.authorLabel }
+              : {}),
+          });
+          break;
+        case "reply":
+          value = await replyToEditorialThread({
+            projectPath,
+            threadId: action.threadId,
+            body: action.body,
+            ...(action.authorLabel !== undefined
+              ? { authorLabel: action.authorLabel }
+              : {}),
+          });
+          break;
+        case "resolve":
+          value = await setEditorialThreadResolved({ ...action, projectPath });
+          break;
+        case "delete":
+          value = await tombstoneEditorialAnnotation({
+            projectPath,
+            annotationId: action.annotationId,
+          });
+          break;
+        case "reattach":
+          value = await reattachEditorialAnchor({ ...action, projectPath });
+          break;
+      }
+      if (!trusted(event) || activeProjectPath !== projectPath)
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      return { ok: true, value };
+    } catch (error) {
+      const code =
+        error instanceof ApplicationError
+          ? error.code
+          : "EDITORIAL_SAVE_FAILED";
+      const messages: Record<string, string> = {
+        EDITORIAL_UNAVAILABLE:
+          "This project version does not support local annotations.",
+        EDITORIAL_UNSUPPORTED:
+          "This project contains files that cannot be migrated safely. Preserve the project and review its recovery files.",
+        EDITORIAL_RECOVERY_REQUIRED:
+          "Project recovery must be completed before enabling annotations. Reopen the project and preserve its recovery files.",
+        EDITORIAL_STALE:
+          "The project changed. Refresh the annotations and retry.",
+        EDITORIAL_NOT_FOUND:
+          "The annotation or discussion is no longer available.",
+        CHAPTER_NOT_FOUND: "The selected chapter is no longer available.",
+        EDITORIAL_RANGE_INVALID: "Select a valid manuscript range.",
+        PROJECT_BUSY:
+          "Another project operation is running. Retry when it finishes.",
+      };
+      return failure(
+        code,
+        messages[code] ??
+          "Unable to save the annotation. Your manuscript remains unchanged.",
+      );
+    } finally {
+      busy = false;
+    }
+  });
 
   return {
     authorizeImport(

@@ -10,8 +10,10 @@ import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import {
   ChapterFileSchema,
+  ChapterFileV2Schema,
   ProjectConfigSchema,
   ProjectFormatSchema,
+  ProjectFormatV2Schema,
   ReferenceRecordSchema,
   ReferenceInputSchema,
   ReferenceDraftSchema,
@@ -123,8 +125,12 @@ async function context(root: string, projectId: string): Promise<Context> {
   const parsed = ProjectConfigSchema.safeParse(decodeReference(bytes));
   if (!parsed.success || parsed.data.projectId !== projectId)
     throw referenceError("REFERENCE_PROJECT_INVALID");
-  if (parsed.data.schemaVersion === 2) {
-    const format = ProjectFormatSchema.safeParse(
+  if (parsed.data.schemaVersion >= 2) {
+    const format = (
+      parsed.data.schemaVersion === 3
+        ? ProjectFormatV2Schema
+        : ProjectFormatSchema
+    ).safeParse(
       decodeReference(await referenceRead(join(root, "format.json"))),
     );
     if (!format.success || format.data.projectId !== projectId)
@@ -259,10 +265,13 @@ async function targetStatus(
         "schemaVersion" in raw &&
         typeof raw.schemaVersion === "number" &&
         Number.isInteger(raw.schemaVersion) &&
-        raw.schemaVersion > 1
+        raw.schemaVersion > (ctx.project.schemaVersion === 3 ? 2 : 1)
       )
         return "unsupported";
-      const chapter = ChapterFileSchema.safeParse(raw);
+      const chapter =
+        ctx.project.schemaVersion === 3
+          ? ChapterFileV2Schema.safeParse(raw)
+          : ChapterFileSchema.safeParse(raw);
       return chapter.success && chapter.data.id === chapterId
         ? "resolved"
         : "invalid";
@@ -717,11 +726,23 @@ export async function executeReferenceOperation(
                 index.incomplete = true;
                 break;
               }
-              const chapter = ChapterFileSchema.parse(decodeReference(bytes));
-              if (chapter.id !== id)
+              const raw = decodeReference(bytes);
+              const parsedChapter =
+                ctx.project.schemaVersion === 3
+                  ? ChapterFileV2Schema.parse(raw)
+                  : ChapterFileSchema.parse(raw);
+              if (parsedChapter.id !== id)
                 throw referenceError("REFERENCE_IDENTITY_INVALID");
               const fingerprint = referenceHash(bytes);
               ctx.chapterHashes.set(path, fingerprint);
+              const chapter =
+                parsedChapter.schemaVersion === 2
+                  ? {
+                      ...parsedChapter,
+                      schemaVersion: 1 as const,
+                      content: parsedChapter.review.proposed,
+                    }
+                  : parsedChapter;
               const entry = chapterSearchEntry(chapter, fingerprint);
               index.add(entry);
               if (target) resolved = entry;
@@ -977,7 +998,7 @@ export async function executeReferenceOperation(
             candidateHash: request.fingerprint,
           });
         }
-        if (ctx.project.schemaVersion !== 2)
+        if (ctx.project.schemaVersion < 2)
           throw referenceError("REFERENCE_MIGRATION_REQUIRED");
         if (store.diagnostics.length)
           throw referenceError("REFERENCE_READ_ONLY");

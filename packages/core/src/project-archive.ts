@@ -50,7 +50,9 @@ const knownProjectDirectories = new Set([
   "backmatter",
   "assets",
   "reference",
+  "editorial",
   "styles",
+  ".editorial",
 ]);
 const knownProjectRoots = new Set([
   "project.json",

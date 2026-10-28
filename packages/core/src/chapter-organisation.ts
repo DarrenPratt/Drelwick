@@ -3,14 +3,18 @@ import { isAbsolute, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
   ChapterFileSchema,
+  ChapterFileV2Schema,
+  EditorialStateSchema,
   ManuscriptDocumentSchema,
   ProjectConfigSchema,
+  ProjectConfigV3Schema,
   type ReplacementJournal,
 } from "@drelwick/project-model";
 import {
   ApplicationError,
   ChapterOrganisationRequestSchema,
   createUuid,
+  createIsoDate,
   type ChapterOrganisationRequest,
 } from "@drelwick/shared";
 import { openProject, type OpenedProject } from "./index.js";
@@ -25,6 +29,13 @@ import {
 } from "./chapter-semantics.js";
 import { assertRegularPath } from "./project-snapshot.js";
 import { isMissing } from "./migration-state.js";
+import { commitEditorialTransaction } from "./editorial-transactions.js";
+import { editorialDocumentHash } from "./editorial-bundle.js";
+import {
+  mergeEditorialAnchors,
+  splitEditorialAnchors,
+} from "./editorial-anchors.js";
+import { createHistorySnapshot } from "./history.js";
 
 const chapterSchema = ChapterFileSchema.extend({
   content: ManuscriptDocumentSchema,
@@ -42,6 +53,9 @@ export async function organiseChapter(
       "Invalid chapter operation.",
     );
   const command = parsed.data;
+  const opened = await openProject(projectPath).catch(() => null);
+  if (opened?.project.schemaVersion === 3)
+    return organiseEditorialChapter(projectPath, command);
   let chapterId: string;
   try {
     chapterId = await commitChapterTransaction(
@@ -212,4 +226,262 @@ export async function organiseChapter(
       "The operation completed but the workspace could not reload. Reopen the project before editing.",
     );
   }
+}
+
+async function organiseEditorialChapter(
+  projectPath: string,
+  command: ChapterOrganisationRequest,
+): Promise<{ session: OpenedProject; chapterId: string }> {
+  const session = await openProject(projectPath, { rebuildSummaries: true });
+  if (
+    session.project.schemaVersion !== 3 ||
+    session.project.projectId !== command.projectId ||
+    !isDeepStrictEqual(session.project.manuscript.order, command.expectedOrder)
+  )
+    throw new ApplicationError(
+      "CHAPTER_OPERATION_STALE",
+      "The chapter list changed. Refresh and retry.",
+    );
+  const order = session.project.manuscript.order;
+  const selected =
+    command.operation === "merge" ? command.chapterIds : [command.chapterId];
+  if (
+    new Set(selected).size !== selected.length ||
+    selected.some((id) => !order.includes(id))
+  )
+    throw new ApplicationError(
+      "CHAPTER_OPERATION_INVALID",
+      "The selected chapters are no longer available.",
+    );
+  const ids = order.filter((id) => selected.includes(id));
+  if (
+    command.operation === "merge" &&
+    order.indexOf(ids[1]!) !== order.indexOf(ids[0]!) + 1
+  )
+    throw new ApplicationError(
+      "CHAPTER_OPERATION_INVALID",
+      "Select adjacent chapters to merge.",
+    );
+  const chapters = new Map<
+    string,
+    import("@drelwick/project-model").ChapterFileV2
+  >();
+  for (const id of ids) {
+    const path = join(projectPath, "manuscript", `${id}.json`);
+    await assertRegularPath(projectPath, `manuscript/${id}.json`);
+    try {
+      await lstat(`${path}.tmp`);
+      throw new ApplicationError(
+        "CHAPTER_RECOVERY_REQUIRED",
+        "A chapter has pending recovery data. Preserve it before restructuring.",
+      );
+    } catch (error) {
+      if (!isMissing(error)) throw error;
+    }
+    const parsed = ChapterFileV2Schema.safeParse(
+      JSON.parse(await readFile(path, "utf8")) as unknown,
+    );
+    if (!parsed.success || parsed.data.id !== id)
+      throw new ApplicationError(
+        "PROJECT_SCHEMA_INVALID",
+        "A selected chapter is invalid.",
+      );
+    chapters.set(id, parsed.data);
+  }
+  const statePath = join(projectPath, session.project.editorialFile);
+  const state = EditorialStateSchema.parse(
+    JSON.parse(await readFile(statePath, "utf8")) as unknown,
+  );
+  const now = createIsoDate();
+  let resultId = command.operation === "merge" ? ids[0]! : command.chapterId;
+  let nextOrder = [...order];
+  const updates = new Map<
+    string,
+    import("@drelwick/project-model").ChapterFileV2 | null
+  >();
+  let anchors = state.anchors;
+  if (command.operation === "status") {
+    const chapter = chapters.get(command.chapterId)!;
+    updates.set(
+      chapter.id,
+      ChapterFileV2Schema.parse({
+        ...chapter,
+        status: command.status,
+        modified: now,
+      }),
+    );
+  } else if (command.operation === "merge") {
+    const first = chapters.get(ids[0]!)!;
+    const second = chapters.get(ids[1]!)!;
+    const content = ManuscriptDocumentSchema.parse(
+      mergeChapterDocuments(first.content, second.content),
+    );
+    const merged = ChapterFileV2Schema.parse({
+      ...first,
+      modified: now,
+      revision: first.revision + 1,
+      content,
+      review: { ...first.review, proposed: content },
+    });
+    updates.set(first.id, merged);
+    updates.set(second.id, null);
+    nextOrder = order.filter((id) => id !== second.id);
+    anchors = mergeEditorialAnchors(
+      state.anchors,
+      second.id,
+      first.id,
+      documentSize(first.content),
+      merged.revision,
+      editorialDocumentHash(content),
+    );
+  } else {
+    const first = chapters.get(command.chapterId)!;
+    const newId = createUuid();
+    if (order.includes(newId))
+      throw new ApplicationError(
+        "CHAPTER_OPERATION_INVALID",
+        "Unable to allocate a chapter identity.",
+      );
+    for (const suffix of [".json", ".json.tmp"]) {
+      try {
+        await lstat(join(projectPath, "manuscript", `${newId}${suffix}`));
+        throw new ApplicationError(
+          "CHAPTER_OPERATION_INVALID",
+          "Unable to allocate a chapter identity.",
+        );
+      } catch (error) {
+        if (!isMissing(error)) throw error;
+      }
+    }
+    resultId = newId;
+    if (command.operation === "split") {
+      if (!isDeepStrictEqual(first.content, command.expectedContent))
+        throw new ApplicationError(
+          "CHAPTER_OPERATION_STALE",
+          "The chapter changed. Refresh the split position and retry.",
+        );
+      const [left, right] = splitChapterDocument(
+        first.content,
+        command.position,
+      );
+      const previousRevision = first.revision + 1;
+      const updated = ChapterFileV2Schema.parse({
+        ...first,
+        modified: now,
+        revision: previousRevision,
+        content: left,
+        review: { ...first.review, proposed: left },
+      });
+      const continued = ChapterFileV2Schema.parse({
+        ...first,
+        id: newId,
+        title: `${first.title.slice(0, 190)} Continued`,
+        created: now,
+        modified: now,
+        revision: 1,
+        content: right,
+        review: { schemaVersion: 1, mode: "off", proposed: right, pending: [] },
+      });
+      updates.set(first.id, updated);
+      updates.set(newId, continued);
+      anchors = splitEditorialAnchors(
+        state.anchors,
+        first.id,
+        first.id,
+        newId,
+        command.position,
+        updated.revision,
+        continued.revision,
+        editorialDocumentHash(left),
+        editorialDocumentHash(right),
+      );
+    } else {
+      const duplicate = ChapterFileV2Schema.parse({
+        ...first,
+        id: newId,
+        title: `${first.title.slice(0, 190)} Copy`,
+        created: now,
+        modified: now,
+        revision: 1,
+        review: {
+          schemaVersion: 1,
+          mode: "off",
+          proposed: first.content,
+          pending: [],
+        },
+      });
+      updates.set(newId, duplicate);
+    }
+    nextOrder.splice(order.indexOf(first.id) + 1, 0, newId);
+  }
+  for (const chapter of chapters.values()) {
+    if (
+      command.operation === "duplicate" ||
+      (command.operation === "status" && chapter.id !== command.chapterId)
+    )
+      continue;
+    const safety = await createHistorySnapshot({
+      projectPath,
+      chapterId: chapter.id,
+      document: chapter.content,
+      reason: "before-restructure",
+    });
+    if (!safety)
+      throw new ApplicationError(
+        "HISTORY_SNAPSHOT_WRITE_FAILED",
+        "Unable to preserve the chapter before restructuring.",
+      );
+  }
+  const nextState = EditorialStateSchema.parse({
+    ...state,
+    generation: state.generation + 1,
+    anchors,
+  });
+  const nextProject = ProjectConfigV3Schema.parse({
+    ...session.project,
+    modified: now,
+    generation: session.project.generation + 1,
+    manuscript: { ...session.project.manuscript, order: nextOrder },
+  });
+  const changes = [
+    ...[...updates.entries()].map(([id, chapter]) => ({
+      path: `manuscript/${id}.json`,
+      after:
+        chapter === null
+          ? null
+          : Buffer.from(`${JSON.stringify(chapter, null, 2)}\n`),
+    })),
+    {
+      path: session.project.editorialFile,
+      after: Buffer.from(`${JSON.stringify(nextState, null, 2)}\n`),
+    },
+    {
+      path: "project.json",
+      after: Buffer.from(`${JSON.stringify(nextProject, null, 2)}\n`),
+    },
+  ];
+  await commitEditorialTransaction({
+    projectPath,
+    projectId: session.project.projectId,
+    kind: "structure",
+    expectedGeneration: session.project.generation,
+    changes,
+  });
+  return {
+    session: await openProject(projectPath, { rebuildSummaries: true }),
+    chapterId: resultId,
+  };
+}
+
+function documentSize(value: unknown): number {
+  if (value === null || typeof value !== "object") return 0;
+  const node = value as { type?: unknown; text?: unknown; content?: unknown };
+  if (node.type === "text")
+    return typeof node.text === "string" ? node.text.length : 0;
+  if (!Array.isArray(node.content)) return node.type === "doc" ? 0 : 1;
+  const size = node.content.reduce<number>(
+    (sum, child) => sum + documentSize(child),
+    0,
+  );
+  return node.type === "doc" ? size : size + 2;
 }

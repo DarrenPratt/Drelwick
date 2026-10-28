@@ -180,6 +180,7 @@ beforeEach(async () => {
       ),
     },
     project: {
+      editorial: vi.fn(),
       exportPrint: vi.fn(),
       cancelPrintExport: vi.fn(),
       printExportStatus: vi.fn(),
