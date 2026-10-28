@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2,
+  "projectId": "00000000-0000-4000-8000-000000000001",
+  "bookSchemaVersion": 1,
+  "chapterSchemaVersion": 2,
+  "editorialSchemaVersion": 1,
+  "sliceCodec": "semantic-slice-v1",
+  "hashCodec": "canonical-json-v1"
+}

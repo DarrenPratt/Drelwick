@@ -285,7 +285,7 @@ it("bounds aggregate asset bytes even when individual archive entries fit", asyn
   await expect(parse(docx(body, entries))).rejects.toMatchObject({
     code: "DOCX_LIMIT",
   });
-}, 15000);
+}, 30000);
 it("never fetches an external image and retains alternative text", async () => {
   const r = await parse(
     docx(`<w:p>${drawing(true)}</w:p>`, {

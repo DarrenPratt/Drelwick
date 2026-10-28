@@ -1115,6 +1115,10 @@ The renderer should not write project files directly.
 
 # 25. Dirty Tracking
 
+The [local editing/revision design](editing-revisions.md) extends the captured
+revision rule to a complete text/editorial bundle. Its proposed project-v3 format
+and transaction are implementation work for #170–#173, not existing save behaviour.
+
 Each open document should track:
 
 ```typescript
@@ -2323,6 +2327,14 @@ Electron menu accelerators can provide many native behaviours.
 
 # 78. Undo and Redo
 
+The #169 [editing and revision contract](editing-revisions.md) distinguishes
+active-session undo, periodic chapter history, named consistent manuscript
+snapshots and pending revision review. It specifies stable anchors, companion undo
+metadata, explicit review/export choices and recoverable multi-file commits.
+See [proposed versioned schemas](editorial-format.md) and the
+[existing-issue delivery map](planning/169-editorial-delivery.md). No editorial
+runtime feature or project-v3 support is implied by this design.
+
 TipTap/ProseMirror provides editor history.
 
 Undo applies to the active chapter editing session.
@@ -3284,6 +3296,12 @@ This order should remain visible throughout development.
 ---
 
 # 112. Data Integrity Rule
+
+Pending revisions must never silently choose published prose. The
+[editorial export policy](editing-revisions.md#export-and-interchange) requires a
+generation-bound accepted/proposed/cancel choice and excludes private editorial
+metadata from normal DOCX, EPUB and PDF outputs. Text and discussions survive
+failed writes, orphaned anchors and restore through the specified recovery files.
 
 The project files belong to the author.
 

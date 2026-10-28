@@ -19,6 +19,10 @@ The [local publishing delivery plan](planning/local-publishing-plan.md) updates 
 
 Operational documents:
 
+- [Local comments, anchors, revision review and snapshot design (#169)](editing-revisions.md)
+- [Proposed editorial versions, file schemas and compatibility](editorial-format.md)
+- [Editorial implementation contracts, fixture matrix and follow-up reconciliation](planning/169-editorial-delivery.md)
+
 - [Independent Standard and Large-print publishing editions](large-print-edition.md)
 
 - [Local print pagination and PDF-backed preview](print-preview.md)

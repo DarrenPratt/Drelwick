@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "projectId": "00000000-0000-4000-8000-000000000001",
+  "generation": 7,
+  "anchors": [
+    {
+      "schemaVersion": 1,
+      "id": "00000000-0000-4000-8000-000000000004",
+      "created": "2026-10-27T12:00:00.000Z",
+      "modified": "2026-10-27T12:00:00.000Z",
+      "deletedAt": null,
+      "status": "attached",
+      "original": {
+        "chapterId": "00000000-0000-4000-8000-000000000002",
+        "documentHash": "132394a93a447b11619775a478b6a0db24ed5c473ea4fb88941e582b6a3a103c",
+        "from": 5,
+        "to": 8,
+        "slice": {
+          "content": [
+            {
+              "type": "text",
+              "text": "fox"
+            }
+          ],
+          "openStart": 0,
+          "openEnd": 0
+        },
+        "prefix": "red ",
+        "suffix": ""
+      },
+      "segments": [
+        {
+          "chapterId": "00000000-0000-4000-8000-000000000002",
+          "chapterRevision": 2,
+          "documentHash": "b5873a6b0546db10580d0c2b0fdce0bc28eed141a4ac04908b6c0ffab04728b1",
+          "from": 11,
+          "to": 14,
+          "pointAffinity": "right"
+        }
+      ],
+      "lost": []
+    }
+  ],
+  "annotations": [
+    {
+      "schemaVersion": 1,
+      "id": "00000000-0000-4000-8000-000000000005",
+      "anchorId": "00000000-0000-4000-8000-000000000004",
+      "threadId": "00000000-0000-4000-8000-000000000006",
+      "kind": "comment",
+      "colour": null,
+      "created": "2026-10-27T12:00:00.000Z",
+      "modified": "2026-10-27T12:00:00.000Z",
+      "deletedAt": null
+    }
+  ],
+  "threads": [
+    {
+      "schemaVersion": 1,
+      "id": "00000000-0000-4000-8000-000000000006",
+      "state": "open",
+      "resolvedAt": null,
+      "created": "2026-10-27T12:00:00.000Z",
+      "modified": "2026-10-27T12:00:00.000Z",
+      "deletedAt": null,
+      "comments": [
+        {
+          "schemaVersion": 1,
+          "id": "00000000-0000-4000-8000-000000000007",
+          "body": "PRIVATE_EDITORIAL_CANARY: verify the fox.",
+          "authorLabel": "Local reviewer",
+          "created": "2026-10-27T12:00:00.000Z",
+          "modified": "2026-10-27T12:00:00.000Z",
+          "deletedAt": null
+        }
+      ]
+    }
+  ]
+}

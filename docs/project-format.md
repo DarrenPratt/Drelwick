@@ -30,6 +30,11 @@ the [tracking register](planning/github-tracking.md#pre-release-product-identity
 
 ## Implemented format
 
+The #169 [proposed editorial format](editorial-format.md) reserves project v3,
+descriptor v2 and chapter v2 for consistently saved comments/anchors/revisions.
+It is a design for #170–#173, **not a currently supported format**. Existing v1/v2
+schemas and migration behaviour described below remain unchanged.
+
 Issue #128 adds optional version-1 `print.json`, separate from manuscript, ebook
 and theme configuration. Missing settings use deterministic defaults without a
 write or manifest migration; explicit saves atomically replace this component.

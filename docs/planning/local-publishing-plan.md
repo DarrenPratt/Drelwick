@@ -28,6 +28,14 @@ is part of this design. Scene/range links await a stable-anchor design.
 
 ## Delivery order and issue register
 
+The [#169 editorial design](../editing-revisions.md) supplies the missing v0.6
+schemas, anchor mapping, revision review, named snapshots, comparison, export
+choices and recovery contracts. [Follow-up reconciliation](169-editorial-delivery.md)
+retains #170/#171/#172/#173 and adds #170 as a prerequisite of #171 because named
+snapshots must capture the shared versioned editorial transaction state. No new
+duplicate issue is required. This local scope is CORE and does not wait for
+#52 or #203. Project-v3 support and all editorial features remain unimplemented.
+
 The existing GitHub milestone names are retained. Dependencies below are actual issue numbers, not the stable task IDs in older plans. Each issue contains its scope, acceptance criteria, components, tests, classification and reliability constraints. Dependencies are prerequisites unless its body explicitly marks a relationship as coordination only.
 
 | Issue                                                                                                                                   | Delivery             | Prerequisites                                                                                                                                                                                                                                                                                                                                                      |
