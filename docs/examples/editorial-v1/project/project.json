@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 3,
+  "projectId": "00000000-0000-4000-8000-000000000001",
+  "created": "2026-10-27T12:00:00.000Z",
+  "modified": "2026-10-27T12:00:00.000Z",
+  "bookFile": "book.json",
+  "formatFile": "format.json",
+  "manuscript": {
+    "order": ["00000000-0000-4000-8000-000000000002"]
+  },
+  "generation": 7,
+  "editorialFile": "editorial/state.json"
+}

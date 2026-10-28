@@ -44,6 +44,13 @@ Node.js types match the supported Node 24 runtime. Tests explicitly import
 
 ## Workspace conventions
 
+Issue #169's two `editorial-design-examples.test.ts` suites validate documentation
+examples only: proposed versioned shapes, inventories/hashes, current-reader
+rejection, actual ProseMirror mappings/slices, existing split/merge positions and
+the synthetic scenario catalogue. They add no production editorial schemas or
+features. See the [example guide](../docs/examples/editorial-v1/README.md) and
+[future integration matrix](../docs/planning/169-editorial-delivery.md).
+
 Issue #132 uses synthetic Hunspell resources and injected adapters for core,
 schema, IPC and editor tests. `spelling-adapter.test.ts` additionally executes
 the built worker against the pinned bundled US/UK dictionaries; build before

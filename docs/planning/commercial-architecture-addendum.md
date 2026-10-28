@@ -28,6 +28,11 @@ tools are unallocated candidates for review after #203, not approved Pro scope.
 The [story bible contract](../story-bible.md) governs #160–#168. This supersedes
 earlier commercial sequencing and does not open external contributions or release.
 
+The [#169 editorial contract](../editing-revisions.md) similarly scopes local
+comments, annotations, revision review, named snapshots and comparison as CORE.
+Future advanced editorial candidates are observations for post-#203 owner review,
+not approved Pro allocations or prerequisites for #170–#173.
+
 # Commercial Architecture Milestone
 
 Create an additional GitHub milestone:

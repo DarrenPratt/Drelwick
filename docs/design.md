@@ -1209,7 +1209,8 @@ Implement:
 
 ## Version 0.6 — Editing Tools
 
-Potential features:
+Scoped local CORE work, specified by [#169's editing/revision design](editing-revisions.md)
+and [implementation contracts](planning/169-editorial-delivery.md), not yet implemented:
 
 - comments;
 - annotations;
@@ -1218,6 +1219,12 @@ Potential features:
 - compare revisions.
 
 Basic manuscript find/replace, history browsing/restoration, spell checking and a local custom dictionary move to v0.2. Global reference search remains v0.5; richer revision comparison and editorial review remain later local workflows.
+
+The design requires stable/orphan-aware anchors, explicit revision decisions,
+consistent named snapshots and an explicit accepted/proposed text choice for
+publishing pending revisions. Comments and editorial metadata remain private.
+Under the 2 October owner decision, this CORE work proceeds without #52/#203 as
+dependencies; final commercial allocation follows private-app evaluation #203.
 
 ---
 

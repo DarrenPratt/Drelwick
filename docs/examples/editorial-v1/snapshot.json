@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "kind": "manuscript-snapshot",
+  "id": "00000000-0000-4000-8000-000000000008",
+  "projectId": "00000000-0000-4000-8000-000000000001",
+  "created": "2026-10-27T12:00:00.000Z",
+  "label": "Synthetic review checkpoint",
+  "reason": "named",
+  "generation": 7,
+  "chapterOrder": ["00000000-0000-4000-8000-000000000002"],
+  "files": [
+    {
+      "path": "book.json",
+      "size": 208,
+      "sha256": "6774b32c9fbe961571075dcd38ee935d91e3cdacca4ba1e6e8b8f7be86bfe874"
+    },
+    {
+      "path": "editorial/state.json",
+      "size": 2185,
+      "sha256": "8b01c6c2be52d57c98d7fc31840d07d5f557a46ee7ec1c98b1c66b50bd413c95"
+    },
+    {
+      "path": "format.json",
+      "size": 239,
+      "sha256": "8cbb2707b6b52eadb36e0f0c5c2c7fdbc0a9c44ca9c1bc356c00837811ad44d0"
+    },
+    {
+      "path": "manuscript/00000000-0000-4000-8000-000000000002.json",
+      "size": 1530,
+      "sha256": "bdb178f3111d968f8652f821b8ee9c4ed6b2eedb75a585f07ddcbf983da1da47"
+    },
+    {
+      "path": "project.json",
+      "size": 360,
+      "sha256": "11154fdde3fa1d3c5dcc2785e68262ab16c13c420a841c9fec55d2f8ee590cb5"
+    }
+  ],
+  "absent": ["presentation.json", "print.json", "publication.json"],
+  "exclusions": [
+    "reference",
+    "application-settings",
+    "other-snapshots",
+    "periodic-history"
+  ]
+}

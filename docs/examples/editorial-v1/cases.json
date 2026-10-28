@@ -1,0 +1,241 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "A01",
+      "input": "Insert `quick ` at 5 before fox `[5,8)`",
+      "expected": "Fox becomes `[11,14)`; inserted text is outside annotation.",
+      "owner": "#170"
+    },
+    {
+      "id": "A02",
+      "input": "Insert `!` at 6 inside fox",
+      "expected": "Range `[5,9)`; no loss; original evidence unchanged.",
+      "owner": "#170"
+    },
+    {
+      "id": "A03",
+      "input": "Insert at end 8; point at 8",
+      "expected": "Range stays `[5,8)`; point moves to 9.",
+      "owner": "#170"
+    },
+    {
+      "id": "A04",
+      "input": "Delete `[6,7)`",
+      "expected": "Surviving target `[5,7)`, status partial, removed `o` retained; undo restores exact original attached state.",
+      "owner": "#170"
+    },
+    {
+      "id": "A05",
+      "input": "Replace `[5,8)` with another `fox`",
+      "expected": "Original target orphaned despite identical visible spelling; no quote reattachment.",
+      "owner": "#170"
+    },
+    {
+      "id": "A06",
+      "input": "Bold `[5,8)`; combining `é`, surrogate emoji, joined emoji fixtures",
+      "expected": "Format maps preserve positions; invalid mid-grapheme selections rejected; undo/redo restores marks and companion metadata.",
+      "owner": "#170/#173"
+    },
+    {
+      "id": "A07",
+      "input": "Two annotations `[1,6)`, `[5,8)` and a deletion crossing both",
+      "expected": "Independently map both, preserve both discussions and lost slices; no exclusive-range rule for annotations.",
+      "owner": "#170"
+    },
+    {
+      "id": "A08",
+      "input": "Split `red fox` at 5 with annotation `[1,8)`",
+      "expected": "Left `red ` segment `[1,5)` under original ID; right `fox` `[1,4)` under new ID; one anchor/thread with two segments.",
+      "owner": "#170"
+    },
+    {
+      "id": "A09",
+      "input": "Merge paragraphs `red ` and `fox`",
+      "expected": "Right segment shifts by first doc `content.size=6`, giving `[7,10)` in survivor; no newline/offset guessing.",
+      "owner": "#170"
+    },
+    {
+      "id": "A10",
+      "input": "Same title/text imported to a new project; paste into old project",
+      "expected": "Imported project gets new IDs/no inherited discussions; paste uses actual maps.",
+      "owner": "#170/#173"
+    },
+    {
+      "id": "R01",
+      "input": "Insert `quick ` at 5, then edit inside insertion",
+      "expected": "Preview one combined group; Cancel leaves old proposed text/group unchanged; confirm records superseded ID and new group.",
+      "owner": "#173"
+    },
+    {
+      "id": "R02",
+      "input": "Two touching/overlapping pending edits",
+      "expected": "Explicit union-group preview; no order-dependent independent patch application.",
+      "owner": "#173"
+    },
+    {
+      "id": "R03",
+      "input": "Disjoint insertion and deletion; accept one/reject other in either legal order",
+      "expected": "Same final semantic result, remaining before slices validate; distinct annotations preserve identity.",
+      "owner": "#173"
+    },
+    {
+      "id": "R04",
+      "input": "Toggle tracking off with pending deletion; edit its collapsed point",
+      "expected": "No acceptance; prompt track/combine, review-first or cancel.",
+      "owner": "#173"
+    },
+    {
+      "id": "R05",
+      "input": "Pending format-only group; accept/reject then undo/redo",
+      "expected": "Exact semantic before/after and group/anchor state; counters advance even on undo.",
+      "owner": "#173"
+    },
+    {
+      "id": "R06",
+      "input": "Stale preview after another save or external edit",
+      "expected": "Entire review fails `EDITORIAL_STALE`; no partial decisions or file writes.",
+      "owner": "#173"
+    },
+    {
+      "id": "F01",
+      "input": "Crash while review dialog open, before any command",
+      "expected": "Disk unchanged; saved pending groups reopen; unpersisted keystrokes are not falsely reported recovered.",
+      "owner": "#173"
+    },
+    {
+      "id": "F02",
+      "input": "Fail safety copy, draft fsync, staging, first/last publication or journal commit",
+      "expected": "Before commit: all prior valid files restored or recovery blocked with preserved images; latest live draft stays dirty.",
+      "owner": "#170/#173"
+    },
+    {
+      "id": "F03",
+      "input": "Terminate after first after-image, before commit marker",
+      "expected": "Recover rollback to complete before generation; offer complete after bundle as explicit draft.",
+      "owner": "#170"
+    },
+    {
+      "id": "F04",
+      "input": "Terminate after committed marker, before acknowledgement",
+      "expected": "Recover complete after generation; retry operation ID returns one original receipt.",
+      "owner": "#170/#173"
+    },
+    {
+      "id": "F05",
+      "input": "Interrupt rollback/rollforward; inject external changed hash/missing image",
+      "expected": "Resume same direction only for known before/after bytes; otherwise block without overwriting external data.",
+      "owner": "#170"
+    },
+    {
+      "id": "F06",
+      "input": "Edit B arrives while save A is in flight; A fails/succeeds",
+      "expected": "A acknowledgement never clears B. Failed navigation/quit leaves B visible and session unclean.",
+      "owner": "#170/#173"
+    },
+    {
+      "id": "S01",
+      "input": "Two chapters + shared image + pending deletion image + unsaved comment",
+      "expected": "Flush all; snapshot contains exact saved full scope and both asset closures, one generation, no partial success.",
+      "owner": "#171"
+    },
+    {
+      "id": "S02",
+      "input": "Snapshot image copy fails or file changes during capture",
+      "expected": "No published snapshot manifest; retain staged data/diagnostic; current project unchanged.",
+      "owner": "#171"
+    },
+    {
+      "id": "S03",
+      "input": "Restore with dirty current-only thread and same-ID differing thread",
+      "expected": "Flush, verified before-restore safety, restore snapshot, retain both conflicts with source generation; no loss.",
+      "owner": "#171"
+    },
+    {
+      "id": "S04",
+      "input": "Restore interrupted at each transaction boundary",
+      "expected": "Complete pre- or post-restore state according to commit marker; snapshot never consumed.",
+      "owner": "#171"
+    },
+    {
+      "id": "S05",
+      "input": "Repeated snapshot labels; periodic history prunes; selected snapshot deleted",
+      "expected": "Labels do not collide, named snapshots remain; stale selection cannot restore a different ID.",
+      "owner": "#171"
+    },
+    {
+      "id": "C01",
+      "input": "Identical versions; formatting only; emoji; moved/removed chapter; scene break/image",
+      "expected": "Empty diff / mark change / grapheme-safe edit / explicit structural changes; deterministic tie goldens and source bytes unchanged.",
+      "owner": "#172"
+    },
+    {
+      "id": "C02",
+      "input": "Missing asset, newer schema, large novel, cancelled/replaced query",
+      "expected": "Located unavailable/incomplete result, no false equality; stale comparison never replaces newer output.",
+      "owner": "#172"
+    },
+    {
+      "id": "E01",
+      "input": "Base `red fox`, pending insert `quick ` at 5",
+      "expected": "Export accepted=`red fox`, proposed=`red quick fox`, cancel=no output; pending group unchanged in every case.",
+      "owner": "#173"
+    },
+    {
+      "id": "E02",
+      "input": "Pending deletion or formatting; generation changes after choice",
+      "expected": "Selected state controls text/marks; changed source requires new choice. No silent reject/accept.",
+      "owner": "#173"
+    },
+    {
+      "id": "E03",
+      "input": "Unique private canaries in every editorial field and retained slice",
+      "expected": "EPUB/DOCX/PDF publishing contains no private canary/metadata; chosen manuscript control text is present. Ordinary DOCX has no review parts.",
+      "owner": "#170/#173"
+    },
+    {
+      "id": "E04",
+      "input": "DOCX import with unresolved tracked text/comments",
+      "expected": "Explicit supported text projection/warning or reject conversion; never silent flattening.",
+      "owner": "#173"
+    },
+    {
+      "id": "M01",
+      "input": "v2 project with Unicode/assets/references/history and unsupported extension",
+      "expected": "Supported migration preserves semantics/bytes outside envelopes; unsupported input blocks and survives; every interruption recoverable.",
+      "owner": "#170"
+    },
+    {
+      "id": "M02",
+      "input": "Open v3 with v2 app; malformed/newer editorial component; unsafe IPC paths",
+      "expected": "Reject without writes; preserve files; no downgrade, arbitrary access or private log payload.",
+      "owner": "#170"
+    }
+  ],
+  "mapCases": [
+    {
+      "id": "A01",
+      "range": [5, 8],
+      "map": [5, 0, 6],
+      "expected": [11, 14]
+    },
+    {
+      "id": "A02",
+      "range": [5, 8],
+      "map": [6, 0, 1],
+      "expected": [5, 9]
+    },
+    {
+      "id": "A03",
+      "range": [5, 8],
+      "map": [8, 0, 1],
+      "expected": [5, 8]
+    },
+    {
+      "id": "A04",
+      "range": [5, 8],
+      "map": [6, 1, 0],
+      "expected": [5, 7]
+    }
+  ]
+}
