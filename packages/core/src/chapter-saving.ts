@@ -4,6 +4,8 @@ import { createHash } from "node:crypto";
 import { ApplicationError, createIsoDate } from "@drelwick/shared";
 import {
   ChapterFileSchema,
+  ProjectConfigV3Schema,
+  parseEditorialJson,
   ChapterFileV2Schema,
   EditorialStateSchema,
   ProjectConfigSchema,
@@ -16,18 +18,37 @@ import {
   writeJsonAtomically,
 } from "./index.js";
 import { createHistorySnapshot, readHistorySnapshot } from "./history.js";
-import { commitEditorialTransaction } from "./editorial-transactions.js";
+import {
+  commitEditorialTransaction,
+  readEditorialRequestReceipt,
+} from "./editorial-transactions.js";
+import {
+  replayEditorialEdits,
+  captureEditorialReplaySession,
+  acknowledgeEditorialReplaySession,
+  type EditorialEditorTransaction,
+} from "./editorial-editing.js";
+import {
+  editorialSegmentEvidence,
+  editorialDocumentHash,
+} from "./editorial-bundle.js";
 import { orphanEditorialAnchors } from "./editorial-anchors.js";
 
 export interface SaveChapterInput {
   projectPath: string;
   chapterId: string;
   document: Record<string, unknown>;
+  transactions?: EditorialEditorTransaction[];
+  editorGeneration?: number;
+  operationId?: string;
   restore?: { snapshotId: string; fingerprint: string };
 }
 
 export interface SavedChapter {
   id: string;
+  operationId?: string;
+  generation?: number;
+  editorGeneration?: number;
   modified: string;
   warning?: string;
   restoredContent?: Record<string, unknown>;
@@ -207,6 +228,34 @@ async function saveEditorialChapter(
   input: SaveChapterInput,
   content: Record<string, unknown>,
 ): Promise<SavedChapter> {
+  const requestHash = editorialDocumentHash({
+    chapterId: input.chapterId,
+    document: input.document,
+    transactions: input.transactions ?? null,
+    editorGeneration: input.editorGeneration ?? null,
+    restore: input.restore ?? null,
+  });
+  if (input.operationId) {
+    const project = ProjectConfigV3Schema.parse(
+      parseEditorialJson(await readFile(join(root, "project.json"))),
+    );
+    const prior = await readEditorialRequestReceipt({
+      projectPath: root,
+      projectId: project.projectId,
+      operationId: input.operationId,
+      requestHash,
+      chapterId: input.chapterId,
+    });
+    if (prior?.chapter)
+      return {
+        ...prior.chapter,
+        operationId: prior.operationId,
+        generation: prior.generation,
+        ...(input.editorGeneration !== undefined
+          ? { editorGeneration: input.editorGeneration }
+          : {}),
+      };
+  }
   const session = await import("./index.js").then(({ openProject }) =>
     openProject(root, { rebuildSummaries: true }),
   );
@@ -221,7 +270,7 @@ async function saveEditorialChapter(
   const chapterPath = join(root, "manuscript", `${input.chapterId}.json`);
   const chapterBytes = await readFile(chapterPath);
   const previous = ChapterFileV2Schema.parse(
-    JSON.parse(chapterBytes.toString("utf8")) as unknown,
+    parseEditorialJson(chapterBytes) as unknown,
   );
   if (previous.review.pending.length || previous.review.mode !== "off")
     throw new ApplicationError(
@@ -270,7 +319,7 @@ async function saveEditorialChapter(
   }
   const stateBytes = await readFile(join(root, session.project.editorialFile));
   const state = EditorialStateSchema.parse(
-    JSON.parse(stateBytes.toString("utf8")) as unknown,
+    parseEditorialJson(stateBytes) as unknown,
   );
   if (
     state.generation !== session.project.generation ||
@@ -296,6 +345,8 @@ async function saveEditorialChapter(
   const affected = state.anchors.filter((anchor) =>
     anchor.segments.some((segment) => segment.chapterId === input.chapterId),
   );
+  const replayKey = `${root}\0${input.chapterId}`;
+  const replaySession = captureEditorialReplaySession(replayKey);
   const nextState: EditorialState = {
     ...state,
     generation: state.generation + 1,
@@ -303,23 +354,45 @@ async function saveEditorialChapter(
       ? orphanEditorialAnchors(
           state.anchors,
           input.chapterId,
-          (anchor) => anchor.original,
+          (anchor, segment) =>
+            editorialSegmentEvidence(previous.content, anchor, segment),
           "history-restore",
         )
-      : state.anchors.map((anchor) => {
-          if (!affected.some((item) => item.id === anchor.id)) return anchor;
-          return { ...anchor, modified, status: "unverified" };
-        }),
+      : input.transactions
+        ? replayEditorialEdits({
+            chapterId: input.chapterId,
+            revision: nextChapter.revision,
+            before: previous.content,
+            after: nextContent,
+            anchors: state.anchors,
+            transactions: input.transactions,
+            session: replaySession,
+            state,
+          })
+        : state.anchors.map((anchor) => {
+            if (!affected.some((item) => item.id === anchor.id)) return anchor;
+            return { ...anchor, modified, status: "unverified" };
+          }),
   };
+  if (replaySession.result) {
+    nextState.annotations = replaySession.result.annotations;
+    nextState.threads = replaySession.result.threads;
+  }
   const nextProject = {
     ...session.project,
     modified,
     generation: session.project.generation + 1,
   };
-  await commitEditorialTransaction({
+  const committed = await commitEditorialTransaction({
     projectPath: root,
     projectId: session.project.projectId,
     kind: "edit",
+    ...(input.operationId
+      ? { operationId: input.operationId, requestHash }
+      : {}),
+    ...(input.editorGeneration !== undefined
+      ? { editorGeneration: input.editorGeneration }
+      : {}),
     expectedGeneration: session.project.generation,
     expectedBefore: {
       [`manuscript/${input.chapterId}.json`]: createHash("sha256")
@@ -344,10 +417,25 @@ async function saveEditorialChapter(
       },
     ],
   });
+  if (input.transactions)
+    acknowledgeEditorialReplaySession(replayKey, replaySession);
   return {
     id: nextChapter.id,
+    operationId: committed.operationId,
+    generation: committed.generation,
+    ...(input.editorGeneration !== undefined
+      ? { editorGeneration: input.editorGeneration }
+      : {}),
     modified,
-    ...(affected.length
+    ...(committed.warning ? { warning: committed.warning } : {}),
+    ...(affected.length &&
+    (input.restore ||
+      !input.transactions ||
+      nextState.anchors.some(
+        (anchor) =>
+          affected.some((item) => item.id === anchor.id) &&
+          anchor.status === "unverified",
+      ))
       ? {
           warning: input.restore
             ? "Affected annotations were orphaned by the history restore. Their original evidence is preserved; reattach them explicitly."

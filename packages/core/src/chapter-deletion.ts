@@ -21,6 +21,7 @@ import {
   type OpenedProject,
   type ProjectLoadingFileSystem,
 } from "./index.js";
+import { editorialSegmentEvidence } from "./editorial-bundle.js";
 import { commitEditorialTransaction } from "./editorial-transactions.js";
 import { createHistorySnapshot } from "./history.js";
 
@@ -254,8 +255,12 @@ async function deleteEditorialChapter(
       segments,
       lost: [
         ...anchor.lost,
-        ...affected.map(() => ({
-          evidence: anchor.original,
+        ...affected.map((segment) => ({
+          evidence: editorialSegmentEvidence(
+            parsed.data.content,
+            anchor,
+            segment,
+          ),
           reason: "deleted-chapter" as const,
           revisionGroupId: null,
         })),

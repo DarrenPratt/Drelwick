@@ -415,7 +415,10 @@ async function collectProjectFiles(
       const relativePath = relativeDirectory
         ? `${relativeDirectory}/${name}`
         : name;
-      if (shouldExcludeName(name, false)) {
+      // Retained managed evidence is an exact inventory: basename filters must
+      // not remove a before image, draft component or verified safety-copy byte.
+      const evidence = isEditorialEvidencePath(relativePath);
+      if (!evidence && shouldExcludeName(name, false)) {
         if (relativePath.startsWith("reference/")) {
           if (name.toLowerCase().endsWith(".tmp"))
             throw new ApplicationError(
@@ -431,7 +434,7 @@ async function collectProjectFiles(
       const info = await lstat(path);
       if (info.isSymbolicLink()) throw archiveError("PROJECT_ARCHIVE_SYMLINK");
       if (info.isDirectory()) {
-        if (shouldExcludeName(name, true)) {
+        if (!evidence && shouldExcludeName(name, true)) {
           if (relativePath.startsWith("reference/"))
             excludedReferences.push(relativePath);
           continue;
@@ -450,6 +453,14 @@ async function collectProjectFiles(
   await visit("");
   records.sort((left, right) => left.path.localeCompare(right.path, "en"));
   return records;
+}
+
+function isEditorialEvidencePath(path: string): boolean {
+  return [
+    ".editorial/transactions/",
+    ".editorial/drafts/",
+    ".editorial/migration-backups/",
+  ].some((prefix) => path.startsWith(prefix));
 }
 
 function shouldExcludeName(name: string, directory: boolean): boolean {
@@ -599,7 +610,8 @@ function validateManifest(
       !isSafeArchiveName(file.path) ||
       file.path.endsWith("/") ||
       !isAllowedProjectPath(file.path, manifest.includesHistory) ||
-      shouldExcludeName(basename(file.path), false) ||
+      (!isEditorialEvidencePath(file.path) &&
+        shouldExcludeName(basename(file.path), false)) ||
       seen.has(file.path)
     )
       throw archiveError("PROJECT_ARCHIVE_PATH_INVALID");

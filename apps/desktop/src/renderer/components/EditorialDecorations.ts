@@ -1,3 +1,4 @@
+import { EditorialHistoryStep } from "@drelwick/core/editorial-history";
 import { Extension, type Editor } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
@@ -16,10 +17,49 @@ const key = new PluginKey<readonly EditorialDecorationRange[]>(
 
 export const EditorialDecorations = Extension.create({
   name: "drelwickEditorialDecorations",
+  onTransaction({ editor, transaction, appendedTransactions }) {
+    if (
+      transaction.getMeta("preventUpdate") ||
+      !transaction.before.eq(editor.state.doc)
+    )
+      return;
+    if (
+      [transaction, ...appendedTransactions].some((item) =>
+        item.steps.some(
+          (step) =>
+            step instanceof EditorialHistoryStep &&
+            step.direction !== "recorded",
+        ),
+      )
+    )
+      editor.emit("update", { editor, transaction, appendedTransactions });
+  },
   addProseMirrorPlugins() {
     return [
       new Plugin<readonly EditorialDecorationRange[]>({
         key,
+        appendTransaction(transactions, oldState, state) {
+          if (
+            !transactions.some((transaction) => transaction.docChanged) ||
+            transactions.some((transaction) =>
+              transaction.steps.some(
+                (step) => step instanceof EditorialHistoryStep,
+              ),
+            ) ||
+            transactions.every(
+              (transaction) => transaction.getMeta("addToHistory") === false,
+            )
+          )
+            return null;
+          let mapped = false;
+          for (const transaction of transactions)
+            for (const step of transaction.steps)
+              step.getMap().forEach((from, to, nextFrom, nextTo) => {
+                if (from !== to || nextFrom !== nextTo) mapped = true;
+              });
+          if (oldState.doc.eq(state.doc) && !mapped) return null;
+          return state.tr.step(new EditorialHistoryStep(crypto.randomUUID()));
+        },
         state: {
           init: () => [],
           apply(transaction, ranges) {

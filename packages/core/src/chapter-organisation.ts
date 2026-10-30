@@ -2,6 +2,7 @@ import { lstat, readFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
+  decodeEditorialDocument,
   ChapterFileSchema,
   ChapterFileV2Schema,
   EditorialStateSchema,
@@ -394,6 +395,8 @@ async function organiseEditorialChapter(
         continued.revision,
         editorialDocumentHash(left),
         editorialDocumentHash(right),
+        documentSize(right) - (documentSize(first.content) - command.position),
+        documentSize(left),
       );
     } else {
       const duplicate = ChapterFileV2Schema.parse({
@@ -435,7 +438,15 @@ async function organiseEditorialChapter(
   const nextState = EditorialStateSchema.parse({
     ...state,
     generation: state.generation + 1,
-    anchors,
+    anchors: anchors.map((anchor) => ({
+      ...anchor,
+      segments: [...anchor.segments].sort(
+        (a, b) =>
+          nextOrder.indexOf(a.chapterId) - nextOrder.indexOf(b.chapterId) ||
+          a.from - b.from ||
+          a.to - b.to,
+      ),
+    })),
   });
   const nextProject = ProjectConfigV3Schema.parse({
     ...session.project,
@@ -474,14 +485,5 @@ async function organiseEditorialChapter(
 }
 
 function documentSize(value: unknown): number {
-  if (value === null || typeof value !== "object") return 0;
-  const node = value as { type?: unknown; text?: unknown; content?: unknown };
-  if (node.type === "text")
-    return typeof node.text === "string" ? node.text.length : 0;
-  if (!Array.isArray(node.content)) return node.type === "doc" ? 0 : 1;
-  const size = node.content.reduce<number>(
-    (sum, child) => sum + documentSize(child),
-    0,
-  );
-  return node.type === "doc" ? size : size + 2;
+  return decodeEditorialDocument(value).content.size;
 }

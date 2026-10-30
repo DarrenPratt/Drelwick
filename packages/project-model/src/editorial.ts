@@ -2,15 +2,65 @@ import { z } from "zod";
 import { ChapterFileSchema } from "./versions/v1.js";
 import { ProjectConfigV2Schema } from "./versions/v2.js";
 import { ManuscriptDocumentSchema } from "./manuscript-document.js";
-import { isSafeRelativePath } from "@drelwick/shared";
+import {
+  decodeEditorialDocument,
+  decodeEditorialSlice,
+} from "./editorial-codec.js";
+import { isSafeRelativePath, isIsoDate, isUuid } from "@drelwick/shared";
 
-const uuid = z.string().uuid();
-const time = z.string().datetime({ offset: false });
+export const EDITORIAL_LIMITS = {
+  componentBytes: 8 * 1024 ** 2,
+  captureBytes: 256 * 1024 ** 2,
+  chapters: 10_000,
+} as const;
+function withinComponentLimit(value: unknown): boolean {
+  try {
+    return (
+      new TextEncoder().encode(JSON.stringify(value)).byteLength <=
+      EDITORIAL_LIMITS.componentBytes
+    );
+  } catch {
+    return false;
+  }
+}
+const historicalUuid = z
+  .string()
+  .refine(isUuid, "Expected a historical UUID v4");
+const uuid = z
+  .string()
+  .regex(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
+const time = z
+  .string()
+  .refine(isIsoDate, "Expected a real UTC timestamp with milliseconds");
+const unicode = z
+  .string()
+  .refine((value) => !hasInvalidUnicode(value), "Invalid Unicode");
+const scalarString = (limit: number) =>
+  unicode.refine(
+    (value) => [...value].length <= limit,
+    "Text exceeds scalar limit",
+  );
+const contextString = unicode.refine(
+  (value) =>
+    [...new Intl.Segmenter("und", { granularity: "grapheme" }).segment(value)]
+      .length <= 32,
+  "Context exceeds 32 graphemes",
+);
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const counter = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const position = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const strictDoc = z.custom<z.infer<typeof ManuscriptDocumentSchema>>(
-  (value) => ManuscriptDocumentSchema.safeParse(value).success,
+  (value) => {
+    try {
+      if (!withinComponentLimit(value)) return false;
+      decodeEditorialDocument(value);
+      return true;
+    } catch {
+      return false;
+    }
+  },
 );
 const slice = z
   .object({
@@ -18,23 +68,31 @@ const slice = z
     openStart: position,
     openEnd: position,
   })
-  .strict();
+  .strict()
+  .refine((value) => {
+    try {
+      decodeEditorialSlice(value);
+      return true;
+    } catch {
+      return false;
+    }
+  }, "Invalid semantic slice");
 
 export const EditorialEvidenceSchema = z
   .object({
-    chapterId: uuid,
+    chapterId: historicalUuid,
     documentHash: hash,
     from: position,
     to: position,
     slice,
-    prefix: z.string().max(256),
-    suffix: z.string().max(256),
+    prefix: contextString,
+    suffix: contextString,
   })
   .strict()
   .refine((v) => v.from <= v.to);
 export const EditorialLiveSegmentSchema = z
   .object({
-    chapterId: uuid,
+    chapterId: historicalUuid,
     chapterRevision: counter,
     documentHash: hash,
     from: position,
@@ -73,7 +131,8 @@ export const EditorialAnchorSchema = z
   .superRefine((v, c) => {
     if (
       v.created > v.modified ||
-      (v.deletedAt !== null && v.deletedAt > v.modified)
+      (v.deletedAt !== null &&
+        (v.deletedAt < v.created || v.deletedAt > v.modified))
     )
       c.addIssue({ code: "custom", message: "Invalid timestamps" });
     if (v.status === "attached" && (!v.segments.length || v.lost.length))
@@ -90,8 +149,8 @@ export const EditorialCommentSchema = z
   .object({
     schemaVersion: z.literal(1),
     id: uuid,
-    body: z.string().max(100_000),
-    authorLabel: z.string().max(256).nullable(),
+    body: scalarString(100_000),
+    authorLabel: scalarString(256).nullable(),
     created: time,
     modified: time,
     deletedAt: time.nullable(),
@@ -100,7 +159,8 @@ export const EditorialCommentSchema = z
   .superRefine((v, c) => {
     if (
       v.created > v.modified ||
-      (v.deletedAt !== null && v.deletedAt > v.modified)
+      (v.deletedAt !== null &&
+        (v.deletedAt < v.created || v.deletedAt > v.modified))
     )
       c.addIssue({ code: "custom", message: "Invalid comment timestamps" });
     if (hasInvalidUnicode(v.body))
@@ -124,7 +184,8 @@ export const EditorialAnnotationSchema = z
       c.addIssue({ code: "custom", message: "Only highlights have colours" });
     if (
       v.created > v.modified ||
-      (v.deletedAt !== null && v.deletedAt > v.modified)
+      (v.deletedAt !== null &&
+        (v.deletedAt < v.created || v.deletedAt > v.modified))
     )
       c.addIssue({ code: "custom", message: "Invalid annotation timestamps" });
   });
@@ -145,11 +206,25 @@ export const EditorialThreadSchema = z
       c.addIssue({ code: "custom", message: "Invalid resolution state" });
     if (
       v.created > v.modified ||
-      (v.deletedAt !== null && v.deletedAt > v.modified) ||
+      (v.deletedAt !== null &&
+        (v.deletedAt < v.created || v.deletedAt > v.modified)) ||
       (v.resolvedAt !== null &&
         (v.resolvedAt < v.created || v.resolvedAt > v.modified))
     )
       c.addIssue({ code: "custom", message: "Invalid thread timestamps" });
+    if (
+      v.comments.some(
+        (comment, index) =>
+          index > 0 &&
+          (v.comments[index - 1]!.created > comment.created ||
+            (v.comments[index - 1]!.created === comment.created &&
+              v.comments[index - 1]!.id >= comment.id)),
+      )
+    )
+      c.addIssue({
+        code: "custom",
+        message: "Comments must be in creation and ID order",
+      });
     const ids = v.comments.map((comment) => comment.id);
     if (new Set(ids).size !== ids.length)
       c.addIssue({ code: "custom", message: "Duplicate comment ID" });
@@ -157,14 +232,19 @@ export const EditorialThreadSchema = z
 export const EditorialStateSchema = z
   .object({
     schemaVersion: z.literal(1),
-    projectId: uuid,
+    projectId: historicalUuid,
     generation: counter,
     anchors: z.array(EditorialAnchorSchema).max(100_000),
     annotations: z.array(EditorialAnnotationSchema).max(100_000),
-    threads: z.array(EditorialThreadSchema).max(10_000),
+    threads: z.array(EditorialThreadSchema).max(100_000),
   })
   .strict()
   .superRefine((v, c) => {
+    if (!withinComponentLimit(v))
+      c.addIssue({
+        code: "custom",
+        message: "Editorial component exceeds byte limit",
+      });
     const all = [
       ...v.anchors,
       ...v.annotations,
@@ -175,12 +255,33 @@ export const EditorialStateSchema = z
       c.addIssue({ code: "custom", message: "Duplicate editorial ID" });
     const a = new Set(v.anchors.map((x) => x.id)),
       t = new Set(v.threads.map((x) => x.id));
-    for (const x of v.annotations)
+    if (
+      new Set(v.annotations.map((x) => x.anchorId)).size !==
+        v.annotations.length ||
+      new Set(v.annotations.map((x) => x.threadId)).size !==
+        v.annotations.length ||
+      a.size !== v.annotations.length ||
+      t.size !== v.annotations.length
+    )
+      c.addIssue({
+        code: "custom",
+        message: "Editorial ownership must be one-to-one",
+      });
+    for (const x of v.annotations) {
+      const anchor = v.anchors.find((item) => item.id === x.anchorId);
+      const thread = v.threads.find((item) => item.id === x.threadId);
+      if (
+        anchor &&
+        thread &&
+        (anchor.deletedAt !== x.deletedAt || thread.deletedAt !== x.deletedAt)
+      )
+        c.addIssue({ code: "custom", message: "Owned tombstones must agree" });
       if (!a.has(x.anchorId) || !t.has(x.threadId))
         c.addIssue({
           code: "custom",
           message: "Dangling annotation ownership",
         });
+    }
   });
 
 function hasInvalidUnicode(value: string): boolean {
@@ -207,10 +308,27 @@ export const ReviewV1Schema = z
 export const ChapterFileV2Schema = ChapterFileSchema.extend({
   schemaVersion: z.literal(2),
   revision: counter,
+  title: z
+    .string()
+    .min(1)
+    .refine((value) => value.trim().length > 0),
+  created: time,
+  modified: time,
+  content: strictDoc,
   review: ReviewV1Schema,
 })
   .strict()
   .superRefine((value, context) => {
+    if (!withinComponentLimit(value))
+      context.addIssue({
+        code: "custom",
+        message: "Chapter component exceeds byte limit",
+      });
+    if (value.created > value.modified)
+      context.addIssue({
+        code: "custom",
+        message: "Invalid chapter timestamps",
+      });
     if (value.review.mode !== "off")
       context.addIssue({
         code: "custom",
@@ -227,12 +345,26 @@ export const ChapterFileV2Schema = ChapterFileSchema.extend({
 export const ProjectConfigV3Schema = ProjectConfigV2Schema.extend({
   schemaVersion: z.literal(3),
   generation: counter,
+  created: time,
+  modified: time,
+  manuscript: ProjectConfigV2Schema.shape.manuscript
+    .extend({
+      order: ProjectConfigV2Schema.shape.manuscript.shape.order.max(
+        EDITORIAL_LIMITS.chapters,
+      ),
+    })
+    .strict(),
   editorialFile: z.literal("editorial/state.json"),
-}).strict();
+})
+  .strict()
+  .refine(
+    (value) => value.created <= value.modified,
+    "Invalid project timestamps",
+  );
 export const ProjectFormatV2Schema = z
   .object({
     schemaVersion: z.literal(2),
-    projectId: uuid,
+    projectId: historicalUuid,
     bookSchemaVersion: z.literal(1),
     chapterSchemaVersion: z.literal(2),
     editorialSchemaVersion: z.literal(1),
@@ -257,7 +389,7 @@ export const EditorialTransactionSchema = z
   .object({
     schemaVersion: z.literal(1),
     id: uuid,
-    projectId: uuid,
+    projectId: historicalUuid,
     kind: z.enum([
       "edit",
       "annotation",
@@ -300,7 +432,7 @@ export const EditorialTransactionSchema = z
       .array(
         z
           .object({
-            chapterId: uuid,
+            chapterId: historicalUuid,
             groupId: uuid,
             action: z.enum(["accept", "reject", "supersede"]),
             replacementGroupId: uuid.nullable(),
@@ -348,7 +480,7 @@ export const EditorialDraftSchema = z
   .object({
     schemaVersion: z.literal(1),
     id: uuid,
-    projectId: uuid,
+    projectId: historicalUuid,
     created: time,
     baseGeneration: counter,
     editorGeneration: counter,
@@ -385,9 +517,10 @@ export type EditorialLostSegment = z.infer<typeof EditorialLostSegmentSchema>;
 
 /** Pure, lossless semantic envelope transform; filesystem commit belongs to core. */
 export function migrateChapterV1ToEditorialV2(source: unknown): ChapterFileV2 {
-  const chapter = ChapterFileSchema.parse(source);
+  const chapter = ChapterFileSchema.strict().parse(source);
   const result = {
     ...chapter,
+    title: (source as { title: string }).title,
     schemaVersion: 2 as const,
     revision: 1,
     review: {
@@ -417,6 +550,10 @@ export function migrateProjectV2ToEditorialV3(source: unknown) {
     )
   )
     throw new Error("Unsupported project envelope fields");
+  const manuscript = (source as { manuscript: Record<string, unknown> })
+    .manuscript;
+  if (Object.keys(manuscript).some((key) => key !== "order"))
+    throw new Error("Unsupported project envelope fields");
   return ProjectConfigV3Schema.parse({
     ...project,
     schemaVersion: 3,
@@ -435,3 +572,14 @@ export function createEmptyEditorialState(projectId: string): EditorialState {
     threads: [],
   });
 }
+
+/** A command fingerprint binds retries without storing manuscript or discussion text. */
+export const EditorialRequestSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    operationId: uuid,
+    projectId: historicalUuid,
+    expectedGeneration: counter,
+    requestHash: hash,
+  })
+  .strict();

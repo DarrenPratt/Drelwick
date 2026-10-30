@@ -20,7 +20,7 @@ it("retains annotation drafts after failed saves and refresh, and requires expli
         : {
             ok: false,
             error: {
-              code: "EDITORIAL_SAVE_FAILED",
+              code: "EDITORIAL_STALE",
               message: "Synthetic save failure",
             },
           },
@@ -103,6 +103,45 @@ it("retains annotation drafts after failed saves and refresh, and requires expli
     expect(textarea.value).toBe("");
     expect(dirty).toHaveBeenLastCalledWith(false);
     expect(container.textContent).toContain("Annotation saved.");
+    api.mockImplementation(async (request) => {
+      if (request.operation === "create")
+        throw new Error("Unknown IPC outcome");
+      return {
+        ok: true,
+        value: { generation: 2, anchors: [], annotations: [], threads: [] },
+      };
+    });
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value",
+      )!.set!.call(textarea, "Uncertain draft");
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => button("Add annotation").click());
+    const originalRequest = api.mock.calls
+      .filter(([request]) => request.operation === "create")
+      .at(-1)![0];
+    expect(container.textContent).toContain(
+      "Retry interrupted annotation save",
+    );
+    api.mockImplementation(async (request) => ({
+      ok: true,
+      value:
+        request.operation === "get"
+          ? { generation: 3, anchors: [], annotations: [], threads: [] }
+          : {},
+    }));
+    await act(async () => {
+      button("Retry interrupted annotation save").click();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    const retriedRequest = api.mock.calls
+      .filter(([request]) => request.operation === "create")
+      .at(-1)![0];
+    expect(retriedRequest).toEqual(originalRequest);
+    expect(textarea.value).toBe("");
+    expect(dirty).toHaveBeenLastCalledWith(false);
   } finally {
     await act(async () => root.unmount());
     editor.destroy();

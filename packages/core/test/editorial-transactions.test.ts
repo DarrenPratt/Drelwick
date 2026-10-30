@@ -43,6 +43,12 @@ async function fixture() {
     join(root, "project.json"),
     JSON.stringify({
       schemaVersion: 3,
+      created: "2026-10-27T12:00:00.000Z",
+      modified: "2026-10-27T12:00:00.000Z",
+      bookFile: "book.json",
+      formatFile: "format.json",
+      editorialFile: "editorial/state.json",
+      manuscript: { order: [] },
       projectId: "00000000-0000-4000-8000-000000000001",
       generation: 7,
     }),
@@ -51,6 +57,9 @@ async function fixture() {
     join(root, "editorial/state.json"),
     JSON.stringify({
       schemaVersion: 1,
+      anchors: [],
+      annotations: [],
+      threads: [],
       projectId: "00000000-0000-4000-8000-000000000001",
       generation: 7,
     }),
@@ -64,6 +73,12 @@ function changes(generation: number) {
       after: Buffer.from(
         JSON.stringify({
           schemaVersion: 3,
+          created: "2026-10-27T12:00:00.000Z",
+          modified: "2026-10-27T12:00:00.000Z",
+          bookFile: "book.json",
+          formatFile: "format.json",
+          editorialFile: "editorial/state.json",
+          manuscript: { order: [] },
           projectId: "00000000-0000-4000-8000-000000000001",
           generation,
         }),
@@ -74,6 +89,9 @@ function changes(generation: number) {
       after: Buffer.from(
         JSON.stringify({
           schemaVersion: 1,
+          anchors: [],
+          annotations: [],
+          threads: [],
           projectId: "00000000-0000-4000-8000-000000000001",
           generation,
         }),
@@ -639,7 +657,7 @@ it("migrates a complete v2 fixture with a verified backup and reopens as v3", as
     .project;
   if (finalProject.schemaVersion !== 3) throw new Error("Expected v3 project");
   expect(finalProject.generation).toBe(19);
-});
+}, 20_000);
 
 it("rolls back an interrupted v2 to v3 migration before its commit marker", async () => {
   const root = await mkdtemp(join(tmpdir(), "editorial-migrate-recovery-"));
@@ -707,4 +725,411 @@ it("rolls back an interrupted v2 to v3 migration before its commit marker", asyn
   expect(
     JSON.parse(await readFile(join(root, "format.json"), "utf8")).schemaVersion,
   ).toBe(1);
+});
+
+it("stages a durable descriptor, explicitly recovers a rolled-back draft and retires the offer", async () => {
+  const { readEditorialDraft, listEditorialDrafts, recoverEditorialDraft } =
+    await import("../src/editorial-transactions.js");
+  const root = await fixture();
+  const projectId = "00000000-0000-4000-8000-000000000001";
+  const draftId = "00000000-0000-4000-8000-000000000031";
+  await expect(
+    commitEditorialTransaction({
+      projectPath: root,
+      projectId,
+      operationId: draftId,
+      kind: "edit",
+      expectedGeneration: 7,
+      editorGeneration: 19,
+      changes: changes(8),
+      checkpoint: async (point) => {
+        if (point === "prepared") throw new Error("interrupted");
+      },
+    }),
+  ).rejects.toThrow("interrupted");
+  await recoverEditorialTransactions(root);
+  const before = await readFile(join(root, "project.json"));
+  expect(
+    (await readEditorialDraft({ projectPath: root, projectId, draftId })).draft
+      .editorGeneration,
+  ).toBe(19);
+  expect(await readFile(join(root, "project.json"))).toEqual(before);
+  expect(
+    (await listEditorialDrafts({ projectPath: root, projectId })).candidates,
+  ).toEqual([{ draftId, baseGeneration: 7, editorGeneration: 19 }]);
+  const imagePath = join(
+    root,
+    ".editorial",
+    "drafts",
+    draftId,
+    "files",
+    "editorial",
+    "state.json",
+  );
+  const image = await readFile(imagePath);
+  await writeFile(imagePath, "corrupt independent draft image");
+  await expect(
+    readEditorialDraft({ projectPath: root, projectId, draftId }),
+  ).rejects.toMatchObject({ code: "EDITORIAL_RECOVERY_REQUIRED" });
+  expect(
+    (await listEditorialDrafts({ projectPath: root, projectId })).diagnostics,
+  ).toEqual([{ draftId, code: "EDITORIAL_RECOVERY_REQUIRED" }]);
+  expect(await readFile(join(root, "project.json"))).toEqual(before);
+  await writeFile(imagePath, image);
+  const request = {
+    projectPath: root,
+    projectId,
+    draftId,
+    operationId: "00000000-0000-4000-8000-000000000032",
+  };
+  expect(await recoverEditorialDraft(request)).toMatchObject({ generation: 8 });
+  expect(await recoverEditorialDraft(request)).toMatchObject({ generation: 8 });
+  expect(
+    (await listEditorialDrafts({ projectPath: root, projectId })).candidates,
+  ).toEqual([]);
+  expect(
+    JSON.parse(await readFile(join(root, "project.json"), "utf8")).generation,
+  ).toBe(8);
+});
+it("explicit draft discard retains evidence and divergent recovery preserves external bytes", async () => {
+  const {
+    readEditorialDraft,
+    listEditorialDrafts,
+    discardEditorialDraft,
+    recoverEditorialDraft,
+  } = await import("../src/editorial-transactions.js");
+  const root = await fixture();
+  const projectId = "00000000-0000-4000-8000-000000000001";
+  const draftId = "00000000-0000-4000-8000-000000000033";
+  await expect(
+    commitEditorialTransaction({
+      projectPath: root,
+      projectId,
+      operationId: draftId,
+      kind: "annotation",
+      expectedGeneration: 7,
+      changes: changes(8),
+      checkpoint: async (point) => {
+        if (point === "prepared") throw new Error("interrupted");
+      },
+    }),
+  ).rejects.toThrow();
+  await recoverEditorialTransactions(root);
+  const original = await readFile(join(root, "editorial/state.json"));
+  const external = Buffer.from(original.toString() + "\n");
+  await writeFile(join(root, "editorial/state.json"), external);
+  await expect(
+    recoverEditorialDraft({
+      projectPath: root,
+      projectId,
+      draftId,
+      operationId: "00000000-0000-4000-8000-000000000034",
+    }),
+  ).rejects.toMatchObject({ code: "EDITORIAL_STALE" });
+  expect(await readFile(join(root, "editorial/state.json"))).toEqual(external);
+  expect(
+    (await listEditorialDrafts({ projectPath: root, projectId })).candidates,
+  ).toHaveLength(1);
+  await discardEditorialDraft({ projectPath: root, projectId, draftId });
+  expect(
+    (await listEditorialDrafts({ projectPath: root, projectId })).candidates,
+  ).toHaveLength(0);
+  await expect(
+    readEditorialDraft({ projectPath: root, projectId, draftId }),
+  ).rejects.toThrow();
+  expect(
+    await readFile(
+      join(
+        root,
+        `.editorial/transactions/${draftId}/after/editorial/state.json`,
+      ),
+    ),
+  ).toBeTruthy();
+});
+
+it("F03-F05 kills real writers and recovery processes at publication and direction boundaries", async () => {
+  const { spawn } = await import("node:child_process");
+  const { fileURLToPath } = await import("node:url");
+  const entry = fileURLToPath(new URL("../dist/index.js", import.meta.url));
+  const killAt = async (root: string, point: string, recover = false) => {
+    const script = `import { pathToFileURL } from 'node:url';
+      const core = await import(pathToFileURL(process.argv[1]).href);
+      let publications = 0;
+      const checkpoint = async (point) => { if (point === 'after-publication') publications++;
+        if (point === process.argv[3] || (process.argv[3] === 'last-publication' && point === 'after-publication' && publications === 2)) {
+        setInterval(() => {}, 1000); process.stdout.write('READY\\n'); await new Promise(() => {});
+      } };
+      if (process.argv[4] === 'recover') await core.recoverEditorialTransactions(process.argv[2], { checkpoint });
+      else await core.commitEditorialTransaction({ projectPath: process.argv[2], projectId: '00000000-0000-4000-8000-000000000001',
+        operationId: '00000000-0000-4000-8000-000000000041', kind: 'edit', expectedGeneration: 7,
+        changes: JSON.parse(process.argv[5]).map(file => ({path: file.path, after: Buffer.from(file.after)})), checkpoint });`;
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(
+        process.execPath,
+        [
+          "--input-type=module",
+          "-e",
+          script,
+          entry,
+          root,
+          point,
+          recover ? "recover" : "write",
+          JSON.stringify(
+            changes(8).map((file) => ({
+              path: file.path,
+              after: [...file.after],
+            })),
+          ),
+        ],
+        { stdio: ["ignore", "pipe", "pipe"] },
+      );
+      let reached = false;
+      let errors = "";
+      const timeout = setTimeout(() => {
+        child.kill("SIGKILL");
+        reject(new Error("Crash checkpoint not reached: " + errors));
+      }, 15_000);
+      child.stdout.on("data", (data: Buffer) => {
+        if (data.toString().includes("READY")) {
+          reached = true;
+          child.kill("SIGKILL");
+        }
+      });
+      child.stderr.on("data", (data: Buffer) => {
+        errors += data.toString();
+      });
+      child.once("error", reject);
+      child.once("exit", () => {
+        clearTimeout(timeout);
+        if (reached) resolve();
+        else reject(new Error("Child exited before checkpoint: " + errors));
+      });
+    });
+  };
+  for (const point of [
+    "draft-staged",
+    "prepared",
+    "after-publication",
+    "last-publication",
+    "committed",
+  ]) {
+    const root = await fixture();
+    await killAt(root, point);
+    // Crash the recovery itself after its direction is durable, then resume it.
+    await killAt(root, "recovery-direction", true);
+    await killAt(root, "recovery-image", true);
+    await recoverEditorialTransactions(root);
+    await recoverEditorialTransactions(root);
+    const generation = point === "committed" ? 8 : 7;
+    expect(
+      JSON.parse(await readFile(join(root, "project.json"), "utf8")).generation,
+    ).toBe(generation);
+    expect(
+      JSON.parse(await readFile(join(root, "editorial/state.json"), "utf8"))
+        .generation,
+    ).toBe(generation);
+    const { listEditorialDrafts } =
+      await import("../src/editorial-transactions.js");
+    expect(
+      (
+        await listEditorialDrafts({
+          projectPath: root,
+          projectId: "00000000-0000-4000-8000-000000000001",
+        })
+      ).candidates,
+    ).toHaveLength(generation === 7 ? 1 : 0);
+  }
+}, 60_000);
+
+it("F04 binds logical command retries to their original receipt after acknowledgement loss", async () => {
+  const { readEditorialRequestReceipt } =
+    await import("../src/editorial-transactions.js");
+  const root = await fixture();
+  const projectId = "00000000-0000-4000-8000-000000000001";
+  const operationId = "00000000-0000-4000-8000-000000000061";
+  const request = {
+    projectPath: root,
+    projectId,
+    operationId,
+    expectedGeneration: 7,
+    requestHash: "a".repeat(64),
+  };
+  expect(await readEditorialRequestReceipt(request)).toBeNull();
+  await expect(
+    commitEditorialTransaction({
+      ...request,
+      kind: "annotation",
+      changes: changes(8),
+      checkpoint: async (point) => {
+        if (point === "committed") throw new Error("lost acknowledgement");
+      },
+    }),
+  ).rejects.toThrow("lost acknowledgement");
+  expect(await readEditorialRequestReceipt(request)).toEqual({
+    operationId,
+    generation: 8,
+  });
+  expect(await readEditorialRequestReceipt(request)).toEqual({
+    operationId,
+    generation: 8,
+  });
+  await expect(
+    readEditorialRequestReceipt({ ...request, requestHash: "b".repeat(64) }),
+  ).rejects.toMatchObject({ code: "EDITORIAL_STALE" });
+  expect(
+    JSON.parse(await readFile(join(root, "project.json"), "utf8")).generation,
+  ).toBe(8);
+});
+
+it("blocks supported readers and new writes until an incomplete editorial journal is recovered", async () => {
+  const { assertEditorialReadable } =
+    await import("../src/editorial-transactions.js");
+  const root = await fixture();
+  await expect(
+    commitEditorialTransaction({
+      projectPath: root,
+      projectId: "00000000-0000-4000-8000-000000000001",
+      kind: "edit",
+      expectedGeneration: 7,
+      changes: changes(8),
+      checkpoint: async (point) => {
+        if (point === "prepared") throw new Error("interrupted");
+      },
+    }),
+  ).rejects.toThrow();
+  await expect(assertEditorialReadable(root)).rejects.toMatchObject({
+    code: "EDITORIAL_RECOVERY_REQUIRED",
+  });
+  await expect(openProject(root)).rejects.toMatchObject({
+    code: "EDITORIAL_RECOVERY_REQUIRED",
+  });
+  await expect(
+    commitEditorialTransaction({
+      projectPath: root,
+      projectId: "00000000-0000-4000-8000-000000000001",
+      kind: "edit",
+      expectedGeneration: 7,
+      changes: changes(8),
+    }),
+  ).rejects.toMatchObject({ code: "EDITORIAL_RECOVERY_REQUIRED" });
+  await recoverEditorialTransactions(root);
+  await expect(assertEditorialReadable(root)).resolves.toBeUndefined();
+});
+
+it("metadata companion undo restores owned records and preserves disjoint discussion edits", async () => {
+  const { editorialProject } =
+    await import("../../../tests/helpers/editorial-project.js");
+  const { readEditorialChapter } = await import("../src/editorial-service.js");
+  const { EditorialHistoryStep } = await import("../src/editorial-history.js");
+  const fixture = await editorialProject();
+  try {
+    const current = await loadChapter({
+      projectPath: fixture.projectPath,
+      chapterId: fixture.chapterId,
+    });
+    const captured = await readEditorialChapter({
+      projectPath: fixture.projectPath,
+      chapterId: fixture.chapterId,
+    });
+    const operationId = "00000000-0000-4000-8000-000000000071";
+    const created = await createEditorialAnnotation(
+      {
+        projectPath: fixture.projectPath,
+        chapterId: fixture.chapterId,
+        from: 1,
+        to: 12,
+        kind: "note",
+        body: "Undo this note",
+        evidence: {
+          slice: {
+            content: [{ type: "text", text: "Publication" }],
+            openStart: 0,
+            openEnd: 0,
+          },
+          prefix: "",
+          suffix: "",
+        },
+      },
+      {
+        operationId,
+        expectedGeneration: captured.generation,
+        expectedFiles: captured.expectedFiles,
+        requestHash: "a".repeat(64),
+      },
+    );
+    expect(created.historyEventId).toBe(operationId);
+    await replyToEditorialThread({
+      projectPath: fixture.projectPath,
+      threadId: captured.threads[0]!.id,
+      body: "Disjoint reply survives undo",
+    });
+    const marker = new EditorialHistoryStep(operationId, "recorded");
+    await saveChapter({
+      projectPath: fixture.projectPath,
+      chapterId: fixture.chapterId,
+      document: current.content,
+      transactions: [
+        {
+          before: current.content,
+          steps: [marker.invert().toJSON() as Record<string, unknown>],
+        },
+      ],
+    });
+    let state = JSON.parse(await readFile(fixture.editorialPath, "utf8"));
+    expect(
+      state.annotations.some(
+        (item: { id: string }) => item.id === created.annotation.id,
+      ),
+    ).toBe(false);
+    expect(
+      state.threads
+        .find((item: { id: string }) => item.id === captured.threads[0]!.id)
+        .comments.at(-1).body,
+    ).toBe("Disjoint reply survives undo");
+    await saveChapter({
+      projectPath: fixture.projectPath,
+      chapterId: fixture.chapterId,
+      document: current.content,
+      transactions: [
+        {
+          before: current.content,
+          steps: [new EditorialHistoryStep(operationId, "redo").toJSON()],
+        },
+      ],
+    });
+    state = JSON.parse(await readFile(fixture.editorialPath, "utf8"));
+    expect(
+      state.annotations.some(
+        (item: { id: string }) => item.id === created.annotation.id,
+      ),
+    ).toBe(true);
+    expect(
+      state.anchors.find(
+        (item: { id: string }) => item.id === created.anchor.id,
+      ).status,
+    ).toBe("attached");
+    await updateEditorialComment({
+      projectPath: fixture.projectPath,
+      threadId: created.thread.id,
+      commentId: created.thread.comments[0]!.id,
+      body: "External discussion edit",
+    });
+    const bytes = await readFile(fixture.editorialPath);
+    await expect(
+      saveChapter({
+        projectPath: fixture.projectPath,
+        chapterId: fixture.chapterId,
+        document: current.content,
+        transactions: [
+          {
+            before: current.content,
+            steps: [marker.invert().toJSON() as Record<string, unknown>],
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: "EDITORIAL_STALE" });
+    expect(await readFile(fixture.editorialPath)).toEqual(bytes);
+  } finally {
+    await fixture.cleanup();
+  }
 });

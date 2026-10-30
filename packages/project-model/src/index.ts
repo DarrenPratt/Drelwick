@@ -28,3 +28,5 @@ export * from "./print-configuration.js";
 export * from "./reference.js";
 
 export * from "./editorial.js";
+
+export * from "./editorial-codec.js";

@@ -108,6 +108,20 @@ export function mapEditorialAnchors(
         .filter((piece) => piece.from <= piece.to);
     });
     if (!changed) return anchor;
+    // Deletion can join surviving pieces; preserve one contiguous live target.
+    const compact: typeof segments = [];
+    for (const segment of segments) {
+      const last = compact.at(-1);
+      if (
+        last &&
+        last.chapterId === segment.chapterId &&
+        last.to === segment.from &&
+        last.documentHash === segment.documentHash &&
+        last.chapterRevision === segment.chapterRevision
+      )
+        last.to = segment.to;
+      else compact.push({ ...segment });
+    }
     const lost: EditorialLostSegment[] = [...anchor.lost];
     for (const segment of anchor.segments) {
       if (segment.chapterId !== chapterId) continue;
@@ -135,7 +149,7 @@ export function mapEditorialAnchors(
       ...anchor,
       modified: new Date().toISOString(),
       status,
-      segments,
+      segments: compact,
       lost,
     };
   });
@@ -186,6 +200,8 @@ export function splitEditorialAnchors(
   rightRevision: number,
   leftHash: string,
   rightHash: string,
+  rightStart = 1,
+  leftSize = splitPosition,
 ): EditorialAnchor[] {
   if (!Number.isSafeInteger(splitPosition) || splitPosition < 0)
     throw new Error("Invalid chapter split position");
@@ -194,13 +210,15 @@ export function splitEditorialAnchors(
     const segments = anchor.segments.flatMap((segment) => {
       if (segment.chapterId !== sourceChapterId) return [segment];
       changed = true;
-      if (segment.to <= splitPosition)
+      if (segment.to <= splitPosition && segment.from < splitPosition)
         return [
           {
             ...segment,
             chapterId: leftChapterId,
             chapterRevision: leftRevision,
             documentHash: leftHash,
+            from: Math.min(segment.from, leftSize),
+            to: Math.min(segment.to, leftSize),
           },
         ];
       if (segment.from >= splitPosition)
@@ -210,8 +228,8 @@ export function splitEditorialAnchors(
             chapterId: rightChapterId,
             chapterRevision: rightRevision,
             documentHash: rightHash,
-            from: 1 + segment.from - splitPosition,
-            to: 1 + segment.to - splitPosition,
+            from: rightStart + segment.from - splitPosition,
+            to: rightStart + segment.to - splitPosition,
           },
         ];
       return [
@@ -220,15 +238,15 @@ export function splitEditorialAnchors(
           chapterId: leftChapterId,
           chapterRevision: leftRevision,
           documentHash: leftHash,
-          to: splitPosition,
+          to: Math.min(splitPosition, leftSize),
         },
         {
           ...segment,
           chapterId: rightChapterId,
           chapterRevision: rightRevision,
           documentHash: rightHash,
-          from: 1,
-          to: 1 + segment.to - splitPosition,
+          from: rightStart,
+          to: rightStart + segment.to - splitPosition,
         },
       ];
     });

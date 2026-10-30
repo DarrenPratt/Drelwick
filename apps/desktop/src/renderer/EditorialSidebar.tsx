@@ -1,11 +1,25 @@
+import { EditorialHistoryStep } from "@drelwick/core/editorial-history";
+import { closeHistory } from "@tiptap/pm/history";
+import type {
+  ProjectWorkspace,
+  EditorialExpectedFiles,
+} from "@drelwick/shared";
 import type { Editor as TipTapEditor } from "@tiptap/core";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { setEditorialDecorations } from "./components/EditorialDecorations.js";
 
 interface EditorialAnchor {
   id: string;
   status: "attached" | "partial" | "orphaned" | "unverified";
   original: {
+    chapterId: string;
     slice: {
       content: Record<string, unknown>[];
       openStart: number;
@@ -21,6 +35,9 @@ interface EditorialAnchor {
   lost: { evidence: EditorialAnchor["original"] }[];
 }
 interface EditorialData {
+  chapters?: { id: string; title: string }[];
+  documentIdentity?: { storedHash: string; editorHash: string };
+  expectedFiles?: EditorialExpectedFiles;
   generation: number;
   anchors: EditorialAnchor[];
   annotations: {
@@ -40,10 +57,14 @@ interface EditorialData {
 }
 interface EditorialSidebarProps {
   editor: TipTapEditor;
+  projectOnly?: boolean;
+  refreshKey?: number;
   projectId: string;
   chapterId: string;
   flushManuscript(): Promise<boolean>;
   onDirtyChange?(dirty: boolean): void;
+  onBusyChange?(busy: boolean): void;
+  onRecovered?(workspace: ProjectWorkspace): void;
 }
 
 function canonical(value: unknown): string {
@@ -76,13 +97,40 @@ async function documentHash(value: unknown): Promise<string> {
 
 export function EditorialSidebar({
   editor,
+  projectOnly = false,
+  refreshKey,
   projectId,
   chapterId,
   flushManuscript,
   onDirtyChange,
+  onBusyChange,
+  onRecovered,
 }: EditorialSidebarProps) {
+  const sidebar = useRef<HTMLElement>(null);
+  const refreshGeneration = useRef(0);
+  const pendingCommand = useRef<{
+    key: string;
+    request: Parameters<typeof window.drelwick.project.editorial>[0];
+    body: string;
+    reply: Record<string, string>;
+    editing: { id: string; body: string } | null;
+  } | null>(null);
+  const [uncertain, setUncertain] = useState(false);
+  const [drafts, setDrafts] = useState<
+    { draftId: string; baseGeneration: number; editorGeneration: number }[]
+  >([]);
+  const [invalidDrafts, setInvalidDrafts] = useState(false);
+  const [draftPreview, setDraftPreview] = useState<{
+    draftId: string;
+    operationId: string;
+    chapters: { title: string; text: string }[];
+    comments: string[];
+  } | null>(null);
   const [data, setData] = useState<EditorialData | null>(null);
   const [kind, setKind] = useState<"comment" | "note" | "highlight">("comment");
+  const [colour, setColour] = useState<"yellow" | "blue" | "green" | "pink">(
+    "yellow",
+  );
   const [body, setBody] = useState("");
   const [reply, setReply] = useState<Record<string, string>>({});
   const [editingComment, setEditingComment] = useState<{
@@ -93,6 +141,16 @@ export function EditorialSidebar({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("");
+  const [hasSelection, setHasSelection] = useState(
+    !editor.state.selection.empty,
+  );
+  useEffect(() => {
+    const report = () => setHasSelection(!editor.state.selection.empty);
+    editor.on("selectionUpdate", report);
+    return () => {
+      editor.off("selectionUpdate", report);
+    };
+  }, [editor]);
   const [migrationRequired, setMigrationRequired] = useState(false);
   const [kindFilter, setKindFilter] = useState("all");
   const [stateFilter, setStateFilter] = useState("open");
@@ -100,30 +158,99 @@ export function EditorialSidebar({
   const [showDeleted, setShowDeleted] = useState(false);
   const dirty =
     busy ||
+    uncertain ||
     body.length > 0 ||
     editingComment !== null ||
     Object.values(reply).some((value) => value.length > 0);
-  useEffect(() => {
+  useLayoutEffect(() => {
+    onBusyChange?.(busy || uncertain);
+    return () => onBusyChange?.(false);
+  }, [busy, uncertain, onBusyChange]);
+  useLayoutEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
-  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
+  useLayoutEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   const refresh = useCallback(async () => {
+    const generation = ++refreshGeneration.current;
     setLoading(true);
     try {
       const api = window.drelwick?.project?.editorial;
       if (!api)
         throw new Error("Local annotations are unavailable in this project.");
-      const result = await api({ operation: "get", projectId, chapterId });
+      const read = async (request: Parameters<typeof api>[0]) => {
+        for (let attempt = 0; ; attempt++) {
+          const result = await api(request);
+          if (
+            result.ok ||
+            result.error.code !== "PROJECT_BUSY" ||
+            attempt === 5
+          )
+            return result;
+          await new Promise((resolve) => window.setTimeout(resolve, 50));
+          if (generation !== refreshGeneration.current || editor.isDestroyed)
+            return result;
+        }
+      };
+      const result = await read(
+        projectOnly
+          ? { operation: "get-project", projectId }
+          : { operation: "get", projectId, chapterId },
+      );
       if (!result.ok) {
         setMigrationRequired(result.error.code === "EDITORIAL_UNAVAILABLE");
+        if (result.error.code === "EDITORIAL_UNAVAILABLE") {
+          setData(null);
+          setError(null);
+          setEditorialDecorations(editor, []);
+          return;
+        }
         throw new Error(result.error.message);
       }
+      if (generation !== refreshGeneration.current || editor.isDestroyed)
+        return;
       setMigrationRequired(false);
       const next = result.value as EditorialData;
+      const offers = await read({ operation: "drafts", projectId });
+      if (
+        offers.ok &&
+        offers.value &&
+        typeof offers.value === "object" &&
+        "candidates" in offers.value
+      ) {
+        setDrafts(
+          (
+            offers.value as {
+              candidates: {
+                draftId: string;
+                baseGeneration: number;
+                editorGeneration: number;
+              }[];
+            }
+          ).candidates,
+        );
+        setInvalidDrafts(
+          "diagnostics" in offers.value &&
+            Array.isArray(offers.value.diagnostics) &&
+            offers.value.diagnostics.length > 0,
+        );
+      }
+      if (generation !== refreshGeneration.current || editor.isDestroyed)
+        return;
+      const captured = editor.getJSON();
+      const currentHash = await documentHash(captured);
+      if (
+        generation !== refreshGeneration.current ||
+        editor.isDestroyed ||
+        canonical(captured) !== canonical(editor.getJSON())
+      )
+        return;
       setData(next);
       setError(null);
-      const currentHash = await documentHash(editor.getJSON());
+      const verifiedHash =
+        next.documentIdentity?.editorHash === currentHash
+          ? next.documentIdentity.storedHash
+          : currentHash;
       const annotations = new Map(
         next.annotations.map((annotation) => [annotation.anchorId, annotation]),
       );
@@ -131,26 +258,29 @@ export function EditorialSidebar({
         editor,
         next.anchors.flatMap((anchor) => {
           const annotation = annotations.get(anchor.id);
-          const segment = anchor.segments.find(
-            (item) =>
-              item.chapterId === chapterId && item.documentHash === currentHash,
-          );
-          return annotation &&
-            !annotation.deletedAt &&
-            segment &&
-            (anchor.status === "attached" || anchor.status === "partial")
-            ? [
-                {
-                  ...segment,
-                  annotationId: annotation.id,
-                  kind: annotation.kind,
-                  colour: annotation.colour,
-                },
-              ]
-            : [];
+          if (
+            !annotation ||
+            annotation.deletedAt ||
+            (anchor.status !== "attached" && anchor.status !== "partial")
+          )
+            return [];
+          return anchor.segments
+            .filter(
+              (item) =>
+                item.chapterId === chapterId &&
+                item.documentHash === verifiedHash,
+            )
+            .map((segment) => ({
+              ...segment,
+              annotationId: annotation.id,
+              kind: annotation.kind,
+              colour: annotation.colour,
+            }));
         }),
       );
     } catch (cause) {
+      if (generation !== refreshGeneration.current || editor.isDestroyed)
+        return;
       setData(null);
       setError(
         cause instanceof Error ? cause.message : "Unable to load annotations.",
@@ -159,13 +289,14 @@ export function EditorialSidebar({
     } finally {
       setLoading(false);
     }
-  }, [chapterId, editor, projectId]);
+  }, [chapterId, editor, projectId, projectOnly]);
   useEffect(() => {
     const timer = window.setTimeout(() => void refresh(), 0);
     return () => window.clearTimeout(timer);
-  }, [refresh]);
+  }, [refresh, refreshKey]);
   useEffect(() => {
     const markStale = () => {
+      refreshGeneration.current++;
       setData((current) =>
         current
           ? {
@@ -198,11 +329,120 @@ export function EditorialSidebar({
         const api = window.drelwick?.project?.editorial;
         if (!api)
           throw new Error("Local annotations are unavailable in this project.");
-        const result = await api(action);
-        if (!result.ok) throw new Error(result.error.message);
+        const focused = document.activeElement;
+        let request = action;
+        const commandKey = JSON.stringify(action);
+        if (pendingCommand.current) {
+          if (pendingCommand.current.key !== commandKey)
+            throw new Error(
+              "Retry the interrupted annotation save before starting another change.",
+            );
+          request = pendingCommand.current.request;
+        } else if (
+          [
+            "change-colour",
+            "create",
+            "update-comment",
+            "reply",
+            "resolve",
+            "delete",
+            "reattach",
+            "restore-annotation",
+          ].includes(action.operation)
+        ) {
+          if (!(await flushManuscript()))
+            throw new Error(
+              "Save manuscript edits before changing a discussion.",
+            );
+          let captured = data;
+          if (
+            action.operation === "create" ||
+            action.operation === "reattach"
+          ) {
+            const latest = await api({
+              operation: "get",
+              projectId,
+              chapterId,
+            });
+            if (!latest.ok) throw new Error(latest.error.message);
+            captured = latest.value as EditorialData;
+          }
+          if (!captured)
+            throw new Error(
+              "Refresh annotations before changing a discussion.",
+            );
+          request = {
+            ...action,
+            operationId: crypto.randomUUID(),
+            expectedGeneration: captured.generation,
+            expectedFiles: captured.expectedFiles,
+          } as typeof action;
+        }
+        const mutating =
+          "operationId" in request &&
+          request.operationId !== undefined &&
+          "expectedGeneration" in request;
+        if (mutating && !pendingCommand.current)
+          pendingCommand.current = {
+            key: commandKey,
+            request,
+            body,
+            reply: structuredClone(reply),
+            editing: editingComment ? { ...editingComment } : null,
+          };
+        const result = await api(request);
+        if (!result.ok) {
+          if (
+            ([
+              "EDITORIAL_STALE",
+              "PROJECT_BUSY",
+              "EDITORIAL_INPUT_INVALID",
+              "EDITORIAL_INVALID",
+              "EDITORIAL_LIMIT",
+              "EDITORIAL_UNSUPPORTED",
+              "PROJECT_SCHEMA_INVALID",
+              "PROJECT_ORDER_INVALID",
+              "PROJECT_FILE_MISSING",
+              "EDITORIAL_RANGE_INVALID",
+              "EDITORIAL_EVIDENCE_STALE",
+              "EDITORIAL_NOT_FOUND",
+              "CHAPTER_NOT_FOUND",
+              "EDITORIAL_COMMENT_REQUIRED",
+            ].includes(result.error.code) &&
+              !uncertain) ||
+            result.error.code === "EDITORIAL_NOT_COMMITTED"
+          ) {
+            pendingCommand.current = null;
+            setUncertain(false);
+            if (result.error.code === "EDITORIAL_NOT_COMMITTED")
+              await refresh();
+          } else if (mutating) setUncertain(true);
+          throw new Error(result.error.message);
+        }
+        pendingCommand.current = null;
+        setUncertain(false);
+        const value = result.value as { historyEventId?: unknown } | null;
+        if (!projectOnly && value && typeof value.historyEventId === "string")
+          editor.view.dispatch(
+            closeHistory(editor.state.tr).step(
+              new EditorialHistoryStep(value.historyEventId, "recorded"),
+            ),
+          );
         await refresh();
+        window.requestAnimationFrame(() => {
+          const target =
+            focused instanceof HTMLElement &&
+            focused.isConnected &&
+            !focused.hasAttribute("disabled")
+              ? focused
+              : sidebar.current?.querySelector<HTMLElement>(
+                  "button:not(:disabled)",
+                );
+          target?.focus();
+        });
         return true;
       } catch (cause) {
+        if (pendingCommand.current) setUncertain(true);
         setError(
           cause instanceof Error
             ? cause.message
@@ -213,13 +453,27 @@ export function EditorialSidebar({
         setBusy(false);
       }
     },
-    [refresh],
+    [
+      refresh,
+      data,
+      projectId,
+      chapterId,
+      body,
+      reply,
+      editingComment,
+      uncertain,
+      flushManuscript,
+      projectOnly,
+      editor,
+    ],
   );
 
   const selectEvidence = useCallback(() => {
     const selection = editor.state.selection;
     if (selection.empty) throw new Error("Select manuscript text first.");
-    const slice = selection.content().toJSON() as {
+    const slice = editor.state.doc
+      .slice(selection.from, selection.to)
+      .toJSON() as {
       content?: Record<string, unknown>[];
       openStart?: number;
       openEnd?: number;
@@ -233,22 +487,27 @@ export function EditorialSidebar({
           openStart: slice.openStart ?? 0,
           openEnd: slice.openEnd ?? 0,
         },
-        prefix: editor.state.doc
-          .textBetween(
-            Math.max(0, selection.from - 64),
-            selection.from,
-            " ",
-            " ",
-          )
-          .slice(-64),
-        suffix: editor.state.doc
-          .textBetween(
-            selection.to,
-            Math.min(editor.state.doc.content.size, selection.to + 64),
-            " ",
-            " ",
-          )
-          .slice(0, 64),
+        prefix: [
+          ...new Intl.Segmenter("und", { granularity: "grapheme" }).segment(
+            editor.state.doc.textBetween(0, selection.from, " ", " "),
+          ),
+        ]
+          .slice(-32)
+          .map((part) => part.segment)
+          .join(""),
+        suffix: [
+          ...new Intl.Segmenter("und", { granularity: "grapheme" }).segment(
+            editor.state.doc.textBetween(
+              selection.to,
+              editor.state.doc.content.size,
+              " ",
+              " ",
+            ),
+          ),
+        ]
+          .slice(0, 32)
+          .map((part) => part.segment)
+          .join(""),
       },
     };
   }, [editor]);
@@ -264,6 +523,7 @@ export function EditorialSidebar({
         chapterId,
         ...selected,
         kind,
+        ...(kind === "highlight" ? { colour } : {}),
         body: body || undefined,
         evidence: selected.evidence,
       });
@@ -292,7 +552,11 @@ export function EditorialSidebar({
       (anchor.status !== "attached" && anchor.status !== "partial")
     )
       return;
-    if ((await documentHash(editor.getJSON())) !== segment.documentHash) {
+    const expectedHash =
+      data?.documentIdentity?.storedHash === segment.documentHash
+        ? data.documentIdentity.editorHash
+        : segment.documentHash;
+    if ((await documentHash(editor.getJSON())) !== expectedHash) {
       setError(
         "This location changed. Save or reattach the annotation before navigating.",
       );
@@ -330,18 +594,230 @@ export function EditorialSidebar({
     }
   };
 
+  const previewDraft = async (draftId: string) => {
+    setBusy(true);
+    try {
+      const result = await window.drelwick.project.editorial({
+        operation: "preview-draft",
+        projectId,
+        draftId,
+      });
+      if (!result.ok) throw new Error(result.error.message);
+      const candidate = result.value as {
+        files: { path: string; document: Record<string, unknown> }[];
+      };
+      const chapters = candidate.files
+        .filter((file) => file.path.startsWith("manuscript/"))
+        .map((file) => ({
+          title: String(file.document["title"] ?? "Chapter"),
+          text: plainText(file.document["content"]),
+        }));
+      const editorial = candidate.files.find(
+        (file) => file.path === "editorial/state.json",
+      )?.document;
+      const threads = (editorial?.["threads"] ?? []) as {
+        comments: { body: string }[];
+      }[];
+      setDraftPreview({
+        draftId,
+        operationId: crypto.randomUUID(),
+        chapters,
+        comments: threads.flatMap((thread) =>
+          thread.comments.map((comment) => comment.body),
+        ),
+      });
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Unable to preview the draft.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+  const recoverDraft = async () => {
+    if (!draftPreview || !onRecovered || dirty) return;
+    if (
+      !window.confirm(
+        "Recover this complete manuscript and annotation draft? Recovery requires its original saved version; divergent work will be preserved and recovery refused.",
+      )
+    )
+      return;
+    const wasEditable = editor.isEditable;
+    setBusy(true);
+    editor.setEditable(false, false);
+    try {
+      if (!(await flushManuscript()))
+        throw new Error(
+          "Save current manuscript edits before recovering a draft.",
+        );
+      const result = await window.drelwick.project.editorial({
+        operation: "recover-draft",
+        projectId,
+        draftId: draftPreview.draftId,
+        operationId: draftPreview.operationId,
+      });
+      if (!result.ok) throw new Error(result.error.message);
+      setDrafts((current) =>
+        current.filter((item) => item.draftId !== draftPreview.draftId),
+      );
+      setDraftPreview(null);
+      onRecovered((result.value as { workspace: ProjectWorkspace }).workspace);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Unable to recover the draft. Current work is preserved.",
+      );
+    } finally {
+      if (!editor.isDestroyed) editor.setEditable(wasEditable, false);
+      setBusy(false);
+    }
+  };
+
   return (
-    <aside className="editorial-sidebar" aria-label="Comments and annotations">
+    <aside
+      ref={sidebar}
+      className="editorial-sidebar"
+      aria-label="Comments and annotations"
+    >
       <h3>Comments &amp; annotations</h3>
+      {projectOnly && (
+        <p>
+          Create a chapter to attach or reattach retained discussions to
+          manuscript text.
+        </p>
+      )}
       {loading && <p role="status">Loading annotations…</p>}
       {error && <p role="alert">{error}</p>}
+      {invalidDrafts && (
+        <p role="alert">
+          Some retained drafts could not be verified. Their files are preserved;
+          keep a project backup before investigating recovery.
+        </p>
+      )}
       {status && <p role="status">{status}</p>}
+      {drafts.length > 0 && (
+        <section aria-label="Recoverable editorial drafts">
+          <h4>Recoverable drafts</h4>
+          <p>
+            A previous save was interrupted. Preview a draft before choosing
+            recovery or discard.
+          </p>
+          {drafts.map((draft) => (
+            <button
+              key={draft.draftId}
+              type="button"
+              disabled={busy || loading}
+              onClick={() => void previewDraft(draft.draftId)}
+            >
+              Preview draft from saved version {draft.baseGeneration}
+            </button>
+          ))}
+        </section>
+      )}
+      {draftPreview && (
+        <section aria-label="Draft preview">
+          <h4>Draft preview</h4>
+          {draftPreview.chapters.map((chapter, index) => (
+            <article key={index}>
+              <h5>{chapter.title}</h5>
+              <p style={{ whiteSpace: "pre-wrap" }}>{chapter.text}</p>
+            </article>
+          ))}
+          {draftPreview.comments.map((comment, index) => (
+            <blockquote key={index}>{comment}</blockquote>
+          ))}
+          <button
+            type="button"
+            disabled={busy || dirty || !onRecovered}
+            onClick={() => void recoverDraft()}
+          >
+            Recover draft
+          </button>
+          <button
+            type="button"
+            disabled={busy || loading}
+            onClick={async () => {
+              if (
+                !window.confirm(
+                  "Discard this draft recovery offer? Its retained safety files will remain available.",
+                )
+              )
+                return;
+              if (
+                await perform({
+                  operation: "discard-draft",
+                  projectId,
+                  draftId: draftPreview.draftId,
+                })
+              )
+                setDraftPreview(null);
+            }}
+          >
+            Discard recoverable draft
+          </button>
+          <button
+            type="button"
+            disabled={busy || loading}
+            onClick={() => setDraftPreview(null)}
+          >
+            Cancel draft preview
+          </button>
+        </section>
+      )}
+      {uncertain && (
+        <p role="status">
+          Resolve the interrupted annotation save before editing manuscript
+          text.
+        </p>
+      )}
+      {uncertain && (
+        <button
+          type="button"
+          disabled={busy || loading}
+          onClick={async () => {
+            const pending = pendingCommand.current;
+            if (
+              !pending ||
+              !(await perform(
+                JSON.parse(pending.key) as Parameters<
+                  typeof window.drelwick.project.editorial
+                >[0],
+              ))
+            )
+              return;
+            const action = pending.request;
+            if (action.operation === "create")
+              setBody((current) => (current === pending.body ? "" : current));
+            if (action.operation === "reply")
+              setReply((current) =>
+                current[action.threadId] === pending.reply[action.threadId]
+                  ? { ...current, [action.threadId]: "" }
+                  : current,
+              );
+            if (action.operation === "update-comment")
+              setEditingComment((current) =>
+                JSON.stringify(current) === JSON.stringify(pending.editing)
+                  ? null
+                  : current,
+              );
+          }}
+        >
+          Retry interrupted annotation save
+        </button>
+      )}
       {dirty && <p role="status">Annotation changes are unsaved.</p>}
       {dirty && (
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || loading}
           onClick={() => {
+            if (uncertain) {
+              setError(
+                "Retry the interrupted annotation save to establish its outcome before discarding drafts.",
+              );
+              return;
+            }
             if (
               window.confirm(
                 "Discard unsaved comment, note and reply text in this sidebar?",
@@ -385,8 +861,13 @@ export function EditorialSidebar({
       >
         Refresh annotations
       </button>
-      <fieldset disabled={busy || loading || migrationRequired}>
+      <fieldset disabled={busy || loading || migrationRequired || projectOnly}>
         <legend>Add to selected text</legend>
+        <p role="status">
+          {hasSelection
+            ? "Text selected for annotation."
+            : "Select manuscript text to add an annotation."}
+        </p>
         <label>
           Type
           <select
@@ -398,13 +879,30 @@ export function EditorialSidebar({
             <option value="highlight">Highlight</option>
           </select>
         </label>
+        {kind === "highlight" && (
+          <label>
+            Highlight colour
+            <select
+              value={colour}
+              onChange={(event) =>
+                setColour(event.target.value as typeof colour)
+              }
+            >
+              {(["yellow", "blue", "green", "pink"] as const).map((value) => (
+                <option key={value} value={value}>
+                  {value.charAt(0).toUpperCase() + value.slice(1)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {kind !== "highlight" && (
           <label>
             Comment or note
             <textarea
               value={body}
               onChange={(event) => setBody(event.target.value)}
-              maxLength={100_000}
+              maxLength={200_000}
             />
           </label>
         )}
@@ -438,6 +936,7 @@ export function EditorialSidebar({
         <label>
           Discussion state
           <select
+            aria-label="Discussion state"
             value={stateFilter}
             onChange={(event) => setStateFilter(event.target.value)}
           >
@@ -489,6 +988,12 @@ export function EditorialSidebar({
               return (
                 <li key={annotation.id}>
                   <article aria-label="Deleted annotation">
+                    <p>
+                      Chapter:{" "}
+                      {data.chapters?.find(
+                        (item) => item.id === anchor.original.chapterId,
+                      )?.title ?? "Deleted or unavailable chapter"}
+                    </p>
                     <h4>Deleted {annotation.kind}</h4>
                     <p>
                       {anchor.original.slice.content.map(plainText).join("")}
@@ -496,6 +1001,19 @@ export function EditorialSidebar({
                     {thread.comments.map((comment) => (
                       <p key={comment.id}>{comment.body}</p>
                     ))}
+                    <button
+                      type="button"
+                      disabled={busy || loading}
+                      onClick={() =>
+                        void perform({
+                          operation: "restore-annotation",
+                          projectId,
+                          annotationId: annotation.id,
+                        })
+                      }
+                    >
+                      Restore annotation
+                    </button>
                   </article>
                 </li>
               );
@@ -512,6 +1030,47 @@ export function EditorialSidebar({
                         annotation.kind.slice(1)}{" "}
                     <span>{anchor.status}</span>
                   </h4>
+                  <p>
+                    Chapter:{" "}
+                    {[
+                      ...new Set(
+                        anchor.segments.length
+                          ? anchor.segments.map((item) => item.chapterId)
+                          : [anchor.original.chapterId],
+                      ),
+                    ]
+                      .map(
+                        (id) =>
+                          data.chapters?.find((item) => item.id === id)
+                            ?.title ?? "Deleted or unavailable chapter",
+                      )
+                      .join(", ")}
+                  </p>
+                  {annotation.kind === "highlight" && (
+                    <label>
+                      Highlight colour
+                      <select
+                        disabled={busy || loading}
+                        value={annotation.colour ?? "yellow"}
+                        onChange={(event) =>
+                          void perform({
+                            operation: "change-colour",
+                            projectId,
+                            annotationId: annotation.id,
+                            colour: event.target.value as typeof colour,
+                          })
+                        }
+                      >
+                        {(["yellow", "blue", "green", "pink"] as const).map(
+                          (value) => (
+                            <option key={value} value={value}>
+                              {value.charAt(0).toUpperCase() + value.slice(1)}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </label>
+                  )}
                   {anchor.original.slice.content.length > 0 && (
                     <blockquote>
                       {anchor.original.slice.content.map(plainText).join("")}
@@ -537,7 +1096,7 @@ export function EditorialSidebar({
                               Edit comment
                               <textarea
                                 autoFocus
-                                maxLength={100_000}
+                                maxLength={200_000}
                                 value={editingComment.body}
                                 onChange={(event) =>
                                   setEditingComment({
@@ -549,7 +1108,7 @@ export function EditorialSidebar({
                             </label>
                             <button
                               type="button"
-                              disabled={busy}
+                              disabled={busy || loading}
                               onClick={async () => {
                                 if (
                                   await perform({
@@ -560,14 +1119,19 @@ export function EditorialSidebar({
                                     body: editingComment.body,
                                   })
                                 )
-                                  setEditingComment(null);
+                                  setEditingComment((current) =>
+                                    current?.id === editingComment.id &&
+                                    current.body === editingComment.body
+                                      ? null
+                                      : current,
+                                  );
                               }}
                             >
                               Save comment
                             </button>
                             <button
                               type="button"
-                              disabled={busy}
+                              disabled={busy || loading}
                               onClick={() => setEditingComment(null)}
                             >
                               Cancel edit
@@ -590,7 +1154,7 @@ export function EditorialSidebar({
                             </button>
                             <button
                               type="button"
-                              disabled={busy}
+                              disabled={busy || loading}
                               onClick={() =>
                                 void perform({
                                   operation: "update-comment",
@@ -618,7 +1182,7 @@ export function EditorialSidebar({
                     <button
                       type="button"
                       onClick={() => void reattach(anchor.id)}
-                      disabled={busy}
+                      disabled={busy || projectOnly}
                     >
                       Reattach to selected text
                     </button>
@@ -633,7 +1197,7 @@ export function EditorialSidebar({
                         resolved: thread.state !== "resolved",
                       })
                     }
-                    disabled={busy}
+                    disabled={busy || loading}
                   >
                     {thread.state === "resolved" ? "Reopen" : "Resolve"}
                   </button>
@@ -647,14 +1211,14 @@ export function EditorialSidebar({
                           [thread.id]: event.target.value,
                         }))
                       }
-                      maxLength={100_000}
+                      maxLength={200_000}
                     />
                   </label>
                   <button
                     type="button"
                     onClick={async () => {
-                      const value = reply[thread.id]?.trim();
-                      if (!value) return;
+                      const value = reply[thread.id];
+                      if (!value?.trim()) return;
                       if (
                         await perform({
                           operation: "reply",
@@ -665,7 +1229,10 @@ export function EditorialSidebar({
                       )
                         setReply((current) => ({
                           ...current,
-                          [thread.id]: "",
+                          [thread.id]:
+                            current[thread.id] === reply[thread.id]
+                              ? ""
+                              : (current[thread.id] ?? ""),
                         }));
                     }}
                     disabled={busy || !reply[thread.id]?.trim()}
@@ -681,7 +1248,7 @@ export function EditorialSidebar({
                         annotationId: annotation.id,
                       })
                     }
-                    disabled={busy}
+                    disabled={busy || loading}
                   >
                     Delete annotation
                   </button>

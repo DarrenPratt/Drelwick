@@ -1,8 +1,8 @@
 # Local comments, annotations and revision workflow
 
-Status: normative technical design for #169. The #170 working branch contains a
-partial runtime implementation; it does not yet satisfy the complete #170
-acceptance matrix. See the implementation status in `editorial-format.md`.
+Status: normative technical design for #169. The #170 working branch implements
+local annotations; see `editorial-format.md` and the implementation evidence for
+validation. Revision review, named snapshots and comparison remain follow-ups.
 Product: CORE (`product:core`). Implementation owners are #170 (editorial storage
 and anchors), #171 (named snapshots), #172 (comparison) and #173 (revision mode).
 The [versioned schema contract](editorial-format.md), [synthetic examples](examples/editorial-v1/README.md)

@@ -169,3 +169,113 @@ describe("runtime editorial model", () => {
     ).toBe(true);
   });
 });
+
+it("enforces canonical timestamps, scalar limits, context graphemes and one-to-one ownership", async () => {
+  const {
+    EditorialCommentSchema,
+    EditorialEvidenceSchema,
+    EditorialThreadSchema,
+  } = await import("../src/index.js");
+  const state = EditorialStateSchema.parse(
+    await read("project/editorial/state.json"),
+  );
+  const thread = state.threads[0]!;
+  const comment = thread.comments[0]!;
+  for (const created of [
+    "2026-02-30T12:00:00.000Z",
+    "2026-10-27T12:00:00Z",
+    "2026-10-27T12:00:00.000+00:00",
+  ])
+    expect(
+      EditorialCommentSchema.safeParse({ ...comment, created }).success,
+    ).toBe(false);
+  expect(
+    EditorialCommentSchema.safeParse({
+      ...comment,
+      deletedAt: "2000-01-01T00:00:00.000Z",
+    }).success,
+  ).toBe(false);
+  expect(
+    EditorialCommentSchema.safeParse({
+      ...comment,
+      body: "\ud83d\ude00".repeat(100_000),
+    }).success,
+  ).toBe(true);
+  expect(
+    EditorialCommentSchema.safeParse({ ...comment, body: "x".repeat(100_001) })
+      .success,
+  ).toBe(false);
+  for (const body of ["\ud800", "\udc00", "a\0b"])
+    expect(EditorialCommentSchema.safeParse({ ...comment, body }).success).toBe(
+      false,
+    );
+  expect(
+    EditorialEvidenceSchema.safeParse({
+      ...state.anchors[0]!.original,
+      prefix: "e\u0301".repeat(32),
+    }).success,
+  ).toBe(true);
+  expect(
+    EditorialEvidenceSchema.safeParse({
+      ...state.anchors[0]!.original,
+      prefix: "x".repeat(33),
+    }).success,
+  ).toBe(false);
+  expect(
+    EditorialEvidenceSchema.safeParse({
+      ...state.anchors[0]!.original,
+      slice: {
+        content: [{ type: "text", text: "valid", unknown: true }],
+        openStart: 0,
+        openEnd: 0,
+      },
+    }).success,
+  ).toBe(false);
+  expect(
+    EditorialEvidenceSchema.safeParse({
+      ...state.anchors[0]!.original,
+      slice: {
+        content: [{ type: "text", text: "valid" }],
+        openStart: 1,
+        openEnd: 0,
+      },
+    }).success,
+  ).toBe(false);
+  expect(
+    EditorialStateSchema.safeParse({
+      ...state,
+      annotations: [
+        ...state.annotations,
+        {
+          ...state.annotations[0]!,
+          id: "00000000-0000-4000-8000-000000000098",
+        },
+      ],
+    }).success,
+  ).toBe(false);
+  expect(
+    EditorialThreadSchema.safeParse({
+      ...thread,
+      comments: [
+        { ...comment, id: "00000000-0000-4000-8000-000000000099" },
+        comment,
+      ],
+    }).success,
+  ).toBe(false);
+});
+it("strict editorial JSON preserves ambiguous and invalid source bytes by rejecting them", async () => {
+  const { parseEditorialJson } = await import("../src/index.js");
+  for (const text of [
+    '{"id":1,"id":2}',
+    '{"x":{"id":1,"id":2}}',
+    "\ufeff{}",
+    '{"x":"\\ud800"}',
+    '{"x":"\\u0000"}',
+  ])
+    expect(() => parseEditorialJson(text)).toThrow();
+  expect(() =>
+    parseEditorialJson(
+      new Uint8Array([0x7b, 0x22, 0x78, 0x22, 0x3a, 0x22, 0xff, 0x22, 0x7d]),
+    ),
+  ).toThrow();
+});

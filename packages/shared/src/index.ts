@@ -261,90 +261,210 @@ const PreviewIdentitySchema = z
     revision: z.string().regex(/^[0-9a-f]{64}$/),
   })
   .strict();
-export const EditorialActionSchema = z.discriminatedUnion("operation", [
+const editorialOperationId = z
+  .string()
+  .regex(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
+const editorialText = (limit: number) =>
   z
-    .object({
-      operation: z.literal("update-comment"),
-      projectId: z.string().uuid(),
-      threadId: z.string().uuid(),
-      commentId: z.string().uuid(),
-      body: z.string().max(100_000).nullable(),
-    })
-    .strict(),
-  z
-    .object({ operation: z.literal("drafts"), projectId: z.string().uuid() })
-    .strict(),
-  z
-    .object({ operation: z.literal("migrate"), projectId: z.string().uuid() })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("get"),
-      projectId: z.string().uuid(),
-      chapterId: z.string().uuid(),
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("create"),
-      projectId: z.string().uuid(),
-      chapterId: z.string().uuid(),
-      from: z.number().int().nonnegative(),
-      to: z.number().int().nonnegative(),
-      kind: z.enum(["comment", "note", "highlight"]),
-      colour: z.enum(["yellow", "blue", "green", "pink"]).optional(),
-      body: z.string().max(100_000).optional(),
-      authorLabel: z.string().max(256).nullable().optional(),
-      evidence: z
-        .object({
-          slice: z
-            .object({
-              content: z.array(z.record(z.string(), z.unknown())),
-              openStart: z.number().int().nonnegative(),
-              openEnd: z.number().int().nonnegative(),
-            })
-            .strict(),
-          prefix: z.string().max(256),
-          suffix: z.string().max(256),
-        })
-        .strict(),
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("reply"),
-      projectId: z.string().uuid(),
-      threadId: z.string().uuid(),
-      body: z.string().trim().min(1).max(100_000),
-      authorLabel: z.string().max(256).nullable().optional(),
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("resolve"),
-      projectId: z.string().uuid(),
-      threadId: z.string().uuid(),
-      resolved: z.boolean(),
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("delete"),
-      projectId: z.string().uuid(),
-      annotationId: z.string().uuid(),
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("reattach"),
-      projectId: z.string().uuid(),
-      anchorId: z.string().uuid(),
-      chapterId: z.string().uuid(),
-      from: z.number().int().nonnegative(),
-      to: z.number().int().nonnegative(),
-    })
-    .strict(),
-]);
+    .string()
+    .max(limit * 2)
+    .refine(
+      (value) =>
+        [...value].length <= limit &&
+        !value.includes("\0") &&
+        !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(
+          value,
+        ),
+    );
+export const EditorialExpectedFilesSchema = z
+  .object({
+    project: z.string().regex(/^[0-9a-f]{64}$/),
+    editorial: z.string().regex(/^[0-9a-f]{64}$/),
+    chapters: z
+      .record(z.string().uuid(), z.string().regex(/^[0-9a-f]{64}$/))
+      .refine((value) => Object.keys(value).length <= 10_000),
+  })
+  .strict();
+export type EditorialExpectedFiles = z.infer<
+  typeof EditorialExpectedFilesSchema
+>;
+const editorialMutationFields = {
+  operationId: editorialOperationId.optional(),
+  expectedGeneration: z
+    .number()
+    .int()
+    .positive()
+    .max(Number.MAX_SAFE_INTEGER)
+    .optional(),
+  expectedFiles: EditorialExpectedFilesSchema.optional(),
+};
+export const EditorialActionSchema = z
+  .discriminatedUnion("operation", [
+    z
+      .object({
+        operation: z.literal("get-project"),
+        projectId: z.string().uuid(),
+      })
+      .strict(),
+    z
+      .object({
+        operation: z.literal("change-colour"),
+        ...editorialMutationFields,
+        projectId: z.string().uuid(),
+        annotationId: z.string().uuid(),
+        colour: z.enum(["yellow", "blue", "green", "pink"]),
+      })
+      .strict(),
+    z
+      .object({
+        operation: z.literal("restore-annotation"),
+        ...editorialMutationFields,
+        projectId: z.string().uuid(),
+        annotationId: z.string().uuid(),
+      })
+      .strict(),
+    z
+      .object({
+        operation: z.literal("preview-draft"),
+        projectId: z.string().uuid(),
+        draftId: z.string().uuid(),
+      })
+      .strict(),
+    z
+      .object({
+        operation: z.literal("recover-draft"),
+        projectId: z.string().uuid(),
+        draftId: z.string().uuid(),
+        operationId: editorialOperationId,
+      })
+      .strict(),
+    z
+      .object({
+        operation: z.literal("discard-draft"),
+        projectId: z.string().uuid(),
+        draftId: z.string().uuid(),
+      })
+      .strict(),
+    z
+      .object({
+        operation: z.literal("update-comment"),
+        ...editorialMutationFields,
+        projectId: z.string().uuid(),
+        threadId: z.string().uuid(),
+        commentId: z.string().uuid(),
+        body: editorialText(100_000).nullable(),
+      })
+      .strict(),
+    z
+      .object({ operation: z.literal("drafts"), projectId: z.string().uuid() })
+      .strict(),
+    z
+      .object({ operation: z.literal("migrate"), projectId: z.string().uuid() })
+      .strict(),
+    z
+      .object({
+        operation: z.literal("get"),
+        projectId: z.string().uuid(),
+        chapterId: z.string().uuid(),
+      })
+      .strict(),
+    z
+      .object({
+        operation: z.literal("create"),
+        ...editorialMutationFields,
+        projectId: z.string().uuid(),
+        chapterId: z.string().uuid(),
+        from: z.number().int().nonnegative(),
+        to: z.number().int().nonnegative(),
+        kind: z.enum(["comment", "note", "highlight"]),
+        colour: z.enum(["yellow", "blue", "green", "pink"]).optional(),
+        body: editorialText(100_000).optional(),
+        authorLabel: editorialText(256).nullable().optional(),
+        evidence: z
+          .object({
+            slice: z
+              .object({
+                content: z.array(z.record(z.string(), z.unknown())),
+                openStart: z.number().int().nonnegative(),
+                openEnd: z.number().int().nonnegative(),
+              })
+              .strict(),
+            prefix: z.string().max(256),
+            suffix: z.string().max(256),
+          })
+          .strict(),
+      })
+      .strict(),
+    z
+      .object({
+        operation: z.literal("reply"),
+        ...editorialMutationFields,
+        projectId: z.string().uuid(),
+        threadId: z.string().uuid(),
+        body: editorialText(100_000).refine((value) => value.trim().length > 0),
+        authorLabel: editorialText(256).nullable().optional(),
+      })
+      .strict(),
+    z
+      .object({
+        operation: z.literal("resolve"),
+        ...editorialMutationFields,
+        projectId: z.string().uuid(),
+        threadId: z.string().uuid(),
+        resolved: z.boolean(),
+      })
+      .strict(),
+    z
+      .object({
+        operation: z.literal("delete"),
+        ...editorialMutationFields,
+        projectId: z.string().uuid(),
+        annotationId: z.string().uuid(),
+      })
+      .strict(),
+    z
+      .object({
+        operation: z.literal("reattach"),
+        ...editorialMutationFields,
+        projectId: z.string().uuid(),
+        anchorId: z.string().uuid(),
+        chapterId: z.string().uuid(),
+        from: z.number().int().nonnegative(),
+        to: z.number().int().nonnegative(),
+      })
+      .strict(),
+  ])
+  .superRefine((value, context) => {
+    if (
+      [
+        "change-colour",
+        "create",
+        "update-comment",
+        "reply",
+        "resolve",
+        "delete",
+        "reattach",
+        "restore-annotation",
+      ].includes(value.operation)
+    ) {
+      for (const field of [
+        "operationId",
+        "expectedGeneration",
+        "expectedFiles",
+      ] as const)
+        if (
+          !(field in value) ||
+          (value as Record<string, unknown>)[field] === undefined
+        )
+          context.addIssue({
+            code: "custom",
+            path: [field],
+            message: "Mutation precondition required",
+          });
+    }
+  });
 export type EditorialAction = z.infer<typeof EditorialActionSchema>;
 export interface RecentProject {
   id: string;
@@ -452,8 +572,26 @@ export const IpcRequestSchemas = {
   [IPC.PROJECT_SAVE_CHAPTER]: z
     .object({
       chapterId: z.string().uuid(),
+      operationId: editorialOperationId.optional(),
       document: z.record(z.string(), z.unknown()),
       source: z.enum(["autosave", "manual"]).default("autosave"),
+      editorGeneration: z
+        .number()
+        .int()
+        .positive()
+        .max(Number.MAX_SAFE_INTEGER)
+        .optional(),
+      transactions: z
+        .array(
+          z
+            .object({
+              before: z.record(z.string(), z.unknown()),
+              steps: z.array(z.record(z.string(), z.unknown())).max(4096),
+            })
+            .strict(),
+        )
+        .max(128)
+        .optional(),
     })
     .strict(),
   [IPC.CHAPTER_CREATE]: z.object({ title: chapterTitle }),
@@ -717,11 +855,20 @@ export interface ChapterContent {
 
 export interface SaveChapterRequest {
   chapterId: string;
+  operationId?: string;
   document: Record<string, unknown>;
   source?: "autosave" | "manual";
+  editorGeneration?: number;
+  transactions?: {
+    before: Record<string, unknown>;
+    steps: Record<string, unknown>[];
+  }[];
 }
 
 export interface ChapterSaveReceipt {
   id: string;
+  operationId?: string;
+  generation?: number;
+  editorGeneration?: number;
   modified: string;
 }

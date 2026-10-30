@@ -180,7 +180,16 @@ beforeEach(async () => {
       ),
     },
     project: {
-      editorial: vi.fn(),
+      editorial: vi.fn().mockResolvedValue({
+        ok: true,
+        value: {
+          generation: 1,
+          anchors: [],
+          annotations: [],
+          threads: [],
+          candidates: [],
+        },
+      }),
       exportPrint: vi.fn(),
       cancelPrintExport: vi.fn(),
       printExportStatus: vi.fn(),
@@ -1202,6 +1211,9 @@ describe("chapter editor persistence", () => {
         chapterId: "123e4567-e89b-42d3-a456-426614174001",
         document: editor().getJSON(),
         source: "manual",
+        operationId: expect.any(String),
+        transactions: expect.any(Array),
+        editorGeneration: expect.any(Number),
       });
       expect(saveStatus()).toBe("Unsaved changes");
       expect(container.querySelector('[role="alert"]')?.textContent).toContain(
@@ -1254,6 +1266,9 @@ describe("chapter editor persistence", () => {
       chapterId: "123e4567-e89b-42d3-a456-426614174001",
       document: editor().getJSON(),
       source: "autosave",
+      operationId: expect.any(String),
+      transactions: expect.any(Array),
+      editorGeneration: expect.any(Number),
     });
     expect(saveChapter.mock.invocationCallOrder[0]).toBeLessThan(
       backupProject.mock.invocationCallOrder[0]!,
@@ -1554,6 +1569,9 @@ describe("chapter editor persistence", () => {
       chapterId: "123e4567-e89b-42d3-a456-426614174001",
       document,
       source: "manual",
+      operationId: expect.any(String),
+      transactions: expect.any(Array),
+      editorGeneration: expect.any(Number),
     });
     expect(container.textContent).toContain("Chapter saved.");
     expect(loadChapter).toHaveBeenCalledTimes(1);
@@ -1880,6 +1898,9 @@ describe("chapter editor persistence", () => {
         chapterId: "123e4567-e89b-42d3-a456-426614174001",
         document: editor().getJSON(),
         source: "autosave",
+        operationId: expect.any(String),
+        transactions: expect.any(Array),
+        editorGeneration: expect.any(Number),
       });
       expect(saveStatus()).toBe("All changes saved");
       await advance(2000);
@@ -1929,6 +1950,16 @@ describe("chapter editor persistence", () => {
       await editText(" retry");
       await advance(750);
       expect(saveChapter).toHaveBeenCalledTimes(2);
+      // Resolve the uncertain captured save before committing newer text.
+      expect(saveStatus()).toBe("Unsaved changes");
+      expect(saveChapter.mock.calls[1]![0].operationId).toBe(
+        saveChapter.mock.calls[0]![0].operationId,
+      );
+      await advance(750);
+      expect(saveChapter).toHaveBeenCalledTimes(3);
+      expect(saveChapter.mock.calls[2]![0].operationId).not.toBe(
+        saveChapter.mock.calls[0]![0].operationId,
+      );
       expect(saveStatus()).toBe("All changes saved");
     });
     it("flushes on window focus loss without waiting for the timer", async () => {
@@ -2054,7 +2085,7 @@ function mockImport() {
 async function approveWarning() {
   await act(async () =>
     container
-      .querySelector<HTMLInputElement>('input[type="checkbox"]')!
+      .querySelector<HTMLInputElement>('dialog input[type="checkbox"]')!
       .click(),
   );
 }

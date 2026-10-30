@@ -1,7 +1,19 @@
-import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
-import { isUuid } from "@drelwick/shared";
+import { isUuid, type EditorialExpectedFiles } from "@drelwick/shared";
+export interface EditorialMutationExpected {
+  operationId: string;
+  expectedGeneration: number;
+  expectedFiles: EditorialExpectedFiles;
+  requestHash?: string;
+}
 import {
+  parseEditorialJson,
+  ChapterFileV2Schema,
+  decodeEditorialDocument,
+  decodeEditorialSlice,
+  isEditorialDocumentBoundary,
   EditorialAnchorSchema,
   EditorialAnnotationSchema,
   EditorialStateSchema,
@@ -11,6 +23,7 @@ import {
 import { ApplicationError, createIsoDate, createUuid } from "@drelwick/shared";
 import { openProject } from "./index.js";
 import { editorialDocumentHash } from "./editorial-bundle.js";
+import { registerEditorialMetadataEvent } from "./editorial-editing.js";
 import { commitEditorialTransaction } from "./editorial-transactions.js";
 
 export interface CreateEditorialAnnotationInput {
@@ -37,7 +50,16 @@ export async function readEditorialChapter(input: {
   projectPath: string;
   chapterId: string;
 }) {
-  if (!isUuid(input.chapterId))
+  return readEditorialState(input);
+}
+export async function readEditorialProject(input: { projectPath: string }) {
+  return readEditorialState(input);
+}
+async function readEditorialState(input: {
+  projectPath: string;
+  chapterId?: string;
+}) {
+  if (input.chapterId !== undefined && !isUuid(input.chapterId))
     throw new ApplicationError(
       "EDITORIAL_INVALID",
       "Invalid chapter identity.",
@@ -45,27 +67,34 @@ export async function readEditorialChapter(input: {
   const session = await openProject(input.projectPath, {
     rebuildSummaries: true,
   });
+  if (session.project.schemaVersion !== 3)
+    throw new ApplicationError(
+      "EDITORIAL_UNAVAILABLE",
+      "This project has not been upgraded for annotations.",
+    );
   if (
-    session.project.schemaVersion !== 3 ||
+    input.chapterId &&
     !session.project.manuscript.order.includes(input.chapterId)
   )
     throw new ApplicationError(
       "CHAPTER_NOT_FOUND",
       "The selected chapter is no longer available.",
     );
+  const capturedStateBytes = await readFile(
+    join(input.projectPath, session.project.editorialFile),
+  );
   const state = EditorialStateSchema.parse(
-    JSON.parse(
-      await readFile(
-        join(input.projectPath, session.project.editorialFile),
-        "utf8",
-      ),
-    ) as unknown,
+    parseEditorialJson(capturedStateBytes),
   );
   const anchors = state.anchors.filter(
     (anchor) =>
+      !input.chapterId ||
+      anchor.status === "orphaned" ||
+      anchor.status === "unverified" ||
       anchor.segments.some(
         (segment) => segment.chapterId === input.chapterId,
-      ) || anchor.original.chapterId === input.chapterId,
+      ) ||
+      anchor.original.chapterId === input.chapterId,
   );
   const anchorIds = new Set(anchors.map((anchor) => anchor.id));
   const annotations = state.annotations.filter((annotation) =>
@@ -74,8 +103,38 @@ export async function readEditorialChapter(input: {
   const threadIds = new Set(
     annotations.map((annotation) => annotation.threadId),
   );
+  const projectBytes = await readFile(join(input.projectPath, "project.json"));
+  const chapterBytes = input.chapterId
+    ? await readFile(
+        join(input.projectPath, "manuscript", `${input.chapterId}.json`),
+      )
+    : undefined;
+  const capturedChapter = chapterBytes
+    ? ChapterFileV2Schema.parse(parseEditorialJson(chapterBytes))
+    : undefined;
+  const hash = (bytes: Uint8Array) =>
+    createHash("sha256").update(bytes).digest("hex");
   return {
     generation: state.generation,
+    chapters: session.chapters.map(({ id, title }) => ({ id, title })),
+    ...(capturedChapter
+      ? {
+          documentIdentity: {
+            storedHash: editorialDocumentHash(capturedChapter.review.proposed),
+            editorHash: editorialDocumentHash(
+              decodeEditorialDocument(capturedChapter.review.proposed).toJSON(),
+            ),
+          },
+        }
+      : {}),
+    expectedFiles: {
+      project: hash(projectBytes),
+      editorial: hash(capturedStateBytes),
+      chapters:
+        chapterBytes && input.chapterId
+          ? { [input.chapterId]: hash(chapterBytes) }
+          : {},
+    },
     anchors,
     annotations,
     threads: state.threads.filter((thread) => threadIds.has(thread.id)),
@@ -85,7 +144,13 @@ export async function readEditorialChapter(input: {
 /** Creates an annotation against the exact currently saved chapter revision. */
 export async function createEditorialAnnotation(
   input: CreateEditorialAnnotationInput,
+  expected?: EditorialMutationExpected,
 ) {
+  if (!isUuid(input.chapterId))
+    throw new ApplicationError(
+      "EDITORIAL_INVALID",
+      "Invalid chapter identity.",
+    );
   const session = await openProject(input.projectPath, {
     rebuildSummaries: true,
   });
@@ -99,10 +164,9 @@ export async function createEditorialAnnotation(
     "manuscript",
     `${input.chapterId}.json`,
   );
-  const chapter = JSON.parse(await readFile(chapterPath, "utf8")) as Record<
-    string,
-    unknown
-  >;
+  const chapter = parseEditorialJson(
+    await readFile(chapterPath, "utf8"),
+  ) as Record<string, unknown>;
   const parsed = await import("@drelwick/project-model").then(
     ({ ChapterFileV2Schema }) => ChapterFileV2Schema.safeParse(chapter),
   );
@@ -128,14 +192,19 @@ export async function createEditorialAnnotation(
       "EDITORIAL_RANGE_INVALID",
       "Select a valid manuscript range.",
     );
-  if (!documentGraphemeBoundaries(parsed.data.content, from, to))
+  const semanticDocument = decodeEditorialDocument(parsed.data.content);
+  if (
+    !isEditorialDocumentBoundary(semanticDocument, from) ||
+    !isEditorialDocumentBoundary(semanticDocument, to)
+  )
     throw new ApplicationError(
       "EDITORIAL_RANGE_INVALID",
       "Select complete Unicode graphemes when adding an annotation.",
     );
   if (
-    plainText(input.evidence.slice.content) !==
-    documentTextRange(parsed.data.content, from, to)
+    !semanticDocument
+      .slice(from, to)
+      .eq(decodeEditorialSlice(input.evidence.slice))
   )
     throw new ApplicationError(
       "EDITORIAL_EVIDENCE_STALE",
@@ -213,7 +282,7 @@ export async function createEditorialAnnotation(
       "EDITORIAL_COMMENT_REQUIRED",
       "Add text to start a comment or note.",
     );
-  await commitState(
+  const committed = await commitState(
     input.projectPath,
     session.project,
     (state) => ({
@@ -223,191 +292,236 @@ export async function createEditorialAnnotation(
       threads: [...state.threads, thread],
     }),
     "annotation",
+    expected,
   );
   return {
     annotation,
     anchor,
     thread,
     generation: session.project.generation + 1,
+    ...(committed.historyEventId
+      ? { historyEventId: committed.historyEventId }
+      : {}),
   };
 }
 
-export async function replyToEditorialThread(input: {
-  projectPath: string;
-  threadId: string;
-  body: string;
-  authorLabel?: string | null;
-}) {
+export async function replyToEditorialThread(
+  input: {
+    projectPath: string;
+    threadId: string;
+    body: string;
+    authorLabel?: string | null;
+  },
+  expected?: EditorialMutationExpected,
+) {
   if (!isUuid(input.threadId) || !input.body.trim())
     throw new ApplicationError(
       "EDITORIAL_INVALID",
       "A valid reply is required.",
     );
-  return mutateEditorial(input.projectPath, "annotation", (state, now) => {
-    const index = state.threads.findIndex(
-      (thread) => thread.id === input.threadId,
-    );
-    if (index < 0 || state.threads[index]!.deletedAt)
-      throw new ApplicationError(
-        "EDITORIAL_NOT_FOUND",
-        "The discussion is no longer available.",
+  return mutateEditorial(
+    input.projectPath,
+    "annotation",
+    (state, now) => {
+      const index = state.threads.findIndex(
+        (thread) => thread.id === input.threadId,
       );
-    const thread = state.threads[index]!;
-    const comment = {
-      schemaVersion: 1 as const,
-      id: createUuid(),
-      body: input.body,
-      authorLabel: input.authorLabel ?? null,
-      created: now,
-      modified: now,
-      deletedAt: null,
-    };
-    const threads = [...state.threads];
-    threads[index] = EditorialThreadSchema.parse({
-      ...thread,
-      modified: now,
-      comments: [...thread.comments, comment],
-    });
-    return { ...state, threads };
-  });
+      if (index < 0 || state.threads[index]!.deletedAt)
+        throw new ApplicationError(
+          "EDITORIAL_NOT_FOUND",
+          "The discussion is no longer available.",
+        );
+      const thread = state.threads[index]!;
+      const comment = {
+        schemaVersion: 1 as const,
+        id: createUuid(),
+        body: input.body,
+        authorLabel: input.authorLabel ?? null,
+        created: now,
+        modified: now,
+        deletedAt: null,
+      };
+      const threads = [...state.threads];
+      threads[index] = EditorialThreadSchema.parse({
+        ...thread,
+        modified: now,
+        comments: [...thread.comments, comment].sort((a, b) =>
+          a.created < b.created
+            ? -1
+            : a.created > b.created
+              ? 1
+              : a.id < b.id
+                ? -1
+                : a.id > b.id
+                  ? 1
+                  : 0,
+        ),
+      });
+      return { ...state, threads };
+    },
+    expected,
+  );
 }
 
 /** Null explicitly tombstones a comment; an empty body remains a live comment. */
-export async function updateEditorialComment(input: {
-  projectPath: string;
-  threadId: string;
-  commentId: string;
-  body: string | null;
-}) {
+export async function updateEditorialComment(
+  input: {
+    projectPath: string;
+    threadId: string;
+    commentId: string;
+    body: string | null;
+  },
+  expected?: EditorialMutationExpected,
+) {
   if (
     !isUuid(input.threadId) ||
     !isUuid(input.commentId) ||
-    (input.body !== null &&
-      (typeof input.body !== "string" || input.body.length > 100_000))
+    (input.body !== null && typeof input.body !== "string")
   )
     throw new ApplicationError("EDITORIAL_INVALID", "Invalid comment update.");
-  return mutateEditorial(input.projectPath, "annotation", (state, now) => {
-    const thread = state.threads.find(
-      (item) => item.id === input.threadId && !item.deletedAt,
-    );
-    const comment = thread?.comments.find(
-      (item) => item.id === input.commentId && !item.deletedAt,
-    );
-    if (!thread || !comment)
-      throw new ApplicationError(
-        "EDITORIAL_NOT_FOUND",
-        "The comment is no longer available.",
+  return mutateEditorial(
+    input.projectPath,
+    "annotation",
+    (state, now) => {
+      const thread = state.threads.find(
+        (item) => item.id === input.threadId && !item.deletedAt,
       );
-    const updated = EditorialThreadSchema.parse({
-      ...thread,
-      modified: now,
-      comments: thread.comments.map((item) =>
-        item.id === comment.id
-          ? {
-              ...item,
-              body: input.body === null ? item.body : input.body,
-              modified: now,
-              deletedAt: input.body === null ? now : null,
-            }
-          : item,
-      ),
-    });
-    return {
-      ...state,
-      threads: state.threads.map((item) =>
-        item.id === thread.id ? updated : item,
-      ),
-    };
-  });
+      const comment = thread?.comments.find(
+        (item) => item.id === input.commentId && !item.deletedAt,
+      );
+      if (!thread || !comment)
+        throw new ApplicationError(
+          "EDITORIAL_NOT_FOUND",
+          "The comment is no longer available.",
+        );
+      const updated = EditorialThreadSchema.parse({
+        ...thread,
+        modified: now,
+        comments: thread.comments.map((item) =>
+          item.id === comment.id
+            ? {
+                ...item,
+                body: input.body === null ? item.body : input.body,
+                modified: now,
+                deletedAt: input.body === null ? now : null,
+              }
+            : item,
+        ),
+      });
+      return {
+        ...state,
+        threads: state.threads.map((item) =>
+          item.id === thread.id ? updated : item,
+        ),
+      };
+    },
+    expected,
+  );
 }
 
-export async function setEditorialThreadResolved(input: {
-  projectPath: string;
-  threadId: string;
-  resolved: boolean;
-}) {
+export async function setEditorialThreadResolved(
+  input: {
+    projectPath: string;
+    threadId: string;
+    resolved: boolean;
+  },
+  expected?: EditorialMutationExpected,
+) {
   if (!isUuid(input.threadId))
     throw new ApplicationError(
       "EDITORIAL_INVALID",
       "Invalid discussion identity.",
     );
-  return mutateEditorial(input.projectPath, "annotation", (state, now) => {
-    const index = state.threads.findIndex(
-      (thread) => thread.id === input.threadId,
-    );
-    if (index < 0 || state.threads[index]!.deletedAt)
-      throw new ApplicationError(
-        "EDITORIAL_NOT_FOUND",
-        "The discussion is no longer available.",
+  return mutateEditorial(
+    input.projectPath,
+    "annotation",
+    (state, now) => {
+      const index = state.threads.findIndex(
+        (thread) => thread.id === input.threadId,
       );
-    const threads = [...state.threads];
-    const thread = threads[index]!;
-    threads[index] = EditorialThreadSchema.parse({
-      ...thread,
-      state: input.resolved ? "resolved" : "open",
-      resolvedAt: input.resolved ? (thread.resolvedAt ?? now) : null,
-      modified: now,
-    });
-    return { ...state, threads };
-  });
+      if (index < 0 || state.threads[index]!.deletedAt)
+        throw new ApplicationError(
+          "EDITORIAL_NOT_FOUND",
+          "The discussion is no longer available.",
+        );
+      const threads = [...state.threads];
+      const thread = threads[index]!;
+      threads[index] = EditorialThreadSchema.parse({
+        ...thread,
+        state: input.resolved ? "resolved" : "open",
+        resolvedAt: input.resolved ? (thread.resolvedAt ?? now) : null,
+        modified: now,
+      });
+      return { ...state, threads };
+    },
+    expected,
+  );
 }
 
-export async function tombstoneEditorialAnnotation(input: {
-  projectPath: string;
-  annotationId: string;
-}) {
+export async function tombstoneEditorialAnnotation(
+  input: {
+    projectPath: string;
+    annotationId: string;
+  },
+  expected?: EditorialMutationExpected,
+) {
   if (!isUuid(input.annotationId))
     throw new ApplicationError(
       "EDITORIAL_INVALID",
       "Invalid annotation identity.",
     );
-  return mutateEditorial(input.projectPath, "annotation", (state, now) => {
-    const annotation = state.annotations.find(
-      (item) => item.id === input.annotationId,
-    );
-    if (!annotation || annotation.deletedAt)
-      throw new ApplicationError(
-        "EDITORIAL_NOT_FOUND",
-        "The annotation is no longer available.",
+  return mutateEditorial(
+    input.projectPath,
+    "annotation",
+    (state, now) => {
+      const annotation = state.annotations.find(
+        (item) => item.id === input.annotationId,
       );
-    return {
-      ...state,
-      annotations: state.annotations.map((item) =>
-        item.id === annotation.id
-          ? { ...item, deletedAt: now, modified: now }
-          : item,
-      ),
-      anchors: state.anchors.map((item) =>
-        item.id === annotation.anchorId
-          ? { ...item, deletedAt: now, modified: now }
-          : item,
-      ),
-      threads: state.threads.map((item) =>
-        item.id === annotation.threadId
-          ? {
-              ...item,
-              deletedAt: now,
-              modified: now,
-              comments: item.comments.map((comment) => ({
-                ...comment,
+      if (!annotation || annotation.deletedAt)
+        throw new ApplicationError(
+          "EDITORIAL_NOT_FOUND",
+          "The annotation is no longer available.",
+        );
+      return {
+        ...state,
+        annotations: state.annotations.map((item) =>
+          item.id === annotation.id
+            ? { ...item, deletedAt: now, modified: now }
+            : item,
+        ),
+        anchors: state.anchors.map((item) =>
+          item.id === annotation.anchorId
+            ? { ...item, deletedAt: now, modified: now }
+            : item,
+        ),
+        threads: state.threads.map((item) =>
+          item.id === annotation.threadId
+            ? {
+                ...item,
                 deletedAt: now,
                 modified: now,
-              })),
-            }
-          : item,
-      ),
-    };
-  });
+                // Individual comment tombstones survive annotation delete/restore.
+                comments: item.comments,
+              }
+            : item,
+        ),
+      };
+    },
+    expected,
+  );
 }
 
 /** Reattachment is an explicit author action; original evidence and lost slices remain intact. */
-export async function reattachEditorialAnchor(input: {
-  projectPath: string;
-  anchorId: string;
-  chapterId: string;
-  from: number;
-  to: number;
-}) {
+export async function reattachEditorialAnchor(
+  input: {
+    projectPath: string;
+    anchorId: string;
+    chapterId: string;
+    from: number;
+    to: number;
+  },
+  expected?: EditorialMutationExpected,
+) {
   if (!isUuid(input.anchorId) || !isUuid(input.chapterId))
     throw new ApplicationError(
       "EDITORIAL_INVALID",
@@ -425,7 +539,7 @@ export async function reattachEditorialAnchor(input: {
       "The selected chapter is no longer available.",
     );
   const path = join(input.projectPath, "manuscript", `${input.chapterId}.json`);
-  const chapter = JSON.parse(await readFile(path, "utf8")) as unknown;
+  const chapter = parseEditorialJson(await readFile(path, "utf8")) as unknown;
   const { ChapterFileV2Schema } = await import("@drelwick/project-model");
   const parsed = ChapterFileV2Schema.safeParse(chapter);
   if (!parsed.success)
@@ -445,131 +559,58 @@ export async function reattachEditorialAnchor(input: {
       "EDITORIAL_RANGE_INVALID",
       "Select a valid manuscript range.",
     );
-  if (!documentGraphemeBoundaries(parsed.data.content, input.from, input.to))
+  const semanticDocument = decodeEditorialDocument(parsed.data.content);
+  if (
+    !isEditorialDocumentBoundary(semanticDocument, input.from) ||
+    !isEditorialDocumentBoundary(semanticDocument, input.to)
+  )
     throw new ApplicationError(
       "EDITORIAL_RANGE_INVALID",
       "Select complete Unicode graphemes when reattaching.",
     );
-  return mutateEditorial(input.projectPath, "annotation", (state, now) => {
-    const index = state.anchors.findIndex(
-      (anchor) => anchor.id === input.anchorId,
-    );
-    if (index < 0 || state.anchors[index]!.deletedAt)
-      throw new ApplicationError(
-        "EDITORIAL_NOT_FOUND",
-        "The annotation is no longer available.",
+  return mutateEditorial(
+    input.projectPath,
+    "annotation",
+    (state, now) => {
+      const index = state.anchors.findIndex(
+        (anchor) => anchor.id === input.anchorId,
       );
-    const anchors = [...state.anchors];
-    const anchor = anchors[index]!;
-    anchors[index] = EditorialAnchorSchema.parse({
-      ...anchor,
-      modified: now,
-      status: anchor.lost.length ? "partial" : "attached",
-      segments: [
-        ...anchor.segments.filter(
-          (segment) => segment.chapterId !== input.chapterId,
+      if (index < 0 || state.anchors[index]!.deletedAt)
+        throw new ApplicationError(
+          "EDITORIAL_NOT_FOUND",
+          "The annotation is no longer available.",
+        );
+      const anchors = [...state.anchors];
+      const anchor = anchors[index]!;
+      anchors[index] = EditorialAnchorSchema.parse({
+        ...anchor,
+        modified: now,
+        status: anchor.lost.length ? "partial" : "attached",
+        segments: [
+          {
+            chapterId: input.chapterId,
+            chapterRevision: parsed.data.revision,
+            documentHash: editorialDocumentHash(parsed.data.content),
+            from: input.from,
+            to: input.to,
+            pointAffinity: "right",
+          },
+        ].sort(
+          (a, b) =>
+            session.project.manuscript.order.indexOf(a.chapterId) -
+              session.project.manuscript.order.indexOf(b.chapterId) ||
+            a.from - b.from ||
+            a.to - b.to,
         ),
-        {
-          chapterId: input.chapterId,
-          chapterRevision: parsed.data.revision,
-          documentHash: editorialDocumentHash(parsed.data.content),
-          from: input.from,
-          to: input.to,
-          pointAffinity: "right",
-        },
-      ],
-    });
-    return { ...state, anchors };
-  });
+      });
+      return { ...state, anchors };
+    },
+    expected,
+  );
 }
 
 function documentNodeSize(value: unknown): number {
-  if (value === null || typeof value !== "object") return 0;
-  const node = value as { type?: unknown; text?: unknown; content?: unknown };
-  if (node.type === "text")
-    return typeof node.text === "string" ? node.text.length : 0;
-  if (!Array.isArray(node.content)) return node.type === "doc" ? 0 : 1;
-  const children = node.content.reduce<number>(
-    (sum, child) => sum + documentNodeSize(child),
-    0,
-  );
-  return node.type === "doc" ? children : children + 2;
-}
-
-function plainText(value: unknown): string {
-  if (!value || typeof value !== "object") return "";
-  if (Array.isArray(value)) return value.map(plainText).join("");
-  const node = value as { type?: unknown; text?: unknown; content?: unknown };
-  if (typeof node.text === "string") return node.text;
-  return Array.isArray(node.content)
-    ? node.content.map(plainText).join("")
-    : "";
-}
-
-function documentTextRange(
-  document: unknown,
-  from: number,
-  to: number,
-): string {
-  let result = "";
-  const visit = (value: unknown, position: number) => {
-    if (!value || typeof value !== "object") return;
-    const node = value as { type?: unknown; text?: unknown; content?: unknown };
-    if (node.type === "text" && typeof node.text === "string") {
-      const start = Math.max(0, from - position);
-      const end = Math.min(node.text.length, to - position);
-      if (end > start) result += node.text.slice(start, end);
-      return;
-    }
-    if (!Array.isArray(node.content)) return;
-    let cursor = node.type === "doc" ? position : position + 1;
-    for (const child of node.content) {
-      visit(child, cursor);
-      cursor += documentNodeSize(child);
-    }
-  };
-  visit(document, 0);
-  return result;
-}
-
-function documentGraphemeBoundaries(
-  document: unknown,
-  from: number,
-  to: number,
-): boolean {
-  const valid = (target: number) => {
-    let result = true;
-    const visit = (value: unknown, position: number) => {
-      if (!value || typeof value !== "object") return;
-      const node = value as {
-        type?: unknown;
-        text?: unknown;
-        content?: unknown;
-      };
-      if (node.type === "text" && typeof node.text === "string") {
-        const end = position + node.text.length;
-        if (target > position && target < end) {
-          const relative = target - position;
-          result = [
-            ...new Intl.Segmenter("und", { granularity: "grapheme" }).segment(
-              node.text,
-            ),
-          ].some((segment) => segment.index === relative);
-          return;
-        }
-        return;
-      }
-      if (!Array.isArray(node.content)) return;
-      let cursor = node.type === "doc" ? position : position + 1;
-      for (const child of node.content) {
-        visit(child, cursor);
-        cursor += documentNodeSize(child);
-      }
-    };
-    visit(document, 0);
-    return result;
-  };
-  return valid(from) && valid(to);
+  return decodeEditorialDocument(value).content.size;
 }
 
 async function commitState(
@@ -580,11 +621,18 @@ async function commitState(
   >,
   update: (state: EditorialState) => EditorialState,
   kind: "annotation",
+  expected?: EditorialMutationExpected,
 ) {
   const path = join(projectPath, project.editorialFile);
+  const currentBytes = await readFile(path);
   const current = EditorialStateSchema.parse(
-    JSON.parse(await readFile(path, "utf8")) as unknown,
+    parseEditorialJson(currentBytes) as unknown,
   );
+  if (expected && expected.expectedGeneration !== project.generation)
+    throw new ApplicationError(
+      "EDITORIAL_STALE",
+      "The discussion changed. Refresh and review before retrying.",
+    );
   if (current.generation !== project.generation)
     throw new ApplicationError(
       "EDITORIAL_STALE",
@@ -600,12 +648,57 @@ async function commitState(
     modified,
     generation: project.generation + 1,
   };
-  return await commitEditorialTransaction({
+  const expectedBefore: Record<string, string | null> = {
+    [project.editorialFile]: createHash("sha256")
+      .update(currentBytes)
+      .digest("hex"),
+  };
+  if (expected) {
+    expectedBefore["project.json"] = expected.expectedFiles.project;
+    expectedBefore[project.editorialFile] = expected.expectedFiles.editorial;
+    for (const [id, hash] of Object.entries(expected.expectedFiles.chapters)) {
+      if (!isUuid(id) || !project.manuscript.order.includes(id))
+        throw new ApplicationError(
+          "EDITORIAL_INVALID",
+          "Invalid chapter precondition.",
+        );
+      expectedBefore[`manuscript/${id}.json`] = hash;
+    }
+  }
+  const chapterIds = Object.keys(expected?.expectedFiles.chapters ?? {});
+  const chapterId = chapterIds.length === 1 ? chapterIds[0] : undefined;
+  if (
+    chapterId &&
+    (!isUuid(chapterId) || !project.manuscript.order.includes(chapterId))
+  )
+    throw new ApplicationError(
+      "EDITORIAL_STALE",
+      "The selected chapter changed.",
+    );
+  const chapterBytes = chapterId
+    ? await readFile(join(projectPath, "manuscript", `${chapterId}.json`))
+    : undefined;
+  const chapter = chapterBytes
+    ? ChapterFileV2Schema.parse(parseEditorialJson(chapterBytes))
+    : undefined;
+  const committed = await commitEditorialTransaction({
     projectPath,
+    ...(expected
+      ? {
+          operationId: expected.operationId,
+          ...(expected.requestHash
+            ? { requestHash: expected.requestHash }
+            : {}),
+        }
+      : {}),
     projectId: project.projectId,
     kind,
     expectedGeneration: project.generation,
+    expectedBefore,
     changes: [
+      ...(chapterId && chapterBytes
+        ? [{ path: `manuscript/${chapterId}.json`, after: chapterBytes }]
+        : []),
       {
         path: project.editorialFile,
         after: Buffer.from(`${JSON.stringify(state, null, 2)}\n`),
@@ -616,12 +709,24 @@ async function commitState(
       },
     ],
   });
+  if (chapterId && chapter) {
+    registerEditorialMetadataEvent(
+      `${await realpath(projectPath)}\0${chapterId}`,
+      committed.operationId,
+      chapter.review.proposed,
+      current,
+      state,
+    );
+    return { ...committed, historyEventId: committed.operationId };
+  }
+  return { ...committed, historyEventId: undefined };
 }
 
 async function mutateEditorial(
   projectPath: string,
   kind: "annotation",
   update: (state: EditorialState, now: string) => EditorialState,
+  expected?: EditorialMutationExpected,
 ) {
   const session = await openProject(projectPath, { rebuildSummaries: true });
   if (session.project.schemaVersion !== 3)
@@ -634,6 +739,98 @@ async function mutateEditorial(
     session.project,
     (state) => update(state, createIsoDate()),
     kind,
+    expected,
   );
-  return { generation: result.generation };
+  return {
+    generation: result.generation,
+    ...(result.historyEventId ? { historyEventId: result.historyEventId } : {}),
+  };
+}
+
+/** Restore the owned records together, preserving independently deleted comments. */
+export async function restoreEditorialAnnotation(
+  input: {
+    projectPath: string;
+    annotationId: string;
+  },
+  expected?: EditorialMutationExpected,
+) {
+  if (!isUuid(input.annotationId))
+    throw new ApplicationError(
+      "EDITORIAL_INVALID",
+      "Invalid annotation identity.",
+    );
+  return mutateEditorial(
+    input.projectPath,
+    "annotation",
+    (state, now) => {
+      const annotation = state.annotations.find(
+        (item) => item.id === input.annotationId && item.deletedAt,
+      );
+      if (!annotation)
+        throw new ApplicationError(
+          "EDITORIAL_NOT_FOUND",
+          "The deleted annotation is no longer available.",
+        );
+      return {
+        ...state,
+        annotations: state.annotations.map((item) =>
+          item.id === annotation.id
+            ? { ...item, deletedAt: null, modified: now }
+            : item,
+        ),
+        anchors: state.anchors.map((item) =>
+          item.id === annotation.anchorId
+            ? { ...item, deletedAt: null, modified: now }
+            : item,
+        ),
+        threads: state.threads.map((item) =>
+          item.id === annotation.threadId
+            ? { ...item, deletedAt: null, modified: now }
+            : item,
+        ),
+      };
+    },
+    expected,
+  );
+}
+
+export async function setEditorialAnnotationColour(
+  input: {
+    projectPath: string;
+    annotationId: string;
+    colour: "yellow" | "blue" | "green" | "pink";
+  },
+  expected?: EditorialMutationExpected,
+) {
+  return mutateEditorial(
+    input.projectPath,
+    "annotation",
+    (state, now) => {
+      const annotation = state.annotations.find(
+        (item) =>
+          item.id === input.annotationId &&
+          !item.deletedAt &&
+          item.kind === "highlight",
+      );
+      if (!annotation)
+        throw new ApplicationError(
+          "EDITORIAL_NOT_FOUND",
+          "The highlight is no longer available.",
+        );
+      return {
+        ...state,
+        annotations: state.annotations.map((item) =>
+          item.id === annotation.id
+            ? EditorialAnnotationSchema.parse({
+                ...item,
+                colour: input.colour,
+                modified: now,
+              })
+            : item,
+        ),
+      };
+    },
+    expected,
+  );
 }

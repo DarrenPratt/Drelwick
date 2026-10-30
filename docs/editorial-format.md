@@ -1,30 +1,24 @@
 # Proposed editorial format: project v3, chapter v2, editorial v1
 
 This is the #169 versioned format contract. [Workflow and failure semantics](editing-revisions.md)
-are normative. The #170 branch adds exported runtime schemas and a partial core
-implementation. This status is branch-specific and does not imply that all
-acceptance criteria are implemented.
+are normative. The #170 branch implements the local annotation contracts below;
+revision review, named snapshots and comparison remain separate follow-ups.
 
 ## #170 implementation status on the working branch
 
-Implemented: strict project v3/chapter v2/editorial v1 runtime schemas; empty
-revision envelope validation; v2-to-v3 verified backup and recoverable atomic
-multi-file migration service; transaction generation and recovery; annotation
-thread CRUD/tombstones/explicit reattachment; archive inclusion; v3 chapter
-save, structural chapter lifecycle, and history restore preservation; accessible
-basic sidebar and private-export isolation. Existing project open/create still
-uses v2. The sidebar offers a confirmed upgrade for an open chapter and invokes
-the verified core migration before exposing annotation actions.
+Implemented: strict project v3/chapter v2/editorial v1 schemas, verified-backup
+migration, generation-bound multi-file saves, captured ProseMirror step replay,
+companion undo/redo, retained lost slices, structural mapping, history-restore
+safety, tombstones, explicit reattachment, restricted IPC and accessible sidebar.
+Complete durable drafts have independent verified images, preview and explicit
+recover/discard/cancel controls. Backup includes editorial evidence independently
+of periodic history; publication uses semantic manuscript data only.
 
-Incomplete: ProseMirror StepMap remapping is a helper only and is not connected to
-editor transactions or atomic save; companion undo metadata is absent; drafts
-are described by schema but not staged/recovered/offered; editor dirty-state and
-annotation state are not one captured autosave bundle; import anchor policy,
-crash/reopen recovery offers, and required A01-A10/F02-F06/M01-M02 coverage remain
-incomplete. The decoration plugin removes stale marks on edit and the core marks
-anchors unverified, which prevents unsafe navigation but does not meet the
-required automatic remapping contract. #170 must remain open until these paths
-are implemented and validated.
+Existing project open/create uses v2. The sidebar offers a confirmed upgrade for
+an open chapter. Pending revisions and tracking mode are rejected until #173.
+Unsaved keystrokes that never reached durable staging cannot be promised recovered.
+See the [implementation evidence](planning/170-implementation-status.md) for test
+mapping, validation results and platform/durability limits.
 
 ## Encoding and shared primitives
 

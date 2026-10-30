@@ -110,7 +110,20 @@ export async function reorderChapters(
         await fs.readFile(join(root, initial.project.editorialFile), "utf8"),
       ) as unknown,
     );
-    const nextState = { ...state, generation: state.generation + 1 };
+    const nextState = {
+      ...state,
+      generation: state.generation + 1,
+      anchors: state.anchors.map((anchor) => ({
+        ...anchor,
+        segments: [...anchor.segments].sort(
+          (a, b) =>
+            normalizedIds.indexOf(a.chapterId) -
+              normalizedIds.indexOf(b.chapterId) ||
+            a.from - b.from ||
+            a.to - b.to,
+        ),
+      })),
+    };
     const project = ProjectConfigV3Schema.parse({
       ...initial.project,
       modified: now,

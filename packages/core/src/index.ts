@@ -37,6 +37,7 @@ export * from "./epub-export.js";
 export * from "./epub-output.js";
 export * from "./text-importer.js";
 export * from "./manuscript-replacement.js";
+import { assertEditorialReadable } from "./editorial-transactions.js";
 import { assertReplacementReadable } from "./manuscript-replacement.js";
 export { MIGRATION_DIRECTORY, MIGRATION_ERRORS } from "./migration-state.js";
 import {
@@ -45,6 +46,7 @@ import {
   migrationError,
 } from "./migration-state.js";
 import {
+  parseEditorialJson,
   BookMetadataSchema,
   ChapterFileSchema,
   ChapterFileV2Schema,
@@ -97,7 +99,10 @@ export interface ProjectLoadingFileSystem {
 }
 
 const defaultProjectLoadingFileSystem: ProjectLoadingFileSystem = {
-  readFile,
+  readFile: async (path) =>
+    new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      await readFile(path),
+    ),
   lstat,
   realpath,
   writeJson: writeJsonAtomically,
@@ -158,6 +163,7 @@ async function loadProjectFiles(
     );
   }
 
+  await assertEditorialReadable(projectRoot);
   // Validate every path component before reading; never follow a project child symlink.
   async function inspect(relativePath: string): Promise<Stats> {
     const parts = relativePath.split("/");
@@ -213,7 +219,7 @@ async function loadProjectFiles(
       );
     }
     try {
-      return JSON.parse(source) as unknown;
+      return parseEditorialJson(source);
     } catch {
       // Parser errors can contain source text; do not retain them as causes.
       throw new ApplicationError(

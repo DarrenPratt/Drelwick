@@ -553,7 +553,7 @@ export async function migrateProject(
       };
       if (project.projectId !== state.projectId)
         throw migrationError("MIGRATION_STATE_INVALID");
-      if (state.phase === "complete" && version !== 2)
+      if (state.phase === "complete" && version !== 2 && version !== 3)
         throw migrationError("MIGRATION_STATE_INVALID");
       if (
         state.phase === "complete" &&

@@ -1,5 +1,12 @@
 # #170 remaining implementation work
 
+The unchecked list below is the preserved interruption checkpoint. Implementation
+items 1–7 and final repository/native regression checks have since been completed
+and validated by the [resumption report](170-validation.md). The focused commit
+and PR are the remaining delivery steps. If interrupted again, inspect Git status
+and the latest validation logs, fix remaining failures, update the report, then
+commit and prepare the focused PR. Do not reset the working tree or merge the PR.
+
 Related to #170 — Local manuscript comments and annotations.
 
 The current branch contains partial implementation. Complete the following before

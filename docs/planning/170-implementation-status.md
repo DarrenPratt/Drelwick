@@ -1,5 +1,9 @@
 # #170 working implementation evidence
 
+The audit below records the interrupted checkpoint. It is retained as history;
+the [resumed implementation and validation](170-validation.md) supersedes its
+FAIL/PARTIAL assessments for the resumed branch.
+
 This is an implementation audit of the current working branch, not a completion
 claim. Product classification is CORE. #169 merged in PR #226 and #119 in PR #185.
 The approved [delivery matrix](169-editorial-delivery.md) remains normative.
