@@ -273,7 +273,7 @@ function canonical(value: unknown): string {
 const digest = (value: string | Uint8Array) =>
   createHash("sha256").update(value).digest("hex");
 
-it("validates strict proposed versions and cross-file identity, generation, hashes and ownership without enabling runtime v3", async () => {
+it("validates strict runtime v3 and cross-file identity, generation, hashes and ownership", async () => {
   const p = project.parse(await read("project/project.json"));
   const f = format.parse(await read("project/format.json"));
   BookMetadataSchema.parse(await read("project/book.json"));
@@ -281,7 +281,7 @@ it("validates strict proposed versions and cross-file identity, generation, hash
     await read(`project/manuscript/${p.manuscript.order[0]}.json`),
   );
   const e = state.parse(await read("project/editorial/state.json"));
-  expect(ProjectConfigSchema.safeParse(p).success).toBe(false);
+  expect(ProjectConfigSchema.safeParse(p).success).toBe(true);
   expect(ChapterFileV1Schema.safeParse(c).success).toBe(false);
   expect(f.projectId).toBe(p.projectId);
   expect(e.projectId).toBe(p.projectId);

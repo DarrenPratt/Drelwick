@@ -1,11 +1,24 @@
 # Proposed editorial format: project v3, chapter v2, editorial v1
 
-This is the #169 **future** format contract, not an extension already supported by
-the application. [Workflow and failure semantics](editing-revisions.md) are normative.
-Executable **test-only** schema definitions in
-`packages/project-model/test/editorial-design-examples.test.ts` validate the
-[examples](examples/editorial-v1/README.md); they do not export runtime APIs or
-authorize applications to open these files as v2 projects.
+This is the #169 versioned format contract. [Workflow and failure semantics](editing-revisions.md)
+are normative. The #170 branch implements the local annotation contracts below;
+revision review, named snapshots and comparison remain separate follow-ups.
+
+## #170 implementation status on the working branch
+
+Implemented: strict project v3/chapter v2/editorial v1 schemas, verified-backup
+migration, generation-bound multi-file saves, captured ProseMirror step replay,
+companion undo/redo, retained lost slices, structural mapping, history-restore
+safety, tombstones, explicit reattachment, restricted IPC and accessible sidebar.
+Complete durable drafts have independent verified images, preview and explicit
+recover/discard/cancel controls. Backup includes editorial evidence independently
+of periodic history; publication uses semantic manuscript data only.
+
+Existing project open/create uses v2. The sidebar offers a confirmed upgrade for
+an open chapter. Pending revisions and tracking mode are rejected until #173.
+Unsaved keystrokes that never reached durable staging cannot be promised recovered.
+See the [implementation evidence](planning/170-implementation-status.md) for test
+mapping, validation results and platform/durability limits.
 
 ## Encoding and shared primitives
 
@@ -218,10 +231,10 @@ for this different transition. No downgrade-in-place exists.
 Old readers reject project v3 before writing or exporting; do not leave a v2
 manifest pointing to chapter-v2 files. A new reader keeps historical v1/v2 read
 support and uses explicit migration to edit. Old periodic history remains v1 and
-text-only. #170 must add a versioned editorial-aware history/safety format or route
-v3 restore through complete transaction preservation; it must not reinterpret
-history-v1 content as a full review bundle. #120 list/preview UI is reused, with
-scope labels and restore preconditions from the workflow design.
+text-only. The #170 working branch routes v3 restore through complete transaction
+preservation and orphans affected anchors while retaining evidence; it does not
+reinterpret history-v1 content as a full review bundle. #120 list/preview UI is
+reused, with scope labels and restore preconditions from the workflow design.
 
 Independent recovery can read `content` for accepted text and `review.proposed`
 for proposed text, extract discussions from editorial JSON and inspect pending

@@ -34,6 +34,51 @@ function save(state: DocumentState, requestId: number): DocumentState {
 }
 
 describe("document revisions", () => {
+  it("retains newer mapping evidence across an earlier save and preserves all evidence on failure", () => {
+    const first = {
+      before: content("Original"),
+      steps: [{ stepType: "replace", from: 1, to: 1 }],
+    };
+    const second = {
+      before: content("First"),
+      steps: [{ stepType: "addMark", from: 1, to: 3, mark: { type: "bold" } }],
+    };
+    let state = documentReducer(loaded(), {
+      type: "edited",
+      key: "session:chapter",
+      content: content("First"),
+      transaction: first,
+    })!;
+    state = save(state, 1);
+    state = documentReducer(state, {
+      type: "edited",
+      key: state.key,
+      content: content("Second"),
+      transaction: second,
+    })!;
+    const evidence = state.transactions;
+    state = documentReducer(state, {
+      type: "failed",
+      key: state.key,
+      requestId: 1,
+      message: "failed",
+    })!;
+    expect(state.transactions).toEqual(evidence);
+    state = documentReducer(state, {
+      type: "saving",
+      key: state.key,
+      requestId: 2,
+      revision: 1,
+    })!;
+    state = documentReducer(state, {
+      type: "saved",
+      key: state.key,
+      requestId: 2,
+    })!;
+    expect(state.transactions).toEqual([{ revision: 2, transaction: second }]);
+    expect(state.content).toEqual(content("Second"));
+    expect(isDocumentDirty(state)).toBe(true);
+  });
   it("starts clean and clears only a successfully persisted revision", () => {
     let state = loaded();
     expect(isDocumentDirty(null)).toBe(false);

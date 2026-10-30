@@ -10,12 +10,12 @@ export {
 } from "./versions/v1.js";
 export * from "./versions/detection.js";
 export * from "./versions/migrate-v1-v2.js";
+export { ProjectConfigV2Schema, ProjectFormatSchema } from "./versions/v2.js";
 export {
   ProjectConfigSchema,
-  ProjectConfigV2Schema,
-  ProjectFormatSchema,
+  ProjectFormatCurrentSchema,
   type ProjectConfig,
-} from "./versions/v2.js";
+} from "./versions/current.js";
 export * from "./migration.js";
 export * from "./image-assets.js";
 export * from "./book-theme.js";
@@ -26,3 +26,7 @@ export * from "./spelling-settings.js";
 
 export * from "./print-configuration.js";
 export * from "./reference.js";
+
+export * from "./editorial.js";
+
+export * from "./editorial-codec.js";

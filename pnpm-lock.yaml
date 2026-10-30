@@ -150,6 +150,9 @@ importers:
       '@drelwick/shared':
         specifier: workspace:*
         version: link:../shared
+      '@tiptap/pm':
+        specifier: 3.31.3
+        version: 3.31.3
       fflate:
         specifier: 0.8.3
         version: 0.8.3
@@ -202,6 +205,9 @@ importers:
       '@drelwick/shared':
         specifier: workspace:*
         version: link:../shared
+      '@tiptap/pm':
+        specifier: 3.31.3
+        version: 3.31.3
       zod:
         specifier: 4.1.12
         version: 4.1.12

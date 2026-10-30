@@ -44,6 +44,14 @@ Node.js types match the supported Node 24 runtime. Tests explicitly import
 
 ## Workspace conventions
 
+Issue #170's runtime matrix is mapped in the
+[resumed validation report](../docs/planning/170-validation.md). Editorial suites
+exercise real ProseMirror replay/history, versioned migration, injected filesystem
+failures, killed writers and interrupted recovery, archive preservation and
+publication canaries. `tests/e2e/editorial.spec.ts` covers keyboard authoring,
+tombstone restoration, empty-project discussions, coherent draft recovery and
+actual Chromium PDF privacy. These are separate from #169's design-example tests.
+
 Issue #169's two `editorial-design-examples.test.ts` suites validate documentation
 examples only: proposed versioned shapes, inventories/hashes, current-reader
 rejection, actual ProseMirror mappings/slices, existing split/merge positions and

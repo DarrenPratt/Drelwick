@@ -58,6 +58,7 @@ const api: DrelwickApi = {
     cancel: () => ipcRenderer.invoke(IPC.RECOVERY_CANCEL),
   },
   project: {
+    editorial: (action) => ipcRenderer.invoke(IPC.EDITORIAL_ACTION, action),
     getPublication: (input) => ipcRenderer.invoke(IPC.PUBLICATION_GET, input),
     savePublication: (input) => ipcRenderer.invoke(IPC.PUBLICATION_SAVE, input),
     selectPublicationCover: (input) =>

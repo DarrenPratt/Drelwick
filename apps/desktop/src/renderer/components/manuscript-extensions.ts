@@ -3,6 +3,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { Epigraph } from "./Epigraph.js";
 import { SceneBreak } from "./SceneBreak.js";
 import { ManuscriptImage } from "./ManuscriptImage.js";
+import { EditorialDecorations } from "./EditorialDecorations.js";
 
 /** A fresh extension set for every editor instance and headless compatibility test. */
 export function createManuscriptExtensions(projectId?: string) {
@@ -17,5 +18,6 @@ export function createManuscriptExtensions(projectId?: string) {
     SceneBreak,
     Epigraph,
     ManuscriptImage.configure(projectId ? { projectId } : {}),
+    EditorialDecorations,
   ];
 }

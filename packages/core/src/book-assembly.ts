@@ -3,6 +3,7 @@ import { lstat, mkdir, readFile, realpath, rmdir } from "node:fs/promises";
 import { join } from "node:path";
 import {
   ChapterFileSchema,
+  ChapterFileV2Schema,
   ManuscriptDocumentSchema,
   manuscriptImageReferences,
   ImageAssetSchema,
@@ -77,8 +78,10 @@ export async function assembleBook(
       { rebuildSummaries: true },
       { readFile, lstat, realpath, writeJson: async () => undefined },
     );
-    if (session.project.schemaVersion === 2)
+    if (session.project.schemaVersion >= 2)
       await capture(join(projectPath, "format.json"));
+    if (session.project.schemaVersion === 3)
+      await capture(join(projectPath, session.project.editorialFile));
     const presentation = await readBookPresentation(
       projectPath,
       session.project.projectId,
@@ -109,12 +112,18 @@ export async function assembleBook(
         ))
           throw error;
       }
-      const chapter = ChapterFileSchema.safeParse(
-        JSON.parse((await capture(path)).toString("utf8")),
-      );
+      const rawChapter = JSON.parse((await capture(path)).toString("utf8"));
+      const chapter =
+        session.project.schemaVersion === 3
+          ? ChapterFileV2Schema.safeParse(rawChapter)
+          : ChapterFileSchema.safeParse(rawChapter);
       if (!chapter.success || chapter.data.id !== id)
         throw failure("PROJECT_SCHEMA_INVALID");
-      const document = ManuscriptDocumentSchema.safeParse(chapter.data.content);
+      const document = ManuscriptDocumentSchema.safeParse(
+        chapter.data.schemaVersion === 2
+          ? chapter.data.review.proposed
+          : chapter.data.content,
+      );
       if (!document.success) throw failure("CHAPTER_DOCUMENT_INVALID");
       chapters.push({
         publication: {

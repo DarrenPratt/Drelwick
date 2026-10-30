@@ -33,6 +33,23 @@ import {
   reorderChapters,
   restoreProjectArchive,
   renameChapter,
+  createEditorialAnnotation,
+  readEditorialChapter,
+  readEditorialProject,
+  replyToEditorialThread,
+  setEditorialThreadResolved,
+  tombstoneEditorialAnnotation,
+  reattachEditorialAnchor,
+  migrateProjectToEditorialV3,
+  listEditorialDrafts,
+  readEditorialDraft,
+  recoverEditorialDraft,
+  discardEditorialDraft,
+  restoreEditorialAnnotation,
+  setEditorialAnnotationColour,
+  editorialDocumentHash,
+  readEditorialRequestReceipt,
+  updateEditorialComment,
   type ReorderChaptersInput,
   type RenameChapterInput,
 } from "@drelwick/core";
@@ -271,6 +288,7 @@ export function registerProjectHandlers(
   let replacementCancellation: { cancelled: boolean } | undefined;
   let activeProjectPath: string | undefined;
   let activeProjectId: string | undefined;
+  let editorialEnabled = false;
   let preparedPrint:
     | {
         preview: PrintPreview;
@@ -1261,6 +1279,7 @@ export function registerProjectHandlers(
           activeProjectPath = opened.projectPath;
           preparedPrint = undefined;
           activeProjectId = opened.project.projectId;
+          editorialEnabled = opened.project.schemaVersion === 3;
           preparedPreview = undefined;
           history.scheduleRetention({
             projectPath: opened.projectPath,
@@ -1493,6 +1512,7 @@ export function registerProjectHandlers(
         activeProjectPath = opened.projectPath;
         preparedPrint = undefined;
         activeProjectId = opened.project.projectId;
+        editorialEnabled = opened.project.schemaVersion === 3;
         preparedPreview = undefined;
         history.scheduleRetention({
           projectPath: opened.projectPath,
@@ -1561,6 +1581,7 @@ export function registerProjectHandlers(
         activeProjectPath = undefined;
         preparedPrint = undefined;
         activeProjectId = undefined;
+        editorialEnabled = false;
         preparedPreview = undefined;
         return { ok: true, value: null };
       } finally {
@@ -1719,6 +1740,7 @@ export function registerProjectHandlers(
         activeProjectPath = created.projectPath;
         preparedPrint = undefined;
         activeProjectId = created.project.projectId;
+        editorialEnabled = created.project.schemaVersion === 3;
         preparedPreview = undefined;
         history.scheduleRetention({
           projectPath: created.projectPath,
@@ -2251,7 +2273,16 @@ export function registerProjectHandlers(
     try {
       const saved = await services.saveChapter({
         chapterId: parsed.data.chapterId,
+        ...(parsed.data.operationId
+          ? { operationId: parsed.data.operationId }
+          : {}),
         document: parsed.data.document,
+        ...(parsed.data.editorGeneration !== undefined
+          ? { editorGeneration: parsed.data.editorGeneration }
+          : {}),
+        ...(parsed.data.transactions
+          ? { transactions: parsed.data.transactions }
+          : {}),
         projectPath: activeProjectPath,
       });
       services.logger.info("chapter.saved", {
@@ -2274,7 +2305,17 @@ export function registerProjectHandlers(
         );
       return {
         ok: true,
-        value: { id: saved.id, modified: saved.modified },
+        value: {
+          id: saved.id,
+          modified: saved.modified,
+          ...(saved.operationId ? { operationId: saved.operationId } : {}),
+          ...(saved.generation !== undefined
+            ? { generation: saved.generation }
+            : {}),
+          ...(saved.editorGeneration !== undefined
+            ? { editorGeneration: saved.editorGeneration }
+            : {}),
+        },
         ...(saved.warning ? { warning: saved.warning } : {}),
       };
     } catch (error) {
@@ -2359,6 +2400,264 @@ export function registerProjectHandlers(
       }
     },
   );
+
+  ipcMain.handle(IPC.EDITORIAL_ACTION, async (event, payload: unknown) => {
+    if (!trusted(event))
+      return failure(
+        "PROJECT_ACCESS_DENIED",
+        "Project access is not permitted.",
+      );
+    const parsed = IpcRequestSchemas[IPC.EDITORIAL_ACTION].safeParse(payload);
+    if (!parsed.success)
+      return failure("EDITORIAL_INPUT_INVALID", "Invalid annotation request.");
+    if (!activeProjectPath || parsed.data.projectId !== activeProjectId)
+      return failure(
+        "PROJECT_NOT_OPEN",
+        "Open the project before using annotations.",
+      );
+    if (
+      !editorialEnabled &&
+      ["get", "get-project"].includes(parsed.data.operation)
+    )
+      return failure(
+        "EDITORIAL_UNAVAILABLE",
+        "Upgrade this project to enable local annotations.",
+      );
+    if (busy)
+      return failure(
+        "PROJECT_BUSY",
+        "Wait for the current project operation and retry.",
+      );
+    const projectPath = activeProjectPath;
+    busy = true;
+    try {
+      await history.settleProject(projectPath);
+      const action = parsed.data;
+      const expected =
+        "expectedGeneration" in action &&
+        action.expectedFiles &&
+        action.operationId &&
+        action.expectedGeneration !== undefined
+          ? {
+              operationId: action.operationId,
+              expectedGeneration: action.expectedGeneration,
+              expectedFiles: action.expectedFiles,
+              requestHash: editorialDocumentHash(action),
+            }
+          : undefined;
+      if (expected) {
+        const chapterIds = Object.keys(expected.expectedFiles.chapters);
+        const chapterId = chapterIds.length === 1 ? chapterIds[0] : undefined;
+        const prior = await readEditorialRequestReceipt({
+          projectPath,
+          projectId: action.projectId,
+          ...expected,
+          ...(chapterId ? { chapterId, restoreCompanion: true } : {}),
+        });
+        if (prior) {
+          if (!trusted(event) || activeProjectPath !== projectPath)
+            return failure(
+              "PROJECT_ACCESS_DENIED",
+              "Project access is not permitted.",
+            );
+          return {
+            ok: true,
+            value: {
+              ...prior,
+              ...(chapterId ? { historyEventId: prior.operationId } : {}),
+            },
+          };
+        }
+      }
+      let value: unknown;
+      switch (action.operation) {
+        case "change-colour":
+          value = await setEditorialAnnotationColour(
+            { ...action, projectPath },
+            expected,
+          );
+          break;
+        case "restore-annotation":
+          value = await restoreEditorialAnnotation(
+            { ...action, projectPath },
+            expected,
+          );
+          break;
+        case "preview-draft": {
+          const candidate = await readEditorialDraft({
+            ...action,
+            projectPath,
+          });
+          value = {
+            draft: candidate.draft,
+            files: candidate.changes
+              .filter((file) => file.after !== null)
+              .map((file) => ({
+                path: file.path,
+                document: JSON.parse(
+                  Buffer.from(file.after!).toString("utf8"),
+                ) as unknown,
+              })),
+          };
+          break;
+        }
+        case "recover-draft": {
+          const receipt = await recoverEditorialDraft({
+            ...action,
+            projectPath,
+          });
+          const session = await services.open(projectPath);
+          value = {
+            receipt,
+            workspace: {
+              projectId: session.project.projectId,
+              projectPath: session.projectPath,
+              title: session.book.title,
+              author: session.book.author,
+              language: session.book.language,
+              chapters: session.chapters.map(
+                ({ id, title, status, wordCount }) => ({
+                  id,
+                  title,
+                  status,
+                  wordCount,
+                }),
+              ),
+            },
+          };
+          break;
+        }
+        case "discard-draft":
+          await discardEditorialDraft({ ...action, projectPath });
+          value = { discarded: true };
+          break;
+        case "update-comment":
+          value = await updateEditorialComment(
+            {
+              projectPath,
+              threadId: action.threadId,
+              commentId: action.commentId,
+              body: action.body,
+            },
+            expected,
+          );
+          break;
+        case "drafts":
+          value = await listEditorialDrafts({
+            projectPath,
+            projectId: action.projectId,
+          });
+          break;
+        case "migrate":
+          value = await migrateProjectToEditorialV3(projectPath);
+          editorialEnabled = true;
+          break;
+        case "get-project":
+          value = await readEditorialProject({ projectPath });
+          break;
+        case "get":
+          value = await readEditorialChapter({
+            projectPath,
+            chapterId: action.chapterId,
+          });
+          break;
+        case "create":
+          value = await createEditorialAnnotation(
+            {
+              projectPath,
+              chapterId: action.chapterId,
+              from: action.from,
+              to: action.to,
+              kind: action.kind,
+              evidence: action.evidence,
+              ...(action.colour !== undefined ? { colour: action.colour } : {}),
+              ...(action.body !== undefined ? { body: action.body } : {}),
+              ...(action.authorLabel !== undefined
+                ? { authorLabel: action.authorLabel }
+                : {}),
+            },
+            expected,
+          );
+          break;
+        case "reply":
+          value = await replyToEditorialThread(
+            {
+              projectPath,
+              threadId: action.threadId,
+              body: action.body,
+              ...(action.authorLabel !== undefined
+                ? { authorLabel: action.authorLabel }
+                : {}),
+            },
+            expected,
+          );
+          break;
+        case "resolve":
+          value = await setEditorialThreadResolved(
+            { ...action, projectPath },
+            expected,
+          );
+          break;
+        case "delete":
+          value = await tombstoneEditorialAnnotation(
+            {
+              projectPath,
+              annotationId: action.annotationId,
+            },
+            expected,
+          );
+          break;
+        case "reattach":
+          value = await reattachEditorialAnchor(
+            { ...action, projectPath },
+            expected,
+          );
+          break;
+      }
+      if (!trusted(event) || activeProjectPath !== projectPath)
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access is not permitted.",
+        );
+      return { ok: true, value };
+    } catch (error) {
+      const code =
+        error instanceof ApplicationError
+          ? error.code
+          : error instanceof Error && error.name === "ZodError"
+            ? "EDITORIAL_INVALID"
+            : "EDITORIAL_SAVE_FAILED";
+      const messages: Record<string, string> = {
+        EDITORIAL_INVALID:
+          "The annotation input is invalid or exceeds the supported limits. Your draft was retained.",
+        EDITORIAL_LIMIT:
+          "The editorial component exceeds its supported limit. Your draft was retained; preserve a project backup before reviewing it.",
+        EDITORIAL_UNAVAILABLE:
+          "This project version does not support local annotations.",
+        EDITORIAL_UNSUPPORTED:
+          "This project contains files that cannot be migrated safely. Preserve the project and review its recovery files.",
+        EDITORIAL_RECOVERY_REQUIRED:
+          "Project recovery must be completed before enabling annotations. Reopen the project and preserve its recovery files.",
+        EDITORIAL_NOT_COMMITTED:
+          "The interrupted save was rolled back. Your draft is retained; review recovery or retry.",
+        EDITORIAL_STALE:
+          "The project changed. Refresh the annotations and retry.",
+        EDITORIAL_NOT_FOUND:
+          "The annotation or discussion is no longer available.",
+        CHAPTER_NOT_FOUND: "The selected chapter is no longer available.",
+        EDITORIAL_RANGE_INVALID: "Select a valid manuscript range.",
+        PROJECT_BUSY:
+          "Another project operation is running. Retry when it finishes.",
+      };
+      return failure(
+        code,
+        messages[code] ??
+          "Unable to save the annotation. Your manuscript remains unchanged.",
+      );
+    } finally {
+      busy = false;
+    }
+  });
 
   return {
     authorizeImport(
