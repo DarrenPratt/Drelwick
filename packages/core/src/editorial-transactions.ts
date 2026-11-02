@@ -39,7 +39,11 @@ import {
   editorialDocumentHash,
   validateEditorialBundle,
 } from "./editorial-bundle.js";
-import { withReferenceLock } from "./reference-files.js";
+import {
+  withReferenceLock,
+  preserveReferenceBytes,
+  referenceFingerprint,
+} from "./reference-files.js";
 import {
   copySnapshot,
   hashFile,
@@ -278,6 +282,8 @@ export async function assertEditorialReadable(
 export interface EditorialChange {
   path: string;
   after: Uint8Array | null;
+  /** Internal verified asset input, relative to the same authorized project root. */
+  afterSource?: { path: string; size: number; sha256: string };
 }
 
 /** Discover recoverable operations in stable ID order; invalid evidence stays on disk. */
@@ -394,7 +400,16 @@ export async function readEditorialTransactionDraft(input: {
         digest(bytes) !== file.after.sha256
       )
         throw fail("EDITORIAL_RECOVERY_REQUIRED");
-      changes.push({ path: file.path, after: bytes });
+      if (file.path.startsWith("assets/images/"))
+        changes.push({
+          path: file.path,
+          after: null,
+          afterSource: {
+            path: `${relative}/after/${file.path}`,
+            ...file.after,
+          },
+        });
+      else changes.push({ path: file.path, after: bytes });
     }
     return {
       operationId: tx.id,
@@ -415,6 +430,8 @@ export interface CommitEditorialInput {
   editorGeneration?: number;
   requestHash?: string;
   checkpoint?: (name: string) => Promise<void>;
+  /** Read-only validation of dynamic source inventories under the writer gate. */
+  validateInventory?: (published: boolean) => Promise<void>;
 }
 export async function commitEditorialTransaction(
   input: CommitEditorialInput,
@@ -487,7 +504,15 @@ async function commitEditorialTransactionLocked(
           (change) => change.path === file.path,
         );
         if (changes.length !== 1) return true;
-        const after = changes[0]!.after;
+        const change = changes[0]!;
+        if (change.afterSource)
+          return (
+            change.after !== null ||
+            file.after === null ||
+            file.after.size !== change.afterSource.size ||
+            file.after.sha256 !== change.afterSource.sha256
+          );
+        const after = change.after;
         return after === null
           ? file.after !== null
           : file.after === null ||
@@ -545,17 +570,64 @@ async function commitEditorialTransactionLocked(
     throw fail("EDITORIAL_INVALID");
   for (const change of changes) {
     if (!safe(change.path)) throw fail("EDITORIAL_INVALID");
+    if (change.afterSource) {
+      const source = change.afterSource;
+      const asset =
+        /^assets\/images\/[0-9a-f-]{36}\/(asset\.json|original\.(png|jpg))$/.test(
+          change.path,
+        );
+      const snapshot = new RegExp(
+        `^snapshots/manuscript/[0-9a-f-]{36}/files/${change.path.replaceAll(".", "\\.")}$`,
+      ).test(source.path);
+      const recovery = new RegExp(
+        `^\\.editorial/transactions/[0-9a-f-]{36}/after/${change.path.replaceAll(".", "\\.")}$`,
+      ).test(source.path);
+      if (
+        change.after !== null ||
+        !asset ||
+        !safe(source.path) ||
+        (!snapshot && !recovery) ||
+        !Number.isSafeInteger(source.size) ||
+        source.size < 0 ||
+        source.size > 512 * 1024 ** 2 ||
+        !/^[a-f0-9]{64}$/.test(source.sha256) ||
+        input.expectedBefore?.[source.path] !== source.sha256
+      )
+        throw fail("EDITORIAL_INVALID");
+      const sourcePath = await ensureSafeParent(root, source.path);
+      if (
+        (await lstat(sourcePath)).size !== source.size ||
+        (await referenceFingerprint(sourcePath)) !== source.sha256
+      )
+        throw fail("EDITORIAL_STALE");
+    }
     const target = await ensureSafeParent(root, change.path);
     const before = await readOptional(target);
     const after = change.after === null ? null : Buffer.from(change.after);
+    if (
+      after &&
+      (change.path.startsWith("manuscript/") ||
+        change.path.startsWith("editorial/")) &&
+      after.byteLength > EDITORIAL_LIMITS.componentBytes
+    )
+      throw fail("EDITORIAL_LIMIT");
+    if (
+      change.afterSource &&
+      before &&
+      digest(before) !== change.afterSource.sha256
+    )
+      throw fail("EDITORIAL_STALE");
     files.push({
       path: change.path,
       before:
         before === null
           ? null
           : { size: before.length, sha256: digest(before) },
-      after:
-        after === null ? null : { size: after.length, sha256: digest(after) },
+      after: change.afterSource
+        ? { size: change.afterSource.size, sha256: change.afterSource.sha256 }
+        : after === null
+          ? null
+          : { size: after.length, sha256: digest(after) },
     });
     const expected = input.expectedBefore?.[change.path];
     if (
@@ -565,6 +637,11 @@ async function commitEditorialTransactionLocked(
     )
       throw fail("EDITORIAL_STALE");
   }
+  if (
+    files.reduce((sum, file) => sum + (file.after?.size ?? 0), 0) >
+    2 * 1024 ** 3
+  )
+    throw fail("EDITORIAL_LIMIT");
   const projectImage = changes.find(
     (change) => change.path === "project.json",
   )!.after;
@@ -638,6 +715,15 @@ async function commitEditorialTransactionLocked(
   await mkdir(join(dir, "after"), { recursive: true });
   for (const [index, file] of files.entries()) {
     const change = changes[index]!;
+    if (change.afterSource) {
+      const image = join(dir, "after", ...file.path.split("/"));
+      await mkdir(dirname(image), { recursive: true });
+      await preserveReferenceBytes(
+        join(root, ...change.afterSource.path.split("/")),
+        image,
+        change.afterSource.sha256,
+      );
+    }
     for (const [name, ref, bytes] of [
       [
         "before",
@@ -736,6 +822,7 @@ async function commitEditorialTransactionLocked(
         throw fail("EDITORIAL_STALE");
     }
   };
+  await input.validateInventory?.(false);
   await verifySources(false);
   const publicationOrder = [
     ...files.filter((file) => file.path !== "project.json"),
@@ -768,6 +855,7 @@ async function commitEditorialTransactionLocked(
     )
       throw fail("EDITORIAL_STALE");
   }
+  await input.validateInventory?.(true);
   await verifySources(true);
   tx.phase = "committed";
   await persistManifest(root, dir, tx);
@@ -812,9 +900,14 @@ export async function recoverEditorialTransactions(
         `.editorial/transactions/${id}/transaction.json`,
       );
       const dir = join(transactions, id);
-      const raw = parseEditorialJson(
-        await readFile(join(dir, "transaction.json"), "utf8"),
-      ) as unknown;
+      let raw: unknown;
+      try {
+        raw = parseEditorialJson(
+          await readFile(join(dir, "transaction.json"), "utf8"),
+        );
+      } catch {
+        throw fail("EDITORIAL_RECOVERY_REQUIRED");
+      }
       const parsed = EditorialTransactionSchema.safeParse(raw);
       if (!parsed.success || parsed.data.id !== id)
         throw fail("EDITORIAL_RECOVERY_REQUIRED");
@@ -1133,15 +1226,45 @@ export async function recoverEditorialDraft(input: {
   );
   if (!bytes) throw fail("EDITORIAL_RECOVERY_REQUIRED");
   const tx = EditorialTransactionSchema.parse(parseEditorialJson(bytes));
+  const namedRestoreSources =
+    tx.kind === "restore"
+      ? await import("./manuscript-snapshots.js").then((module) =>
+          module.validateNamedSnapshotDraft(
+            root,
+            input.projectId,
+            input.draftId,
+            changes,
+          ),
+        )
+      : {};
   const receipt = await commitEditorialTransaction({
     projectPath: root,
     projectId: input.projectId,
     operationId: input.operationId,
     kind: tx.kind,
     expectedGeneration: draft.baseGeneration,
-    expectedBefore: Object.fromEntries(
-      tx.files.map((file) => [file.path, file.before?.sha256 ?? null]),
-    ),
+    expectedBefore: {
+      ...namedRestoreSources,
+      ...Object.fromEntries([
+        ...tx.files.map((file) => [file.path, file.before?.sha256 ?? null]),
+        ...changes.flatMap((change) =>
+          change.afterSource
+            ? [[change.afterSource.path, change.afterSource.sha256]]
+            : [],
+        ),
+      ]),
+    },
+    ...(Object.keys(namedRestoreSources).length
+      ? {
+          validateInventory: async () =>
+            import("./manuscript-snapshots.js").then((module) =>
+              module.validateSnapshotCollectionInventory(root, [
+                ...Object.keys(namedRestoreSources),
+                ...changes.map((change) => change.path),
+              ]),
+            ),
+        }
+      : {}),
     editorGeneration: draft.editorGeneration,
     changes,
   });

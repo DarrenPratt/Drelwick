@@ -180,6 +180,7 @@ beforeEach(async () => {
       ),
     },
     project: {
+      snapshots: vi.fn().mockResolvedValue({ ok: true, value: [] }),
       editorial: vi.fn().mockResolvedValue({
         ok: true,
         value: {

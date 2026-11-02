@@ -1,4 +1,8 @@
 import {
+  SnapshotActionSchema,
+  type SnapshotAction,
+} from "./snapshot-contracts.js";
+import {
   PrintSaveRequestSchema,
   PrintExportRequestSchema,
   type PrintExportReceipt,
@@ -141,6 +145,7 @@ export const IPC = {
   HISTORY_RESTORE: "history:restore",
   CHAPTER_ORGANISE: "chapter:organise",
   EDITORIAL_ACTION: "editorial:action",
+  SNAPSHOT_ACTION: "snapshot:action",
   MANUSCRIPT_REPLACE: "manuscript:replace",
   MANUSCRIPT_CANCEL_REPLACE: "manuscript:cancel-replace",
   IMPORT_INSPECT: "import:inspect",
@@ -477,6 +482,7 @@ export type ProjectOperationResult<T> =
 
 export const IpcRequestSchemas = {
   [IPC.EDITORIAL_ACTION]: EditorialActionSchema,
+  [IPC.SNAPSHOT_ACTION]: SnapshotActionSchema,
   [IPC.REFERENCE_EXECUTE]: ReferenceRequestSchema,
   [IPC.PRINT_GET]: z.object({ projectId: z.string().uuid() }).strict(),
   [IPC.PRINT_EXPORT]: PrintExportRequestSchema,
@@ -673,6 +679,7 @@ export interface DrelwickApi {
   ): () => void;
   onShutdownRequested(callback: () => Promise<boolean>): () => void;
   project: {
+    snapshots(action: SnapshotAction): Promise<ProjectOperationResult<unknown>>;
     editorial(
       action: EditorialAction,
     ): Promise<ProjectOperationResult<unknown>>;
@@ -872,3 +879,4 @@ export interface ChapterSaveReceipt {
   editorGeneration?: number;
   modified: string;
 }
+export * from "./snapshot-contracts.js";

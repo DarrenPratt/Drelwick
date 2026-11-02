@@ -57,11 +57,13 @@ interface EditorialData {
 }
 interface EditorialSidebarProps {
   editor: TipTapEditor;
+  disabled?: boolean;
   projectOnly?: boolean;
   refreshKey?: number;
   projectId: string;
   chapterId: string;
   flushManuscript(): Promise<boolean>;
+  onFlushReady?(flush: (() => Promise<boolean>) | null): void;
   onDirtyChange?(dirty: boolean): void;
   onBusyChange?(busy: boolean): void;
   onRecovered?(workspace: ProjectWorkspace): void;
@@ -97,11 +99,13 @@ async function documentHash(value: unknown): Promise<string> {
 
 export function EditorialSidebar({
   editor,
+  disabled = false,
   projectOnly = false,
   refreshKey,
   projectId,
   chapterId,
   flushManuscript,
+  onFlushReady,
   onDirtyChange,
   onBusyChange,
   onRecovered,
@@ -322,7 +326,10 @@ export function EditorialSidebar({
   }, [chapterId, editor]);
 
   const perform = useCallback(
-    async (action: Parameters<typeof window.drelwick.project.editorial>[0]) => {
+    async (
+      action: Parameters<typeof window.drelwick.project.editorial>[0],
+      refreshFirst = false,
+    ) => {
       setBusy(true);
       setError(null);
       try {
@@ -356,6 +363,7 @@ export function EditorialSidebar({
             );
           let captured = data;
           if (
+            refreshFirst ||
             action.operation === "create" ||
             action.operation === "reattach"
           ) {
@@ -538,6 +546,84 @@ export function EditorialSidebar({
     }
   };
 
+  const flushDrafts = useRef<() => Promise<boolean>>(async () => false);
+  flushDrafts.current = async () => {
+    if (busy || loading || uncertain || migrationRequired)
+      return !dirty && !uncertain;
+    if (body.length) {
+      try {
+        const selected = selectEvidence();
+        if (
+          !(await perform(
+            {
+              operation: "create",
+              projectId,
+              chapterId,
+              ...selected,
+              kind,
+              ...(kind === "highlight" ? { colour } : {}),
+              body,
+              evidence: selected.evidence,
+            },
+            true,
+          ))
+        )
+          return false;
+        setBody((value) => (value === body ? "" : value));
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Select text and save the annotation draft before creating a snapshot.",
+        );
+        return false;
+      }
+    }
+    if (editingComment) {
+      const thread = data?.threads.find((item) =>
+        item.comments.some((comment) => comment.id === editingComment.id),
+      );
+      if (
+        !thread ||
+        !(await perform(
+          {
+            operation: "update-comment",
+            projectId,
+            threadId: thread.id,
+            commentId: editingComment.id,
+            body: editingComment.body,
+          },
+          true,
+        ))
+      )
+        return false;
+      setEditingComment((value) =>
+        value?.id === editingComment.id && value.body === editingComment.body
+          ? null
+          : value,
+      );
+    }
+    for (const [threadId, value] of Object.entries(reply))
+      if (value.length) {
+        if (
+          !(await perform(
+            { operation: "reply", projectId, threadId, body: value },
+            true,
+          ))
+        )
+          return false;
+        setReply((current) => ({
+          ...current,
+          [threadId]: current[threadId] === value ? "" : current[threadId]!,
+        }));
+      }
+    return true;
+  };
+  useLayoutEffect(() => {
+    onFlushReady?.(() => flushDrafts.current());
+    return () => onFlushReady?.(null);
+  }, [onFlushReady]);
+
   const attachedAnchor = useMemo(
     () => (anchorId: string) =>
       data?.anchors.find((item) => item.id === anchorId),
@@ -676,6 +762,7 @@ export function EditorialSidebar({
 
   return (
     <aside
+      inert={disabled}
       ref={sidebar}
       className="editorial-sidebar"
       aria-label="Comments and annotations"

@@ -1,6 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat, mkdir, open, readFile, rename, rmdir } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  open,
+  readFile,
+  realpath,
+  rename,
+  rmdir,
+} from "node:fs/promises";
 import { basename, extname, isAbsolute, join, parse, resolve } from "node:path";
 import sharp from "sharp";
 import { crc32 } from "node:zlib";
@@ -197,9 +205,19 @@ export async function validateImageContent(
   }
 }
 
-async function imageRoot(projectPath: string, create = false): Promise<string> {
+async function imageRoot(
+  projectPath: string,
+  create = false,
+  projectValidated = false,
+): Promise<string> {
   await regularPath(projectPath, true);
-  await openProject(projectPath);
+  // Asset verification also reads immutable snapshot trees; never rebuild caches here.
+  if (!projectValidated)
+    await openProject(
+      projectPath,
+      {},
+      { readFile, lstat, realpath, writeJson: async () => undefined },
+    );
   const assets = join(projectPath, "assets");
   if (create) {
     try {
@@ -339,15 +357,21 @@ export async function importImageAsset(
   return imported!;
 }
 
-/** Local publishing input; never resolves a caller-supplied filename or URL. */
+/** Local publishing input; never resolves a caller-supplied filename or URL.
+ * projectValidated is internal to readers holding a validated captured project;
+ * Electron never forwards renderer-supplied reader options. */
 export async function readImageAsset(
   projectPath: string,
   assetId: string,
+  options: { projectValidated?: boolean } = {},
 ): Promise<{ asset: ImageAsset; bytes: Buffer }> {
   if (!ImageAssetIdSchema.safeParse(assetId).success)
     throw imageError("IMAGE_PATH_INVALID");
   try {
-    const directory = join(await imageRoot(projectPath), assetId);
+    const directory = join(
+      await imageRoot(projectPath, false, options.projectValidated),
+      assetId,
+    );
     const raw = await boundedRead(join(directory, "asset.json"), 8192);
     const asset = ImageAssetSchema.parse(JSON.parse(raw.toString("utf8")));
     if (asset.id !== assetId) throw imageError();

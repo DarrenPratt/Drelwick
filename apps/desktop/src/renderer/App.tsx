@@ -1,3 +1,4 @@
+import { ManuscriptSnapshotsDialog } from "./ManuscriptSnapshotsDialog.js";
 import {
   ChapterReferences,
   type ChapterReferencesHandle,
@@ -144,6 +145,19 @@ export function App() {
   }, []);
   const timelineEditor = useRef<TimelineEditorHandle | null>(null);
   const locationEditor = useRef<LocationEditorHandle | null>(null);
+  const editorialFlush = useRef<(() => Promise<boolean>) | null>(null);
+  const editorialFlushReady = useCallback(
+    (flush: (() => Promise<boolean>) | null) => {
+      editorialFlush.current = flush;
+    },
+    [],
+  );
+  const [snapshotsOpen, setSnapshotsOpen] = useState(false);
+  const [openingSnapshots, setOpeningSnapshots] = useState(false);
+  const [snapshotConflicts, setSnapshotConflicts] = useState(0);
+  const [snapshotRefresh, setSnapshotRefresh] = useState(0);
+  const snapshotUncertain = useRef(false);
+  const snapshotLauncher = useRef<HTMLButtonElement>(null);
   const editorialDirty = useRef(false);
   const editorialDirtyChanged = useCallback((dirty: boolean) => {
     editorialDirty.current = dirty;
@@ -245,6 +259,8 @@ export function App() {
   const autosave = useRef<AutosaveCoordinator | null>(null);
   const saveSource = useRef<"autosave" | "manual">("autosave");
   const changingDocument =
+    snapshotsOpen ||
+    openingSnapshots ||
     printConfiguration !== null ||
     loadingPrint ||
     publication !== null ||
@@ -1119,6 +1135,108 @@ export function App() {
     };
   }, [searchEditor]);
 
+  async function flushSnapshotEdits() {
+    try {
+      if (editorialFlush.current && !(await editorialFlush.current()))
+        return false;
+      if (
+        !((await autosave.current?.flush()) ?? true) ||
+        savePending.current ||
+        isDocumentDirty(documentRef.current)
+      )
+        return false;
+      if (
+        !(await flushCanonResearch()) ||
+        !((await timelineEditor.current?.flush()) ?? true) ||
+        !((await locationEditor.current?.flush()) ?? true) ||
+        !((await characterEditor.current?.flush()) ?? true)
+      )
+        return false;
+      await referenceQueue.current;
+      await new Promise<void>((resolve) =>
+        window.requestAnimationFrame(() => resolve()),
+      );
+      return (
+        !editorialDirty.current &&
+        !canonEditor.current?.isDirty() &&
+        !noteEditor.current?.isDirty() &&
+        !timelineEditor.current?.isDirty() &&
+        !locationEditor.current?.isDirty() &&
+        !characterEditor.current?.isDirty() &&
+        !chapterLinks.current?.isBusy() &&
+        !savePending.current &&
+        !isDocumentDirty(documentRef.current)
+      );
+    } catch {
+      return false;
+    }
+  }
+  async function showManuscriptSnapshots() {
+    if (
+      !project ||
+      pending.current ||
+      changingDocument ||
+      replacementRecoveryRequired ||
+      chapterLinks.current?.isBusy()
+    )
+      return;
+    pending.current = true;
+    const saved = flushSnapshotEdits();
+    setOpeningSnapshots(true);
+    snapshotUncertain.current = false;
+    searchEditor?.setEditable(false, false);
+    setError("");
+    if (!(await saved)) {
+      setError(
+        "Snapshot capture was cancelled because pending edits could not be saved. Your manuscript and annotation drafts remain available.",
+      );
+      pending.current = false;
+      setOpeningSnapshots(false);
+      searchEditor?.setEditable(true, false);
+      return;
+    }
+    setOpeningSnapshots(false);
+    setSnapshotsOpen(true);
+  }
+  const snapshotProjectId = project?.projectId;
+  useEffect(() => {
+    if (
+      !snapshotProjectId ||
+      typeof window.drelwick?.project?.snapshots !== "function"
+    )
+      return;
+    let cancelled = false;
+    const update = async (attempt = 0): Promise<void> => {
+      const result = await window.drelwick.project.snapshots({
+        operation: "conflicts",
+        projectId: snapshotProjectId,
+      });
+      if (cancelled) return;
+      if (!result.ok && result.error.code === "PROJECT_BUSY" && attempt < 3) {
+        window.setTimeout(() => void update(attempt + 1), 300);
+        return;
+      }
+      if (result.ok) {
+        const collections = result.value as {
+          entries: { disposition: string }[];
+        }[];
+        setSnapshotConflicts(
+          collections.reduce(
+            (count, item) =>
+              count +
+              item.entries.filter((entry) => entry.disposition === "unresolved")
+                .length,
+            0,
+          ),
+        );
+      } else setSnapshotConflicts(0);
+    };
+    void update().catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [snapshotProjectId, documentSession]);
+
   async function restoreHistory(
     selection: HistorySelection,
     preview: HistoryPreview,
@@ -1739,7 +1857,11 @@ export function App() {
                 kind="canon"
                 projectId={project.projectId}
                 disabled={
-                  opening || creating || importing || projectTask !== null
+                  changingDocument ||
+                  opening ||
+                  creating ||
+                  importing ||
+                  projectTask !== null
                 }
               />
               <CanonResearchManager
@@ -1749,7 +1871,11 @@ export function App() {
                 kind="note"
                 projectId={project.projectId}
                 disabled={
-                  opening || creating || importing || projectTask !== null
+                  changingDocument ||
+                  opening ||
+                  creating ||
+                  importing ||
+                  projectTask !== null
                 }
               />
             </>
@@ -1772,17 +1898,36 @@ export function App() {
               ref={locationEditor}
               projectId={project.projectId}
               disabled={
-                opening || creating || importing || projectTask !== null
+                changingDocument ||
+                opening ||
+                creating ||
+                importing ||
+                projectTask !== null
               }
             />
           }
           publicationAction={
-            <button
-              disabled={changingDocument}
-              onClick={() => void editPublication()}
-            >
-              Publication details and pages
-            </button>
+            <>
+              <button
+                disabled={changingDocument}
+                onClick={() => void editPublication()}
+              >
+                Publication details and pages
+              </button>
+              <button
+                disabled={changingDocument || replacementRecoveryRequired}
+                ref={snapshotLauncher}
+                onClick={() => void showManuscriptSnapshots()}
+              >
+                Manuscript snapshots
+              </button>
+              {snapshotConflicts > 0 && (
+                <p role="status">
+                  {snapshotConflicts} unresolved restore conflicts. Open
+                  Manuscript snapshots to inspect retained discussions.
+                </p>
+              )}
+            </>
           }
           bookDesign={
             <div className="tool-intro">
@@ -2301,8 +2446,10 @@ export function App() {
                   </button>
                 </div>
                 <ProjectEditorialArchive
+                  disabled={changingDocument}
                   projectId={project.projectId}
                   onDirtyChange={editorialDirtyChanged}
+                  onFlushReady={editorialFlushReady}
                   onRecovered={(workspace) => {
                     setProject(workspace);
                     setActiveChapterId(workspace.chapters[0]?.id ?? null);
@@ -2314,7 +2461,10 @@ export function App() {
               <>
                 {documentReady && documentState ? (
                   <Editor
-                    savedRevision={documentState.savedRevision}
+                    savedRevision={
+                      documentState.savedRevision + snapshotRefresh
+                    }
+                    onEditorialFlushReady={editorialFlushReady}
                     onEditorialDirtyChange={editorialDirtyChanged}
                     onEditorialRecovered={(workspace) => {
                       setProject(workspace);
@@ -2476,6 +2626,52 @@ export function App() {
             setBookPreview(null);
             searchEditor?.commands.focus();
           }}
+        />
+      )}
+      {snapshotsOpen && project && (
+        <ManuscriptSnapshotsDialog
+          projectId={project.projectId}
+          flush={flushSnapshotEdits}
+          onConflictCount={setSnapshotConflicts}
+          onChanged={() => setSnapshotRefresh((value) => value + 1)}
+          onUncertain={() => {
+            snapshotUncertain.current = true;
+            setReplacementRecoveryRequired(true);
+            setError(
+              "Snapshot operation recovery is required. Reopen the project before editing; current drafts and recovery evidence are retained.",
+            );
+          }}
+          onClose={() => {
+            setSnapshotsOpen(false);
+            pending.current = false;
+            if (!snapshotUncertain.current)
+              searchEditor?.setEditable(true, false);
+            window.requestAnimationFrame(() =>
+              snapshotLauncher.current?.focus(),
+            );
+          }}
+          onRestored={(workspace) => {
+            setProject(workspace);
+            setActiveChapterId((current) =>
+              workspace.chapters.some((chapter) => chapter.id === current)
+                ? current
+                : (workspace.chapters[0]?.id ?? null),
+            );
+            setDocumentSession((value) => value + 1);
+            setSearchRefresh((value) => value + 1);
+            setBookPreview(null);
+            setPrintPreview(null);
+            invalidateGlobalSearch();
+          }}
+          {...(activeChapterId && searchEditor
+            ? {
+                target: {
+                  chapterId: activeChapterId,
+                  from: searchEditor.state.selection.from,
+                  to: searchEditor.state.selection.to,
+                },
+              }
+            : {})}
         />
       )}
       {printConfiguration && project && (

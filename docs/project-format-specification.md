@@ -741,3 +741,25 @@ versions fail closed for print operations rather than being discarded. To recove
 settings independently, preserve the JSON and read lengths as micrometres
 (divide by 1,000 for mm or 25,400 for inches). Retain `.tmp` evidence and any prior
 backup before manual repair. No manuscript recovery depends on this component.
+
+## Named manuscript snapshots (snapshot schema 1)
+
+Project v3 can contain `snapshots/manuscript/<uuid>/snapshot.json`, exact inventory
+images under `files/`, and an optional schema-v1 `deleted.json` marker. The
+[editorial format](editorial-format.md#transaction-draft-snapshot-and-comparison-schemas)
+defines every field. [Named snapshots](manuscript-snapshots.md) documents capture,
+retention, safety restore, conflict collections and independent extraction.
+Inventories include hashes/sizes, ordered chapters, full editorial payloads and
+required managed assets; optional source components are present or explicitly
+absent. Snapshot scope excludes Story Bible records, application settings, other
+snapshots and periodic history. It is not a complete project backup.
+
+A restore operation uses its UUID for both the retained safety snapshot and its
+journal. `editorial/restore-conflicts/<operation-id>.json` preserves current-only
+or divergent discussion payloads. Snapshot deletion/undelete and conflict choices
+advance the shared project/editorial generation and retain journal receipts.
+Project format/chapter versions do not change. Older v3 authoring readers may
+ignore this additive namespace; use a current archive reader/writer to preserve
+it. Newer/unsupported snapshot or conflict versions are unavailable without
+rewriting their bytes. Staged directories without a valid manifest remain retained
+but cannot be selected as complete checkpoints.

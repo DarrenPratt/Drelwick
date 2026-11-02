@@ -109,6 +109,7 @@ interface EditorProps {
   savedRevision?: number;
   onEditorialRecovered?(workspace: ProjectWorkspace): void;
   onEditorialDirtyChange?(dirty: boolean): void;
+  onEditorialFlushReady?(flush: (() => Promise<boolean>) | null): void;
   onReady?(editor: TipTapEditor | null): void;
   projectId?: string;
   chapterId?: string;
@@ -134,6 +135,7 @@ export function Editor({
   prepareImageImport,
   onReady,
   onEditorialDirtyChange,
+  onEditorialFlushReady,
   onEditorialRecovered,
   savedRevision,
 }: EditorProps) {
@@ -531,10 +533,14 @@ export function Editor({
         chapterId &&
         prepareImageImport && (
           <EditorialSidebar
+            disabled={!requestedEditable}
             editor={editor}
             projectId={projectId}
             chapterId={chapterId}
             flushManuscript={prepareImageImport}
+            {...(onEditorialFlushReady
+              ? { onFlushReady: onEditorialFlushReady }
+              : {})}
             onBusyChange={setEditorialBusy}
             {...(savedRevision !== undefined
               ? { refreshKey: savedRevision }
@@ -556,9 +562,13 @@ export function ProjectEditorialArchive({
   projectId,
   onDirtyChange,
   onRecovered,
+  onFlushReady,
+  disabled,
 }: {
   projectId: string;
   onDirtyChange?(dirty: boolean): void;
+  onFlushReady?(flush: (() => Promise<boolean>) | null): void;
+  disabled?: boolean;
   onRecovered?(workspace: ProjectWorkspace): void;
 }) {
   const editor = useEditor({
@@ -575,7 +585,9 @@ export function ProjectEditorialArchive({
       projectId={projectId}
       chapterId={projectId}
       projectOnly
+      {...(disabled !== undefined ? { disabled } : {})}
       flushManuscript={async () => true}
+      {...(onFlushReady ? { onFlushReady } : {})}
       {...(onDirtyChange ? { onDirtyChange } : {})}
       {...(onRecovered ? { onRecovered } : {})}
     />

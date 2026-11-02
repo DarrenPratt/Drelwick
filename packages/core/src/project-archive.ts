@@ -53,6 +53,7 @@ const knownProjectDirectories = new Set([
   "editorial",
   "styles",
   ".editorial",
+  "snapshots",
 ]);
 const knownProjectRoots = new Set([
   "project.json",

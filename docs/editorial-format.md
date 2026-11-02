@@ -2,7 +2,8 @@
 
 This is the #169 versioned format contract. [Workflow and failure semantics](editing-revisions.md)
 are normative. The #170 branch implements the local annotation contracts below;
-revision review, named snapshots and comparison remain separate follow-ups.
+named snapshots are implemented by #171; revision review and comparison remain
+separate follow-ups.
 
 ## #170 implementation status on the working branch
 
@@ -19,6 +20,18 @@ an open chapter. Pending revisions and tracking mode are rejected until #173.
 Unsaved keystrokes that never reached durable staging cannot be promised recovered.
 See the [implementation evidence](planning/170-implementation-status.md) for test
 mapping, validation results and platform/durability limits.
+
+## #171 named snapshot implementation
+
+SnapshotV1, SnapshotDeletionV1 and RestoreConflictV1 have strict runtime schemas
+in `packages/project-model/src/manuscript-snapshot.ts`. Capture, inspection,
+recoverable deletion, before-restore safety and conflict resolution are implemented
+by the shared core services and restricted desktop snapshot workflow. See
+[named snapshots](manuscript-snapshots.md) for controls, inventory validation,
+resource limits, recovery and validation evidence. This is additive to project v3;
+no existing chapter/editorial schema is reinterpreted. Comparison and revision
+mode remain separate follow-ups. Snapshot files are immutable; deletion markers
+and conflict dispositions are journaled mutations outside captured images.
 
 ## Encoding and shared primitives
 

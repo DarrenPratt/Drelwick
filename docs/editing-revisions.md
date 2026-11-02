@@ -2,7 +2,8 @@
 
 Status: normative technical design for #169. The #170 working branch implements
 local annotations; see `editorial-format.md` and the implementation evidence for
-validation. Revision review, named snapshots and comparison remain follow-ups.
+validation. Named snapshots are implemented by #171; revision review and
+comparison remain follow-ups.
 Product: CORE (`product:core`). Implementation owners are #170 (editorial storage
 and anchors), #171 (named snapshots), #172 (comparison) and #173 (revision mode).
 The [versioned schema contract](editorial-format.md), [synthetic examples](examples/editorial-v1/README.md)
