@@ -290,3 +290,18 @@ exercise the shared #170 service required by #171; they do not claim named
 snapshots are implemented. The root Vitest configuration caps workers at four
 to bound disk contention across real fsync/child-process integration suites;
 concurrent writer scenarios still run explicitly inside their owning tests.
+
+## Named manuscript snapshots (#171)
+
+`packages/core/test/manuscript-snapshots.test.ts` maps S01–S05 to ordered exact
+bytes, asset closure (including retained deletions), stale/mutating sources,
+concurrent writers, durable inspection, recoverable deletion, retention, archive
+round trips, restore safety/conflicts and killed-process restart recovery.
+`manuscript-snapshot-failures.test.ts` injects actual asset-copy, manifest-fsync,
+safety-copy, publication-rename and commit-marker faults. Shared/editorial
+transaction tests remain regression coverage for recovery ownership and repeated
+rollback/rollforward. `chapter-persistence-ipc.test.ts` covers snapshot frame,
+project, token and payload restrictions and private-log exclusion. The native
+`tests/e2e/manuscript-snapshots.spec.ts` covers pending discussion flush,
+inspection, safety restore, deletion/undelete and offline reopen. See the
+[snapshot workflow and limits](../docs/manuscript-snapshots.md).

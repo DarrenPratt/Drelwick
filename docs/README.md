@@ -88,3 +88,5 @@ Operational documents:
 - [Offline DOCX-to-EPUB release validation](publishing-release-validation.md)
 - [Desktop packaging](desktop-packaging.md)
 - [BookEditor recovery review](planning/bookeditor-recovery.md)
+
+- [Named manuscript snapshots, safe restore and retained conflicts](manuscript-snapshots.md)

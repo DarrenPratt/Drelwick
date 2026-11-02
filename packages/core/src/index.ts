@@ -726,3 +726,4 @@ export * from "./print-configuration.js";
 export * from "./print-preflight.js";
 
 export * from "./export-output.js";
+export * from "./manuscript-snapshots.js";

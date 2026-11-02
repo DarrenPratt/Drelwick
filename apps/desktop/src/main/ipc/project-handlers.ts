@@ -1,4 +1,16 @@
 import {
+  ManuscriptSnapshotError,
+  listManuscriptSnapshots,
+  captureNamedSnapshot,
+  inspectManuscriptSnapshot,
+  setManuscriptSnapshotDeleted,
+  previewSnapshotRestore,
+  restoreNamedSnapshot,
+  listSnapshotRestoreConflicts,
+  resolveSnapshotRestoreConflict,
+} from "@drelwick/core";
+import type { SnapshotSelection, SnapshotSource } from "@drelwick/shared";
+import {
   dialog,
   ipcMain,
   type BrowserWindow,
@@ -318,6 +330,218 @@ export function registerProjectHandlers(
       event.senderFrame?.url === rendererUrl
     );
   };
+
+  const snapshotPreviews = new Map<
+    string,
+    {
+      owner: IpcMainInvokeEvent["senderFrame"];
+      projectPath: string;
+      projectId: string;
+      selection: SnapshotSelection;
+      expected: SnapshotSource;
+    }
+  >();
+  ipcMain.handle(IPC.SNAPSHOT_ACTION, async (event, payload: unknown) => {
+    if (!trusted(event))
+      return failure(
+        "PROJECT_ACCESS_DENIED",
+        "Project access is not permitted.",
+      );
+    const parsed = IpcRequestSchemas[IPC.SNAPSHOT_ACTION].safeParse(payload);
+    if (!parsed.success)
+      return failure("EDITORIAL_INVALID", "Invalid snapshot request.");
+    const action = parsed.data;
+    if (!activeProjectPath || action.projectId !== activeProjectId)
+      return failure(
+        "PROJECT_NOT_OPEN",
+        "Open the project before accessing snapshots.",
+      );
+    if (busy)
+      return failure(
+        "PROJECT_BUSY",
+        "Wait for the current operation before accessing snapshots.",
+      );
+    const readOnlyNotice = action.operation === "conflicts";
+    if (!readOnlyNotice) busy = true;
+    const projectPath = activeProjectPath;
+    try {
+      if (!readOnlyNotice) await history.settleProject(projectPath);
+      const base = { projectPath, projectId: action.projectId };
+      let value: unknown;
+      const selection =
+        "snapshotId" in action
+          ? { snapshotId: action.snapshotId, manifestHash: action.manifestHash }
+          : null;
+      switch (action.operation) {
+        case "list":
+          value = await listManuscriptSnapshots(projectPath, action.projectId);
+          break;
+        case "capture":
+          value = await captureNamedSnapshot(
+            { ...base, ...action },
+            {
+              authorized: () =>
+                Boolean(trusted(event)) && activeProjectPath === projectPath,
+            },
+          );
+          break;
+        case "inspect":
+          value = await inspectManuscriptSnapshot(
+            projectPath,
+            action.projectId,
+            selection!,
+          );
+          break;
+        case "delete": {
+          const current = await listManuscriptSnapshots(
+            projectPath,
+            action.projectId,
+          );
+          for (const [token, plan] of snapshotPreviews) {
+            if (
+              plan.projectPath !== projectPath ||
+              plan.expected.inventoryHash !== current.source.inventoryHash ||
+              plan.expected.generation !== current.source.generation
+            )
+              snapshotPreviews.delete(token);
+            else if (plan.selection.snapshotId === action.snapshotId)
+              throw new ApplicationError(
+                "PROJECT_BUSY",
+                "Cancel the restore preview before deleting its snapshot.",
+              );
+          }
+          value = await setManuscriptSnapshotDeleted(
+            {
+              ...base,
+              ...action,
+              selection: selection!,
+            },
+            {
+              authorized: () =>
+                Boolean(trusted(event)) && activeProjectPath === projectPath,
+            },
+          );
+          break;
+        }
+        case "preview": {
+          const preview = await previewSnapshotRestore(
+            projectPath,
+            action.projectId,
+            selection!,
+          );
+          if (snapshotPreviews.size >= 8)
+            snapshotPreviews.delete(snapshotPreviews.keys().next().value!);
+          const token = createUuid();
+          snapshotPreviews.set(token, {
+            owner: event.senderFrame,
+            projectPath,
+            projectId: action.projectId,
+            selection: selection!,
+            expected: preview.current,
+          });
+          value = { ...preview, token };
+          break;
+        }
+        case "cancel-preview": {
+          const preview = snapshotPreviews.get(action.token);
+          if (
+            preview &&
+            preview.owner === event.senderFrame &&
+            preview.projectPath === projectPath
+          )
+            snapshotPreviews.delete(action.token);
+          value = null;
+          break;
+        }
+        case "restore": {
+          const preview = snapshotPreviews.get(action.token);
+          if (
+            !preview ||
+            preview.owner !== event.senderFrame ||
+            preview.projectPath !== projectPath ||
+            preview.projectId !== action.projectId
+          )
+            throw new ApplicationError(
+              "EDITORIAL_STALE",
+              "Refresh the restore preview before retrying.",
+            );
+          const receipt = await restoreNamedSnapshot(
+            {
+              ...base,
+              operationId: action.operationId,
+              selection: preview.selection,
+              expected: preview.expected,
+            },
+            {
+              authorized: () =>
+                Boolean(trusted(event)) && activeProjectPath === projectPath,
+            },
+          );
+          const session = await services.open(projectPath);
+          value = {
+            receipt,
+            workspace: {
+              projectId: session.project.projectId,
+              projectPath: session.projectPath,
+              title: session.book.title,
+              author: session.book.author,
+              language: session.book.language,
+              chapters: session.chapters.map(
+                ({ id, title, status, wordCount }) => ({
+                  id,
+                  title,
+                  status,
+                  wordCount,
+                }),
+              ),
+            },
+          };
+          preparedPreview = undefined;
+          preparedPrint = undefined;
+          break;
+        }
+        case "conflicts":
+          value = await listSnapshotRestoreConflicts(
+            projectPath,
+            action.projectId,
+          );
+          break;
+        case "resolve-conflict":
+          value = await resolveSnapshotRestoreConflict({ ...base, ...action });
+          break;
+      }
+      if (!trusted(event) || activeProjectPath !== projectPath)
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access changed during the operation.",
+        );
+      return { ok: true, value };
+    } catch (error) {
+      if (!trusted(event) || activeProjectPath !== projectPath)
+        return failure(
+          "PROJECT_ACCESS_DENIED",
+          "Project access changed during the operation.",
+        );
+      if (error instanceof ManuscriptSnapshotError)
+        return failure(
+          error.code,
+          `The required ${error.component} is missing, damaged or unsupported. No complete snapshot was published. Restore that component and retry.`,
+        );
+      const code =
+        error instanceof ApplicationError ? error.code : "SNAPSHOT_INCOMPLETE";
+      const message =
+        code === "EDITORIAL_LIMIT"
+          ? "The snapshot exceeds a supported resource limit. No manuscript data was pruned. Close this panel to use Back Up Project, manuscript export or independent review before retrying."
+          : code === "EDITORIAL_UNSUPPORTED"
+            ? "Enable the versioned editorial format in Comments & annotations before using manuscript snapshots. This requires a confirmed upgrade and verified backup."
+            : code === "EDITORIAL_STALE"
+              ? "The saved manuscript or selected snapshot changed. Refresh and review before retrying."
+              : "The snapshot operation could not finish safely. Your drafts, saved manuscript and recovery evidence were preserved. Refresh or reopen the project before retrying.";
+      return failure(code, message);
+    } finally {
+      if (!readOnlyNotice) busy = false;
+    }
+  });
 
   ipcMain.handle(IPC.REFERENCE_EXECUTE, async (event, payload: unknown) => {
     if (!trusted(event))

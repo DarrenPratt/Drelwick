@@ -30,3 +30,4 @@ export * from "./reference.js";
 export * from "./editorial.js";
 
 export * from "./editorial-codec.js";
+export * from "./manuscript-snapshot.js";

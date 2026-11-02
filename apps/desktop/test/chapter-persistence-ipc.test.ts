@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
+  migrateProjectToEditorialV3,
   createProject,
   createChapter,
   createHistorySnapshot,
@@ -829,3 +830,103 @@ it("authorizes print settings through active-project IPC and rejects unsafe/stal
     await settleHistory();
   }
 });
+
+it("scopes named snapshot IPC, pins restore previews and rejects stale generations without private logs", async () => {
+  const f = await fixture();
+  await migrateProjectToEditorialV3(f.root);
+  const r = setup(f.root);
+  const opened = await r.invoke(IPC.PROJECT_OPEN);
+  expect(opened.ok).toBe(true);
+  const projectId = (await openProject(f.root)).project.projectId;
+  const listed = await r.invoke(IPC.SNAPSHOT_ACTION, {
+    operation: "list",
+    projectId,
+  });
+  expect(listed.ok).toBe(true);
+  if (!listed.ok) throw new Error("Expected listing");
+  const source = (
+    listed.value as { source: { generation: number; inventoryHash: string } }
+  ).source;
+  const operationId = "00000000-0000-4000-8000-000000000091";
+  const capture = {
+    operation: "capture",
+    projectId,
+    operationId,
+    label: "PRIVATE_SNAPSHOT_LABEL_CANARY",
+    expected: source,
+  };
+  const invalid = await r.invoke(IPC.SNAPSHOT_ACTION, {
+    ...capture,
+    projectPath: f.root,
+  });
+  expect(invalid).toMatchObject({
+    ok: false,
+    error: { code: "EDITORIAL_INVALID" },
+  });
+  const untrusted = {
+    ...r.event,
+    senderFrame: { url: r.frame.url },
+  } as unknown as IpcMainInvokeEvent;
+  expect(await r.invoke(IPC.SNAPSHOT_ACTION, capture, untrusted)).toMatchObject(
+    { ok: false, error: { code: "PROJECT_ACCESS_DENIED" } },
+  );
+  expect(
+    await r.invoke(IPC.SNAPSHOT_ACTION, {
+      operation: "list",
+      projectId: "00000000-0000-4000-8000-000000000099",
+    }),
+  ).toMatchObject({ ok: false, error: { code: "PROJECT_NOT_OPEN" } });
+  const saved = await r.invoke(IPC.SNAPSHOT_ACTION, capture);
+  expect(saved.ok).toBe(true);
+  if (!saved.ok) throw new Error("Expected capture");
+  const savedSnapshot = saved.value as {
+    snapshotId: string;
+    manifestHash: string;
+  };
+  const selection = {
+    snapshotId: savedSnapshot.snapshotId,
+    manifestHash: savedSnapshot.manifestHash,
+  };
+  const preview = await r.invoke(IPC.SNAPSHOT_ACTION, {
+    operation: "preview",
+    projectId,
+    ...selection,
+  });
+  expect(preview.ok).toBe(true);
+  if (!preview.ok) throw new Error("Expected preview");
+  const token = (preview.value as { token: string }).token;
+  expect(
+    await r.invoke(IPC.SNAPSHOT_ACTION, {
+      operation: "delete",
+      projectId,
+      operationId: "00000000-0000-4000-8000-000000000092",
+      expected: source,
+      ...selection,
+      deleted: true,
+    }),
+  ).toMatchObject({ ok: false, error: { code: "PROJECT_BUSY" } });
+  await saveChapter({
+    projectPath: f.root,
+    chapterId: f.chapterId,
+    document: {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "Changed after restore preview" }],
+        },
+      ],
+    },
+  });
+  expect(
+    await r.invoke(IPC.SNAPSHOT_ACTION, {
+      operation: "restore",
+      projectId,
+      operationId: "00000000-0000-4000-8000-000000000093",
+      token,
+    }),
+  ).toMatchObject({ ok: false, error: { code: "EDITORIAL_STALE" } });
+  expect(
+    JSON.stringify(Object.values(r.logger).flatMap((mock) => mock.mock.calls)),
+  ).not.toContain("PRIVATE_SNAPSHOT_LABEL_CANARY");
+}, 20_000);

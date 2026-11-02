@@ -2003,3 +2003,28 @@ button svg {
 .editorial-highlight-pink {
   background: #ffd0df;
 }
+
+.manuscript-snapshots-dialog {
+  width: min(70rem, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+}
+.manuscript-snapshots-dialog pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 24rem;
+  overflow: auto;
+}
+.manuscript-snapshots-dialog li,
+.manuscript-snapshots-dialog article {
+  border-bottom: 1px solid currentColor;
+  padding-block: 0.75rem;
+}
+.manuscript-snapshots-dialog button {
+  margin: 0.25rem;
+}
+.manuscript-snapshots-dialog input:not([type="checkbox"]),
+.manuscript-snapshots-dialog select {
+  display: block;
+  width: 100%;
+}
