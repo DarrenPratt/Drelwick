@@ -275,3 +275,18 @@ compilation and at runtime. A missing package, declaration or JavaScript entry
 point fails the command.
 
 This smoke consumer is bootstrap validation, not application behaviour testing.
+
+## Editorial source boundary regressions (#171 prerequisite)
+
+`packages/core/test/editorial-transactions.test.ts` changes, removes and creates
+an unchanged source at staging/publication boundaries. Stale commands must fail,
+pre-publication failures leave live images untouched, and recovery must retain
+external source bytes while restoring the prior project/editorial bundle.
+`packages/core/test/editorial-context.test.ts` covers v3 ebook theme and legacy
+print separation in one transaction, print/publication generations, no-op reads,
+stale requests, unchanged chapter bytes, reopen, concurrent upgrades, and actual
+manifest-publication rename failures for each context save. These regressions
+exercise the shared #170 service required by #171; they do not claim named
+snapshots are implemented. The root Vitest configuration caps workers at four
+to bound disk contention across real fsync/child-process integration suites;
+concurrent writer scenarios still run explicitly inside their owning tests.

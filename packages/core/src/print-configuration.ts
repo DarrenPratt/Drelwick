@@ -20,6 +20,7 @@ import {
 } from "./index.js";
 import { boundedRead, regularPath } from "./image-assets.js";
 import { readBookPresentation } from "./book-presentation.js";
+import { saveEditorialContext } from "./editorial-context.js";
 import { resolveBookTheme } from "@drelwick/renderer";
 
 export const PRINT_CONFIGURATION_FILE = "print.json";
@@ -105,6 +106,19 @@ export async function separateLegacyPrintConfiguration(
   projectPath: string,
   projectId: string,
 ): Promise<void> {
+  const data = await prepareLegacyPrintConfiguration(projectPath, projectId);
+  if (data)
+    await writeJsonAtomically(
+      join(projectPath, PRINT_CONFIGURATION_FILE),
+      data,
+    );
+}
+
+/** Prepare the legacy appearance split without publishing an independent v3 file. */
+export async function prepareLegacyPrintConfiguration(
+  projectPath: string,
+  projectId: string,
+) {
   const current = await readPrintConfiguration(projectPath, projectId);
   try {
     const parsed = PrintConfigurationSchema.parse(
@@ -114,20 +128,18 @@ export async function separateLegacyPrintConfiguration(
         ).toString("utf8"),
       ),
     );
-    if (parsed.schemaVersion === 2) return;
+    if (parsed.schemaVersion === 2) return null;
   } catch (error) {
     if (!missing(error)) throw error;
   }
-  await writeJsonAtomically(
-    join(projectPath, PRINT_CONFIGURATION_FILE),
-    PrintConfigurationV2Schema.parse({
-      schemaVersion: 2,
-      projectId,
-      edition: current.edition,
-      editions: current.editions,
-    }),
-  );
+  return PrintConfigurationV2Schema.parse({
+    schemaVersion: 2,
+    projectId,
+    edition: current.edition,
+    editions: current.editions,
+  });
 }
+
 export async function loadPrintConfiguration(
   projectPath: string,
   projectId: string,
@@ -149,6 +161,49 @@ export async function savePrintConfiguration(
   const parsed = PrintSaveRequestSchema.safeParse(request);
   if (!parsed.success) throw failed("PRINT_CONFIGURATION_INVALID");
   await regularPath(projectPath, true);
+  if ((await openProject(projectPath)).project.schemaVersion === 3) {
+    const committed = await saveEditorialContext(
+      projectPath,
+      parsed.data.projectId,
+      async (root) => {
+        const current = await readPrintConfiguration(
+          root,
+          parsed.data.projectId,
+        );
+        if (current.revision !== parsed.data.expectedRevision)
+          throw failed("PRINT_CONFIGURATION_STALE");
+        const edition = parsed.data.edition ?? current.edition;
+        const profile = current.editions[edition];
+        const data = PrintConfigurationV2Schema.parse({
+          schemaVersion: 2,
+          projectId: parsed.data.projectId,
+          edition,
+          editions: {
+            ...current.editions,
+            [edition]: {
+              settings: parsed.data.settings,
+              themeId: parsed.data.themeId ?? profile.themeId,
+              typography: parsed.data.typography ?? profile.typography,
+            },
+          },
+        });
+        const bytes = Buffer.from(`${JSON.stringify(data, null, 2)}\n`);
+        return {
+          changes: [{ path: PRINT_CONFIGURATION_FILE, after: bytes }],
+          result: {
+            settings: data.editions[edition].settings,
+            edition,
+            editions: data.editions,
+            revision: revision(bytes),
+          },
+        };
+      },
+    );
+    return {
+      ...committed.result,
+      ...(committed.warning ? { warning: committed.warning } : {}),
+    };
+  }
   const lock = join(projectPath, CHAPTER_CREATION_LOCK);
   try {
     await mkdir(lock);
@@ -157,6 +212,8 @@ export async function savePrintConfiguration(
   }
   let result: (PrintConfigurationState & { warning?: string }) | undefined;
   try {
+    if ((await openProject(projectPath)).project.schemaVersion === 3)
+      throw failed("PROJECT_BUSY");
     const current = await loadPrintConfiguration(
       projectPath,
       parsed.data.projectId,

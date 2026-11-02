@@ -419,6 +419,47 @@ export interface CommitEditorialInput {
 export async function commitEditorialTransaction(
   input: CommitEditorialInput,
 ): Promise<{ operationId: string; generation: number; warning?: string }> {
+  if (
+    !isAbsolute(input.projectPath) ||
+    !input.changes.length ||
+    (input.operationId !== undefined &&
+      !/^[0-9a-f-]{36}$/.test(input.operationId))
+  )
+    throw fail("EDITORIAL_INVALID");
+  return withReferenceLock(input.projectPath, (root) =>
+    commitEditorialTransactionLocked({ ...input, projectPath: root }),
+  );
+}
+
+/** Prepare related source changes and commit without releasing the shared writer gate. */
+export async function commitPreparedEditorialTransaction<T>(
+  projectPath: string,
+  prepare: (root: string) => Promise<{
+    transaction: Omit<CommitEditorialInput, "projectPath"> | null;
+    result: T;
+  }>,
+): Promise<{
+  result: T;
+  warning?: string;
+  receipt?: { operationId: string; generation: number; warning?: string };
+}> {
+  if (!isAbsolute(projectPath)) throw fail("EDITORIAL_INVALID");
+  return withReferenceLock(projectPath, async (root) => {
+    await assertEditorialReadable(root);
+    const prepared = await prepare(root);
+    if (!prepared.transaction) return { result: prepared.result };
+    const receipt = await commitEditorialTransactionLocked({
+      ...prepared.transaction,
+      projectPath: root,
+    });
+    return { result: prepared.result, receipt };
+  });
+}
+
+async function commitEditorialTransactionLocked(
+  input: CommitEditorialInput,
+): Promise<{ operationId: string; generation: number; warning?: string }> {
+  const root = input.projectPath;
   const id = input.operationId ?? createUuid();
   if (
     !isAbsolute(input.projectPath) ||
@@ -426,319 +467,323 @@ export async function commitEditorialTransaction(
     !/^[0-9a-f-]{36}$/.test(id)
   )
     throw fail("EDITORIAL_INVALID");
-  return withReferenceLock(input.projectPath, async (root) => {
-    const dir = join(root, ".editorial", "transactions", id);
-    try {
-      const prior = EditorialTransactionSchema.parse(
-        parseEditorialJson(
-          await readFile(join(dir, "transaction.json"), "utf8"),
-        ) as unknown,
-      );
-      if (
-        prior.id !== id ||
-        prior.projectId !== input.projectId ||
-        prior.expectedGeneration !== input.expectedGeneration ||
-        prior.kind !== input.kind ||
-        JSON.stringify(prior.decisions) !==
-          JSON.stringify(input.decisions ?? []) ||
-        prior.files.length !== input.changes.length ||
-        prior.files.some((file) => {
-          const changes = input.changes.filter(
-            (change) => change.path === file.path,
-          );
-          if (changes.length !== 1) return true;
-          const after = changes[0]!.after;
-          return after === null
-            ? file.after !== null
-            : file.after === null ||
-                file.after.size !== after.byteLength ||
-                file.after.sha256 !== digest(after);
-        }) ||
-        prior.phase !== "complete"
-      )
-        throw fail("EDITORIAL_RECOVERY_REQUIRED");
-      return {
-        operationId: id,
-        generation: prior.kind === "migration" ? 1 : prior.nextGeneration,
-      };
-    } catch (error) {
-      if (error instanceof ApplicationError) throw error;
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT")
-        throw fail("EDITORIAL_RECOVERY_REQUIRED");
-    }
-    await assertEditorialReadable(root);
-    const manifest = parseEditorialJson(
-      await readFile(join(root, "project.json"), "utf8"),
-    ) as Record<string, unknown>;
-    const migrating = input.kind === "migration";
+  const dir = join(root, ".editorial", "transactions", id);
+  try {
+    const prior = EditorialTransactionSchema.parse(
+      parseEditorialJson(
+        await readFile(join(dir, "transaction.json"), "utf8"),
+      ) as unknown,
+    );
     if (
-      (migrating
-        ? manifest.schemaVersion !== 2
-        : manifest.schemaVersion !== 3 ||
-          manifest.generation !== input.expectedGeneration) ||
-      manifest.projectId !== input.projectId
+      prior.id !== id ||
+      prior.projectId !== input.projectId ||
+      prior.expectedGeneration !== input.expectedGeneration ||
+      prior.kind !== input.kind ||
+      JSON.stringify(prior.decisions) !==
+        JSON.stringify(input.decisions ?? []) ||
+      prior.files.length !== input.changes.length ||
+      prior.files.some((file) => {
+        const changes = input.changes.filter(
+          (change) => change.path === file.path,
+        );
+        if (changes.length !== 1) return true;
+        const after = changes[0]!.after;
+        return after === null
+          ? file.after !== null
+          : file.after === null ||
+              file.after.size !== after.byteLength ||
+              file.after.sha256 !== digest(after);
+      }) ||
+      prior.phase !== "complete"
+    )
+      throw fail("EDITORIAL_RECOVERY_REQUIRED");
+    return {
+      operationId: id,
+      generation: prior.kind === "migration" ? 1 : prior.nextGeneration,
+    };
+  } catch (error) {
+    if (error instanceof ApplicationError) throw error;
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+      throw fail("EDITORIAL_RECOVERY_REQUIRED");
+  }
+  await assertEditorialReadable(root);
+  const manifest = parseEditorialJson(
+    await readFile(join(root, "project.json"), "utf8"),
+  ) as Record<string, unknown>;
+  const migrating = input.kind === "migration";
+  if (
+    (migrating
+      ? manifest.schemaVersion !== 2
+      : manifest.schemaVersion !== 3 ||
+        manifest.generation !== input.expectedGeneration) ||
+    manifest.projectId !== input.projectId
+  )
+    throw fail("EDITORIAL_STALE");
+  // Callers may bind unchanged source components too. Validate the complete
+  // bounded precondition set before staging any output, never only changed paths.
+  for (const [path, expected] of Object.entries(input.expectedBefore ?? {})) {
+    if (!safe(path)) throw fail("EDITORIAL_INVALID");
+    const bytes = await readOptional(await ensureSafeParent(root, path));
+    if (expected !== (bytes === null ? null : digest(bytes)))
+      throw fail("EDITORIAL_STALE");
+  }
+  const files = [] as EditorialTransaction["files"];
+  if (
+    input.changes.reduce(
+      (sum, change) => sum + (change.after?.byteLength ?? 0),
+      0,
+    ) > EDITORIAL_LIMITS.captureBytes
+  )
+    throw fail("EDITORIAL_LIMIT");
+  const changes = [...input.changes].sort((a, b) =>
+    a.path < b.path ? -1 : a.path > b.path ? 1 : 0,
+  );
+  if (
+    !changes.some((change) => change.path === "project.json") ||
+    !changes.some((change) => change.path === "editorial/state.json")
+  )
+    throw fail("EDITORIAL_INVALID");
+  for (const change of changes) {
+    if (!safe(change.path)) throw fail("EDITORIAL_INVALID");
+    const target = await ensureSafeParent(root, change.path);
+    const before = await readOptional(target);
+    const after = change.after === null ? null : Buffer.from(change.after);
+    files.push({
+      path: change.path,
+      before:
+        before === null
+          ? null
+          : { size: before.length, sha256: digest(before) },
+      after:
+        after === null ? null : { size: after.length, sha256: digest(after) },
+    });
+    const expected = input.expectedBefore?.[change.path];
+    if (
+      input.expectedBefore &&
+      expected !== undefined &&
+      expected !== (before === null ? null : digest(before))
     )
       throw fail("EDITORIAL_STALE");
-    // Callers may bind unchanged source components too. Validate the complete
-    // bounded precondition set before staging any output, never only changed paths.
+  }
+  const projectImage = changes.find(
+    (change) => change.path === "project.json",
+  )!.after;
+  const stateImage = changes.find(
+    (change) => change.path === "editorial/state.json",
+  )!.after;
+  if (!projectImage || !stateImage) throw fail("EDITORIAL_INVALID");
+  const nextProject = parseEditorialJson(Buffer.from(projectImage)) as Record<
+    string,
+    unknown
+  >;
+  const nextState = parseEditorialJson(Buffer.from(stateImage)) as Record<
+    string,
+    unknown
+  >;
+  if (
+    nextProject.schemaVersion !== 3 ||
+    nextProject.projectId !== input.projectId ||
+    nextProject.generation !== (migrating ? 1 : input.expectedGeneration + 1) ||
+    nextState.schemaVersion !== 1 ||
+    nextState.projectId !== input.projectId ||
+    nextState.generation !== (migrating ? 1 : input.expectedGeneration + 1)
+  )
+    throw fail("EDITORIAL_INVALID");
+  const validatedProject = ProjectConfigV3Schema.parse(nextProject);
+  const validatedState = EditorialStateSchema.parse(nextState);
+  const chapters = [];
+  let captureBytes = Buffer.byteLength(JSON.stringify(validatedState));
+  for (const chapterId of validatedProject.manuscript.order) {
+    const path = `manuscript/${chapterId}.json`;
+    const change = changes.find((item) => item.path === path);
+    const bytes = change
+      ? change.after
+      : await readOptional(await ensureSafeParent(root, path));
+    if (!bytes) throw fail("EDITORIAL_INVALID");
+    captureBytes += bytes.byteLength;
+    if (captureBytes > EDITORIAL_LIMITS.captureBytes)
+      throw fail("EDITORIAL_LIMIT");
+    const chapter = ChapterFileV2Schema.parse(
+      parseEditorialJson(Buffer.from(bytes)) as unknown,
+    );
+    if (chapter.id !== chapterId) throw fail("EDITORIAL_INVALID");
+    chapters.push(chapter);
+  }
+  validateEditorialBundle({
+    projectId: validatedProject.projectId,
+    generation: validatedProject.generation,
+    chapterOrder: validatedProject.manuscript.order,
+    chapters,
+    state: validatedState,
+  });
+  const tx = EditorialTransactionSchema.parse({
+    schemaVersion: 1,
+    id,
+    projectId: input.projectId,
+    kind: input.kind,
+    created: new Date().toISOString(),
+    owner: {
+      host: hostname(),
+      processId: process.pid,
+      processStarted: new Date().toISOString(),
+    },
+    phase: "prepared",
+    expectedGeneration: input.expectedGeneration,
+    nextGeneration: input.expectedGeneration + 1,
+    files,
+    decisions: input.decisions ?? [],
+  });
+  await mkdir(dir, { recursive: true });
+  await mkdir(join(dir, "before"), { recursive: true });
+  await mkdir(join(dir, "after"), { recursive: true });
+  for (const [index, file] of files.entries()) {
+    const change = changes[index]!;
+    for (const [name, ref, bytes] of [
+      [
+        "before",
+        file.before,
+        await readOptional(join(root, ...file.path.split("/"))),
+      ],
+      [
+        "after",
+        file.after,
+        change.after === null ? null : Buffer.from(change.after),
+      ],
+    ] as const) {
+      if (ref === null || bytes === null) continue;
+      const image = join(dir, name, ...file.path.split("/"));
+      await mkdir(dirname(image), { recursive: true });
+      await writeAtomic(image, bytes);
+      const verified = await readOptional(image);
+      if (
+        verified === null ||
+        verified.length !== ref.size ||
+        digest(verified) !== ref.sha256
+      )
+        throw fail("EDITORIAL_RECOVERY_REQUIRED");
+    }
+  }
+  await input.checkpoint?.("after-images");
+  if (input.requestHash) {
+    const request = EditorialRequestSchema.parse({
+      schemaVersion: 1,
+      operationId: id,
+      projectId: input.projectId,
+      expectedGeneration: input.expectedGeneration,
+      requestHash: input.requestHash,
+    });
+    await writeAtomic(
+      join(dir, "request.json"),
+      Buffer.from(`${JSON.stringify(request, null, 2)}\n`),
+    );
+  }
+  await persistManifest(root, dir, tx);
+  if (!migrating) {
+    const draft = EditorialDraftSchema.parse({
+      schemaVersion: 1,
+      id,
+      projectId: input.projectId,
+      created: tx.created,
+      baseGeneration: input.expectedGeneration,
+      editorGeneration: input.editorGeneration ?? input.expectedGeneration,
+      baseInventoryHash: editorialDocumentHash(
+        tx.files.map((file) => ({ path: file.path, before: file.before })),
+      ),
+      files: tx.files.flatMap((file) =>
+        file.after ? [{ path: file.path, ...file.after }] : [],
+      ),
+    });
+    // Drafts have their own portable, flushed images as specified by DraftV1.
+    // Publish the descriptor only after every image verifies; partial staging
+    // remains retained evidence and can never be offered as a complete draft.
+    for (const file of draft.files) {
+      const bytes = await readOptional(
+        await ensureSafeParent(dir, `after/${file.path}`),
+      );
+      if (!bytes || bytes.length !== file.size || digest(bytes) !== file.sha256)
+        throw fail("EDITORIAL_RECOVERY_REQUIRED");
+      const path = await ensureSafeParent(
+        root,
+        `.editorial/drafts/${id}/files/${file.path}`,
+      );
+      await writeAtomic(path, bytes);
+      const verified = await readOptional(path);
+      if (
+        !verified ||
+        verified.length !== file.size ||
+        digest(verified) !== file.sha256
+      )
+        throw fail("EDITORIAL_RECOVERY_REQUIRED");
+    }
+    const draftPath = await ensureSafeParent(
+      root,
+      `.editorial/drafts/${id}.json`,
+    );
+    await writeAtomic(
+      draftPath,
+      Buffer.from(`${JSON.stringify(draft, null, 2)}\n`),
+    );
+    await input.checkpoint?.("draft-staged");
+  }
+  await input.checkpoint?.("prepared");
+  // Publish the version/generation gate only after all dependent images.
+  const changedPaths = new Set(files.map((file) => file.path));
+  const verifySources = async (published: boolean) => {
     for (const [path, expected] of Object.entries(input.expectedBefore ?? {})) {
-      if (!safe(path)) throw fail("EDITORIAL_INVALID");
+      if (published && changedPaths.has(path)) continue;
       const bytes = await readOptional(await ensureSafeParent(root, path));
       if (expected !== (bytes === null ? null : digest(bytes)))
         throw fail("EDITORIAL_STALE");
     }
-    const files = [] as EditorialTransaction["files"];
+  };
+  await verifySources(false);
+  const publicationOrder = [
+    ...files.filter((file) => file.path !== "project.json"),
+    ...files.filter((file) => file.path === "project.json"),
+  ];
+  for (const file of publicationOrder) {
+    const live = await readOptional(await ensureSafeParent(root, file.path));
+    const ref = file.before;
+    if (!(
+      (ref === null && live === null) ||
+      (ref !== null &&
+        live !== null &&
+        live.length === ref.size &&
+        digest(live) === ref.sha256)
+    ))
+      throw fail("EDITORIAL_STALE");
+    await publishImage(root, dir, file.path, file.after);
+    await input.checkpoint?.("after-publication");
+  }
+  // Recheck the complete published set before the logical commit marker.
+  // An external change to an earlier file must not be acknowledged as saved.
+  for (const file of files) {
+    const bytes = await readOptional(await ensureSafeParent(root, file.path));
     if (
-      input.changes.reduce(
-        (sum, change) => sum + (change.after?.byteLength ?? 0),
-        0,
-      ) > EDITORIAL_LIMITS.captureBytes
+      file.after === null
+        ? bytes !== null
+        : bytes === null ||
+          bytes.length !== file.after.size ||
+          digest(bytes) !== file.after.sha256
     )
-      throw fail("EDITORIAL_LIMIT");
-    const changes = [...input.changes].sort((a, b) =>
-      a.path < b.path ? -1 : a.path > b.path ? 1 : 0,
-    );
-    if (
-      !changes.some((change) => change.path === "project.json") ||
-      !changes.some((change) => change.path === "editorial/state.json")
-    )
-      throw fail("EDITORIAL_INVALID");
-    for (const change of changes) {
-      if (!safe(change.path)) throw fail("EDITORIAL_INVALID");
-      const target = await ensureSafeParent(root, change.path);
-      const before = await readOptional(target);
-      const after = change.after === null ? null : Buffer.from(change.after);
-      files.push({
-        path: change.path,
-        before:
-          before === null
-            ? null
-            : { size: before.length, sha256: digest(before) },
-        after:
-          after === null ? null : { size: after.length, sha256: digest(after) },
-      });
-      const expected = input.expectedBefore?.[change.path];
-      if (
-        input.expectedBefore &&
-        expected !== undefined &&
-        expected !== (before === null ? null : digest(before))
-      )
-        throw fail("EDITORIAL_STALE");
-    }
-    const projectImage = changes.find(
-      (change) => change.path === "project.json",
-    )!.after;
-    const stateImage = changes.find(
-      (change) => change.path === "editorial/state.json",
-    )!.after;
-    if (!projectImage || !stateImage) throw fail("EDITORIAL_INVALID");
-    const nextProject = parseEditorialJson(Buffer.from(projectImage)) as Record<
-      string,
-      unknown
-    >;
-    const nextState = parseEditorialJson(Buffer.from(stateImage)) as Record<
-      string,
-      unknown
-    >;
-    if (
-      nextProject.schemaVersion !== 3 ||
-      nextProject.projectId !== input.projectId ||
-      nextProject.generation !==
-        (migrating ? 1 : input.expectedGeneration + 1) ||
-      nextState.schemaVersion !== 1 ||
-      nextState.projectId !== input.projectId ||
-      nextState.generation !== (migrating ? 1 : input.expectedGeneration + 1)
-    )
-      throw fail("EDITORIAL_INVALID");
-    const validatedProject = ProjectConfigV3Schema.parse(nextProject);
-    const validatedState = EditorialStateSchema.parse(nextState);
-    const chapters = [];
-    let captureBytes = Buffer.byteLength(JSON.stringify(validatedState));
-    for (const chapterId of validatedProject.manuscript.order) {
-      const path = `manuscript/${chapterId}.json`;
-      const change = changes.find((item) => item.path === path);
-      const bytes = change
-        ? change.after
-        : await readOptional(await ensureSafeParent(root, path));
-      if (!bytes) throw fail("EDITORIAL_INVALID");
-      captureBytes += bytes.byteLength;
-      if (captureBytes > EDITORIAL_LIMITS.captureBytes)
-        throw fail("EDITORIAL_LIMIT");
-      const chapter = ChapterFileV2Schema.parse(
-        parseEditorialJson(Buffer.from(bytes)) as unknown,
-      );
-      if (chapter.id !== chapterId) throw fail("EDITORIAL_INVALID");
-      chapters.push(chapter);
-    }
-    validateEditorialBundle({
-      projectId: validatedProject.projectId,
-      generation: validatedProject.generation,
-      chapterOrder: validatedProject.manuscript.order,
-      chapters,
-      state: validatedState,
-    });
-    const tx = EditorialTransactionSchema.parse({
-      schemaVersion: 1,
-      id,
-      projectId: input.projectId,
-      kind: input.kind,
-      created: new Date().toISOString(),
-      owner: {
-        host: hostname(),
-        processId: process.pid,
-        processStarted: new Date().toISOString(),
-      },
-      phase: "prepared",
-      expectedGeneration: input.expectedGeneration,
-      nextGeneration: input.expectedGeneration + 1,
-      files,
-      decisions: input.decisions ?? [],
-    });
-    await mkdir(dir, { recursive: true });
-    await mkdir(join(dir, "before"), { recursive: true });
-    await mkdir(join(dir, "after"), { recursive: true });
-    for (const [index, file] of files.entries()) {
-      const change = changes[index]!;
-      for (const [name, ref, bytes] of [
-        [
-          "before",
-          file.before,
-          await readOptional(join(root, ...file.path.split("/"))),
-        ],
-        [
-          "after",
-          file.after,
-          change.after === null ? null : Buffer.from(change.after),
-        ],
-      ] as const) {
-        if (ref === null || bytes === null) continue;
-        const image = join(dir, name, ...file.path.split("/"));
-        await mkdir(dirname(image), { recursive: true });
-        await writeAtomic(image, bytes);
-        const verified = await readOptional(image);
-        if (
-          verified === null ||
-          verified.length !== ref.size ||
-          digest(verified) !== ref.sha256
-        )
-          throw fail("EDITORIAL_RECOVERY_REQUIRED");
-      }
-    }
-    await input.checkpoint?.("after-images");
-    if (input.requestHash) {
-      const request = EditorialRequestSchema.parse({
-        schemaVersion: 1,
-        operationId: id,
-        projectId: input.projectId,
-        expectedGeneration: input.expectedGeneration,
-        requestHash: input.requestHash,
-      });
-      await writeAtomic(
-        join(dir, "request.json"),
-        Buffer.from(`${JSON.stringify(request, null, 2)}\n`),
-      );
-    }
+      throw fail("EDITORIAL_STALE");
+  }
+  await verifySources(true);
+  tx.phase = "committed";
+  await persistManifest(root, dir, tx);
+  await input.checkpoint?.("committed");
+  tx.phase = "complete";
+  try {
     await persistManifest(root, dir, tx);
-    if (!migrating) {
-      const draft = EditorialDraftSchema.parse({
-        schemaVersion: 1,
-        id,
-        projectId: input.projectId,
-        created: tx.created,
-        baseGeneration: input.expectedGeneration,
-        editorGeneration: input.editorGeneration ?? input.expectedGeneration,
-        baseInventoryHash: editorialDocumentHash(
-          tx.files.map((file) => ({ path: file.path, before: file.before })),
-        ),
-        files: tx.files.flatMap((file) =>
-          file.after ? [{ path: file.path, ...file.after }] : [],
-        ),
-      });
-      // Drafts have their own portable, flushed images as specified by DraftV1.
-      // Publish the descriptor only after every image verifies; partial staging
-      // remains retained evidence and can never be offered as a complete draft.
-      for (const file of draft.files) {
-        const bytes = await readOptional(
-          await ensureSafeParent(dir, `after/${file.path}`),
-        );
-        if (
-          !bytes ||
-          bytes.length !== file.size ||
-          digest(bytes) !== file.sha256
-        )
-          throw fail("EDITORIAL_RECOVERY_REQUIRED");
-        const path = await ensureSafeParent(
-          root,
-          `.editorial/drafts/${id}/files/${file.path}`,
-        );
-        await writeAtomic(path, bytes);
-        const verified = await readOptional(path);
-        if (
-          !verified ||
-          verified.length !== file.size ||
-          digest(verified) !== file.sha256
-        )
-          throw fail("EDITORIAL_RECOVERY_REQUIRED");
-      }
-      const draftPath = await ensureSafeParent(
-        root,
-        `.editorial/drafts/${id}.json`,
-      );
-      await writeAtomic(
-        draftPath,
-        Buffer.from(`${JSON.stringify(draft, null, 2)}\n`),
-      );
-      await input.checkpoint?.("draft-staged");
-    }
-    await input.checkpoint?.("prepared");
-    // Publish the version/generation gate only after all dependent images.
-    const publicationOrder = [
-      ...files.filter((file) => file.path !== "project.json"),
-      ...files.filter((file) => file.path === "project.json"),
-    ];
-    for (const file of publicationOrder) {
-      const live = await readOptional(await ensureSafeParent(root, file.path));
-      const ref = file.before;
-      if (!(
-        (ref === null && live === null) ||
-        (ref !== null &&
-          live !== null &&
-          live.length === ref.size &&
-          digest(live) === ref.sha256)
-      ))
-        throw fail("EDITORIAL_STALE");
-      await publishImage(root, dir, file.path, file.after);
-      await input.checkpoint?.("after-publication");
-    }
-    // Recheck the complete published set before the logical commit marker.
-    // An external change to an earlier file must not be acknowledged as saved.
-    for (const file of files) {
-      const bytes = await readOptional(await ensureSafeParent(root, file.path));
-      if (
-        file.after === null
-          ? bytes !== null
-          : bytes === null ||
-            bytes.length !== file.after.size ||
-            digest(bytes) !== file.after.sha256
-      )
-        throw fail("EDITORIAL_STALE");
-    }
-    tx.phase = "committed";
-    await persistManifest(root, dir, tx);
-    await input.checkpoint?.("committed");
-    tx.phase = "complete";
-    try {
-      await persistManifest(root, dir, tx);
-    } catch {
-      return {
-        operationId: id,
-        generation: migrating ? 1 : tx.nextGeneration,
-        warning:
-          "The save committed, but final journal cleanup needs recovery. Reopen the project before further changes.",
-      };
-    }
-    return { operationId: id, generation: migrating ? 1 : tx.nextGeneration };
-  });
+  } catch {
+    return {
+      operationId: id,
+      generation: migrating ? 1 : tx.nextGeneration,
+      warning:
+        "The save committed, but final journal cleanup needs recovery. Reopen the project before further changes.",
+    };
+  }
+  return { operationId: id, generation: migrating ? 1 : tx.nextGeneration };
 }
 
 export async function recoverEditorialTransactions(

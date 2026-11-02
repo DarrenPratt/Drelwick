@@ -28,6 +28,8 @@ import {
   sameSnapshot,
 } from "./project-snapshot.js";
 
+import { saveEditorialContext } from "./editorial-context.js";
+
 export const PUBLICATION_FILE = "publication.json";
 export const PUBLICATION_MIGRATION_DIRECTORY =
   ".drelwick-publication-migration";
@@ -135,8 +137,31 @@ export async function loadPublication(
 ): Promise<PublicationState> {
   await regularPath(projectPath, true);
   await openProjectForEditing(projectPath);
+  if ((await openProject(projectPath)).project.schemaVersion === 3) {
+    const committed = await saveEditorialContext(
+      projectPath,
+      projectId,
+      async (root, session) => {
+        const current = await readPublication(root, session);
+        const bytes =
+          current.bytes ??
+          Buffer.from(`${JSON.stringify(current.data, null, 2)}\n`);
+        return {
+          changes: current.bytes
+            ? []
+            : [{ path: PUBLICATION_FILE, after: bytes }],
+          result: { data: current.data, revision: revision(bytes) },
+        };
+      },
+    );
+    return {
+      ...committed.result,
+      ...(committed.warning ? { warning: committed.warning } : {}),
+    };
+  }
   return locked(projectPath, async () => {
     const session = await openProject(projectPath);
+    if (session.project.schemaVersion === 3) throw failed("PROJECT_BUSY");
     if (session.project.projectId !== projectId)
       throw failed("PROJECT_NOT_OPEN");
     const current = await readPublication(projectPath, session);
@@ -193,11 +218,10 @@ export async function savePublication(
     64 * 1024 * 1024
   )
     throw failed("PUBLICATION_INVALID");
-  return locked(input.projectPath, async () => {
-    const session = await openProject(input.projectPath);
+  const prepare = async (root: string, session: OpenedProject) => {
     if (session.project.projectId !== input.projectId)
       throw failed("PROJECT_NOT_OPEN");
-    const current = await readPublication(input.projectPath, session);
+    const current = await readPublication(root, session);
     if (current.revision !== input.expectedRevision)
       throw failed("PUBLICATION_CONFLICT");
     // This workflow has no delete operation. Visibility/type changes cannot remove a page.
@@ -218,7 +242,28 @@ export async function savePublication(
     )
       throw failed("PUBLICATION_INVALID");
     if (parsed.data.coverAssetId)
-      await readImageAsset(input.projectPath, parsed.data.coverAssetId);
+      await readImageAsset(root, parsed.data.coverAssetId);
+    const bytes = Buffer.from(`${JSON.stringify(parsed.data, null, 2)}\n`);
+    return {
+      changes: [{ path: PUBLICATION_FILE, after: bytes }],
+      result: { data: parsed.data, revision: revision(bytes) },
+    };
+  };
+  if ((await openProject(input.projectPath)).project.schemaVersion === 3) {
+    const committed = await saveEditorialContext(
+      input.projectPath,
+      input.projectId,
+      prepare,
+    );
+    return {
+      ...committed.result,
+      ...(committed.warning ? { warning: committed.warning } : {}),
+    };
+  }
+  return locked(input.projectPath, async () => {
+    const session = await openProject(input.projectPath);
+    if (session.project.schemaVersion === 3) throw failed("PROJECT_BUSY");
+    await prepare(input.projectPath, session);
     try {
       await (options.write ?? writeJsonAtomically)(
         join(input.projectPath, PUBLICATION_FILE),
