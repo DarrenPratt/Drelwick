@@ -1,9 +1,19 @@
-import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import {
+  cp,
+  mkdtemp,
+  mkdir,
+  readFile,
+  rm,
+  writeFile,
+  unlink,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import {
   commitEditorialTransaction,
+  commitPreparedEditorialTransaction,
   migrateProjectToEditorialV3,
   recoverEditorialTransactions,
   readEditorialTransactionDraft,
@@ -1132,4 +1142,110 @@ it("metadata companion undo restores owned records and preserves disjoint discus
   } finally {
     await fixture.cleanup();
   }
+});
+
+it.each(["prepared", "after-publication"])(
+  "revalidates unchanged source hashes at %s and preserves external bytes during recovery",
+  async (point) => {
+    for (const mutation of ["change", "remove", "create"] as const) {
+      const root = await fixture();
+      const source = join(root, "book.json");
+      const original = Buffer.from('{"title":"Original synthetic metadata"}');
+      const external = Buffer.from('{"title":"External synthetic metadata"}');
+      if (mutation !== "create") await writeFile(source, original);
+      const beforeProject = await readFile(join(root, "project.json"));
+      const beforeState = await readFile(join(root, "editorial/state.json"));
+      let mutated = false;
+      await expect(
+        commitEditorialTransaction({
+          projectPath: root,
+          projectId: "00000000-0000-4000-8000-000000000001",
+          kind: "annotation",
+          expectedGeneration: 7,
+          expectedBefore: {
+            "book.json":
+              mutation === "create"
+                ? null
+                : createHash("sha256").update(original).digest("hex"),
+          },
+          changes: changes(8),
+          checkpoint: async (name) => {
+            if (name !== point || mutated) return;
+            mutated = true;
+            if (mutation === "remove") await unlink(source);
+            else await writeFile(source, external);
+          },
+        }),
+      ).rejects.toMatchObject({ code: "EDITORIAL_STALE" });
+      expect(mutated).toBe(true);
+      if (point === "prepared") {
+        expect(await readFile(join(root, "project.json"))).toEqual(
+          beforeProject,
+        );
+        expect(await readFile(join(root, "editorial/state.json"))).toEqual(
+          beforeState,
+        );
+      }
+      await recoverEditorialTransactions(root);
+      await recoverEditorialTransactions(root);
+      expect(await readFile(join(root, "project.json"))).toEqual(beforeProject);
+      expect(await readFile(join(root, "editorial/state.json"))).toEqual(
+        beforeState,
+      );
+      if (mutation === "remove")
+        await expect(readFile(source)).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+      else expect(await readFile(source)).toEqual(external);
+    }
+  },
+  20_000,
+);
+
+it("rejects relative paths before invoking preparation or accessing the writer gate", async () => {
+  const projectPath = "relative-project";
+  await expect(
+    commitEditorialTransaction({
+      projectPath,
+      projectId: "00000000-0000-4000-8000-000000000001",
+      kind: "edit",
+      expectedGeneration: 7,
+      changes: changes(8),
+    }),
+  ).rejects.toMatchObject({ code: "EDITORIAL_INVALID" });
+  let prepared = false;
+  await expect(
+    commitPreparedEditorialTransaction(projectPath, async () => {
+      prepared = true;
+      return { transaction: null, result: null };
+    }),
+  ).rejects.toMatchObject({ code: "EDITORIAL_INVALID" });
+  expect(prepared).toBe(false);
+});
+
+it("prepares concurrent commands inside the same shared generation gate", async () => {
+  const root = await fixture();
+  const run = () =>
+    commitPreparedEditorialTransaction(root, async (lockedRoot) => {
+      const project = JSON.parse(
+        await readFile(join(lockedRoot, "project.json"), "utf8"),
+      );
+      return {
+        transaction: {
+          projectId: project.projectId,
+          kind: "edit" as const,
+          expectedGeneration: project.generation,
+          changes: changes(project.generation + 1),
+        },
+        result: project.generation as number,
+      };
+    });
+  const receipts = (await Promise.all([run(), run()])).sort(
+    (left, right) => left.result - right.result,
+  );
+  expect(receipts.map((value) => value.result)).toEqual([7, 8]);
+  expect(receipts.map((value) => value.receipt?.generation)).toEqual([8, 9]);
+  expect(
+    JSON.parse(await readFile(join(root, "project.json"), "utf8")).generation,
+  ).toBe(9);
 });

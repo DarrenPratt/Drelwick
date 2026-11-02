@@ -271,6 +271,23 @@ external edits; neither timestamps nor generation alone prove identity.
    that same direction. Preserve both sets until verified completion. Do not
    auto-delete transaction evidence in #170–#173.
 
+Source preconditions include hashes for unchanged inputs and explicit absence for
+optional files. The shared service rechecks the full precondition inventory after
+staging and before publishing any live image. Immediately before the commit marker,
+it verifies changed files against their after-images and unchanged inputs against
+their original hashes/absence. A changed, removed or newly created input fails
+`EDITORIAL_STALE`; recovery preserves external bytes outside the write inventory.
+
+For project v3, ebook theme, print settings and publication initialization/edits
+use this same transaction and advance project/editorial generations together.
+Legacy print separation and the ebook theme change form one transaction. Chapter
+bytes/revisions remain unchanged for these context-only edits. Selecting the
+already saved ebook theme or reopening existing publication data makes no new
+transaction. V1/v2 projects retain their existing save paths; no format upgrade or
+new persistence version is introduced by this boundary correction. If an upgrade
+completes between format detection and legacy lock acquisition, the legacy writer
+refuses to publish; retry uses the v3 transaction path.
+
 Recovery first verifies the journal, retained images, operation ownership and that
 each live file is exactly a listed before or after version (or listed absence).
 An unexpected external hash, unsupported version, missing preserved bytes,

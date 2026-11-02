@@ -18,7 +18,11 @@ import {
   writeJsonAtomically,
 } from "./index.js";
 import { boundedRead, regularPath } from "./image-assets.js";
-import { separateLegacyPrintConfiguration } from "./print-configuration.js";
+import {
+  separateLegacyPrintConfiguration,
+  prepareLegacyPrintConfiguration,
+} from "./print-configuration.js";
+import { saveEditorialContext } from "./editorial-context.js";
 
 export const BOOK_PRESENTATION_FILE = "presentation.json";
 const missing = (error: unknown) =>
@@ -78,6 +82,44 @@ export async function saveBookTheme(
   if (!BuiltinThemeIdSchema.safeParse(input.themeId).success)
     throw error("BOOK_THEME_INVALID");
   await regularPath(input.projectPath, true);
+  if ((await openProject(input.projectPath)).project.schemaVersion === 3) {
+    const committed = await saveEditorialContext(
+      input.projectPath,
+      input.projectId,
+      async (root) => {
+        const current = await readBookPresentation(root, input.projectId);
+        const result = { selection: resolveBookTheme(input.themeId) };
+        if (current.settings.themeId === input.themeId)
+          return { changes: [], result };
+        const print = await prepareLegacyPrintConfiguration(
+          root,
+          input.projectId,
+        );
+        const bytes = (value: unknown) =>
+          Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
+        return {
+          result,
+          changes: [
+            ...(print ? [{ path: "print.json", after: bytes(print) }] : []),
+            {
+              path: BOOK_PRESENTATION_FILE,
+              after: bytes(
+                BookPresentationSchema.parse({
+                  schemaVersion: 1,
+                  projectId: input.projectId,
+                  themeId: input.themeId,
+                }),
+              ),
+            },
+          ],
+        };
+      },
+    );
+    return {
+      ...committed.result,
+      ...(committed.warning ? { warning: committed.warning } : {}),
+    };
+  }
   const lock = join(input.projectPath, CHAPTER_CREATION_LOCK);
   try {
     await mkdir(lock);
@@ -86,6 +128,9 @@ export async function saveBookTheme(
   }
   let result: { selection: BookThemeSelection; warning?: string } | undefined;
   try {
+    // A concurrent upgrade must not route a v3 project through the legacy writer.
+    if ((await openProject(input.projectPath)).project.schemaVersion === 3)
+      throw error("PROJECT_BUSY");
     const current = await loadBookTheme(input.projectPath, input.projectId);
     if (current.savedThemeId !== input.themeId) {
       await separateLegacyPrintConfiguration(
