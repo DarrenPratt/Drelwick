@@ -1,7 +1,14 @@
 import { lstat, mkdir, readFile, realpath, rmdir } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { ApplicationError, createIsoDate } from "@drelwick/shared";
-import { ChapterFileSchema, type ChapterFile } from "@drelwick/project-model";
+import {
+  ChapterFileSchema,
+  ChapterFileV2Schema,
+  EditorialStateSchema,
+  ProjectConfigSchema,
+  type ChapterFile,
+  type ChapterFileV2,
+} from "@drelwick/project-model";
 import {
   CHAPTER_CREATION_LOCK,
   openProject,
@@ -9,6 +16,7 @@ import {
   type OpenedProject,
   type ProjectLoadingFileSystem,
 } from "./index.js";
+import { commitEditorialTransaction } from "./editorial-transactions.js";
 
 export interface RenameChapterInput {
   projectPath: string;
@@ -17,7 +25,7 @@ export interface RenameChapterInput {
 }
 
 export interface RenamedChapter {
-  chapter: ChapterFile;
+  chapter: ChapterFile | ChapterFileV2;
   session: OpenedProject;
   warning?: string;
 }
@@ -64,18 +72,29 @@ export async function renameChapter(
   }
 
   const lock = join(root, CHAPTER_CREATION_LOCK);
-  try {
-    await fs.mkdir(lock);
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "EEXIST")
+  const projectHeader = ProjectConfigSchema.safeParse(
+    JSON.parse(
+      await fs.readFile(join(root, "project.json"), "utf8"),
+    ) as unknown,
+  );
+  const useLegacyLock =
+    !projectHeader.success || projectHeader.data.schemaVersion !== 3;
+  let lockAcquired = false;
+  if (useLegacyLock) {
+    try {
+      await fs.mkdir(lock);
+      lockAcquired = true;
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "EEXIST")
+        throw new ApplicationError(
+          "PROJECT_BUSY",
+          "Another chapter operation is in progress. Please try again.",
+        );
       throw new ApplicationError(
-        "PROJECT_BUSY",
-        "Another chapter operation is in progress. Please try again.",
+        "CHAPTER_RENAME_FAILED",
+        "Unable to acquire the chapter operation lock.",
       );
-    throw new ApplicationError(
-      "CHAPTER_RENAME_FAILED",
-      "Unable to acquire the chapter operation lock.",
-    );
+    }
   }
 
   let result: RenamedChapter | undefined;
@@ -89,19 +108,83 @@ export async function renameChapter(
 
     const chapterPath = join(root, "manuscript", `${input.chapterId}.json`);
     const raw = JSON.parse(await fs.readFile(chapterPath, "utf8")) as unknown;
-    const parsed = ChapterFileSchema.safeParse(raw);
+    const parsed =
+      session.project.schemaVersion === 3
+        ? ChapterFileV2Schema.safeParse(raw)
+        : ChapterFileSchema.safeParse(raw);
     if (!parsed.success || parsed.data.id !== input.chapterId)
       throw new ApplicationError(
         "PROJECT_SCHEMA_INVALID",
         "The selected chapter has an invalid format.",
       );
 
-    const chapter = ChapterFileSchema.parse({
-      ...parsed.data,
-      title: input.title.trim(),
-      modified: createIsoDate(),
-    });
-    await fs.writeChapter(chapterPath, chapter);
+    const modified = createIsoDate();
+    let chapter: ChapterFile | ChapterFileV2;
+    if (session.project.schemaVersion === 3) {
+      const statePath = join(root, session.project.editorialFile);
+      const state = EditorialStateSchema.parse(
+        JSON.parse(await fs.readFile(statePath, "utf8")) as unknown,
+      );
+      const nextChapter = ChapterFileV2Schema.parse({
+        ...(parsed.data as ChapterFileV2),
+        title: input.title.trim(),
+        modified,
+        revision: (parsed.data as ChapterFileV2).revision + 1,
+      });
+      const nextProject = {
+        ...session.project,
+        modified,
+        generation: session.project.generation + 1,
+      };
+      const nextState = {
+        ...state,
+        generation: state.generation + 1,
+        anchors: state.anchors.map((anchor) => {
+          const hasSegment = anchor.segments.some(
+            (segment) => segment.chapterId === input.chapterId,
+          );
+          return hasSegment
+            ? {
+                ...anchor,
+                modified,
+                segments: anchor.segments.map((segment) =>
+                  segment.chapterId === input.chapterId
+                    ? { ...segment, chapterRevision: nextChapter.revision }
+                    : segment,
+                ),
+              }
+            : anchor;
+        }),
+      };
+      await commitEditorialTransaction({
+        projectPath: root,
+        projectId: session.project.projectId,
+        kind: "edit",
+        expectedGeneration: session.project.generation,
+        changes: [
+          {
+            path: `manuscript/${input.chapterId}.json`,
+            after: Buffer.from(`${JSON.stringify(nextChapter, null, 2)}\n`),
+          },
+          {
+            path: session.project.editorialFile,
+            after: Buffer.from(`${JSON.stringify(nextState, null, 2)}\n`),
+          },
+          {
+            path: "project.json",
+            after: Buffer.from(`${JSON.stringify(nextProject, null, 2)}\n`),
+          },
+        ],
+      });
+      chapter = nextChapter;
+    } else {
+      chapter = ChapterFileSchema.parse({
+        ...parsed.data,
+        title: input.title.trim(),
+        modified,
+      });
+      await fs.writeChapter(chapterPath, chapter);
+    }
     const updatedSession = await openProject(root, {}, fs);
     result = { chapter, session: updatedSession };
     return result;
@@ -127,7 +210,7 @@ export async function renameChapter(
     );
   } finally {
     try {
-      await fs.rmdir(lock);
+      if (lockAcquired) await fs.rmdir(lock);
     } catch {
       if (result)
         result.warning =

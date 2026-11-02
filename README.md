@@ -89,6 +89,14 @@ Use **Canon & research** to manage local canon facts and research/general notes.
 Both forms autosave, retain failed drafts and keep private reference content out
 of manuscript exports. See [canon and research workflows](docs/canon-research.md).
 
+Use **Comments & annotations** beside an open chapter for local comments, private
+notes and highlights. Existing projects require an explicit confirmed upgrade;
+Drelwick verifies a complete backup first. Discussions retain deleted text and
+tombstones, map through edits and chapter operations, and stay out of publication
+exports. Interrupted staged saves offer preview/recover/discard/cancel. See the
+[editorial format](docs/editorial-format.md) and
+[validation evidence](docs/planning/170-implementation-status.md).
+
 Use **Book design → Print settings** to save local trim size, mirrored margins,
 gutter, chapter starts, headers and page numbers. See [Community print settings](docs/print-settings.md).
 Select **Standard print** or **Large print** there to retain independent typography

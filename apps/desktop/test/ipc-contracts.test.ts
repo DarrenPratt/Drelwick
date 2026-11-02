@@ -3,6 +3,25 @@ import { describe, expect, it } from "vitest";
 import { IPC, validateIpcPayload } from "@drelwick/shared";
 
 describe("IPC contracts", () => {
+  it("scopes editorial draft discovery to a project identity without renderer paths", () => {
+    const request = {
+      operation: "drafts",
+      projectId: "00000000-0000-4000-8000-000000000001",
+    };
+    expect(validateIpcPayload(IPC.EDITORIAL_ACTION, request)).toEqual(request);
+    expect(() =>
+      validateIpcPayload(IPC.EDITORIAL_ACTION, {
+        ...request,
+        projectPath: "C:/other",
+      }),
+    ).toThrow();
+    expect(() =>
+      validateIpcPayload(IPC.EDITORIAL_ACTION, {
+        ...request,
+        projectId: "../other",
+      }),
+    ).toThrow();
+  });
   it("accepts valid chapter requests", () => {
     expect(
       validateIpcPayload(IPC.CHAPTER_RENAME, {

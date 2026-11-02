@@ -1,3 +1,4 @@
+import type { ProjectWorkspace } from "@drelwick/shared";
 import {
   isSupportedManuscriptLink,
   MANUSCRIPT_HEADING_LEVELS,
@@ -6,9 +7,11 @@ import {
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import type { JSONContent, Editor as TipTapEditor } from "@tiptap/core";
 import { DOMParser as ProseMirrorDOMParser } from "@tiptap/pm/model";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { createManuscriptExtensions } from "./manuscript-extensions.js";
 import { SpellingPanel } from "./SpellingPanel.js";
+import { EditorialSidebar } from "../EditorialSidebar.js";
+import type { CapturedManuscriptTransaction } from "../document-state.js";
 
 const escapedCharacters: Record<string, string> = {
   "&": "&amp;",
@@ -103,6 +106,9 @@ export function sanitizePastedHtml(html: string): string {
 }
 
 interface EditorProps {
+  savedRevision?: number;
+  onEditorialRecovered?(workspace: ProjectWorkspace): void;
+  onEditorialDirtyChange?(dirty: boolean): void;
   onReady?(editor: TipTapEditor | null): void;
   projectId?: string;
   chapterId?: string;
@@ -111,30 +117,47 @@ interface EditorProps {
   editable?: boolean;
   title?: string;
   chapterLabel?: string;
-  onChange(content: JSONContent): void;
+  onChange(
+    content: JSONContent,
+    transaction?: CapturedManuscriptTransaction,
+  ): void;
 }
 
 export function Editor({
   content,
   onChange,
-  editable = true,
+  editable: requestedEditable = true,
   title,
   chapterLabel,
   projectId,
   chapterId,
   prepareImageImport,
   onReady,
+  onEditorialDirtyChange,
+  onEditorialRecovered,
+  savedRevision,
 }: EditorProps) {
+  const [editorialBusy, setEditorialBusy] = useState(false);
+  const editable = requestedEditable && !editorialBusy;
   const [linkError, setLinkError] = useState<string>();
   const [imageError, setImageError] = useState<string>();
   const [importing, setImporting] = useState(false);
   const [spellingOpen, setSpellingOpen] = useState(false);
+  const editorialApiAvailable =
+    typeof window !== "undefined" &&
+    typeof window.drelwick?.project?.editorial === "function";
   const editor = useEditor({
     extensions: createManuscriptExtensions(projectId),
     content,
     editable,
     immediatelyRender: false,
-    onUpdate: ({ editor: current }) => onChange(current.getJSON()),
+    onUpdate: ({ editor: current, transaction, appendedTransactions }) =>
+      onChange(current.getJSON(), {
+        before: transaction.before.toJSON() as JSONContent,
+        steps: [transaction, ...appendedTransactions].flatMap((item) =>
+          item.steps.map((step) => step.toJSON() as Record<string, unknown>),
+        ),
+      }),
     editorProps: {
       attributes: {
         spellcheck: "false",
@@ -201,7 +224,7 @@ export function Editor({
       editor.commands.setContent(content, { emitUpdate: false });
   }, [content, editor]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     editor?.setEditable(editable && !importing, false);
   }, [editor, editable, importing]);
 
@@ -500,8 +523,61 @@ export function Editor({
             <h2>{title}</h2>
           </header>
         )}
-        <EditorContent editor={editor} />
+        <EditorContent editor={editor} inert={editorialBusy} />
       </div>
+      {editor &&
+        editorialApiAvailable &&
+        projectId &&
+        chapterId &&
+        prepareImageImport && (
+          <EditorialSidebar
+            editor={editor}
+            projectId={projectId}
+            chapterId={chapterId}
+            flushManuscript={prepareImageImport}
+            onBusyChange={setEditorialBusy}
+            {...(savedRevision !== undefined
+              ? { refreshKey: savedRevision }
+              : {})}
+            {...(onEditorialRecovered
+              ? { onRecovered: onEditorialRecovered }
+              : {})}
+            {...(onEditorialDirtyChange
+              ? { onDirtyChange: onEditorialDirtyChange }
+              : {})}
+          />
+        )}
     </section>
+  );
+}
+
+/** Retained discussions remain accessible even after deleting the last chapter. */
+export function ProjectEditorialArchive({
+  projectId,
+  onDirtyChange,
+  onRecovered,
+}: {
+  projectId: string;
+  onDirtyChange?(dirty: boolean): void;
+  onRecovered?(workspace: ProjectWorkspace): void;
+}) {
+  const editor = useEditor({
+    extensions: createManuscriptExtensions(projectId),
+    content: { type: "doc", content: [{ type: "paragraph" }] },
+    editable: false,
+    immediatelyRender: false,
+  });
+  if (!editor || typeof window.drelwick?.project?.editorial !== "function")
+    return null;
+  return (
+    <EditorialSidebar
+      editor={editor}
+      projectId={projectId}
+      chapterId={projectId}
+      projectOnly
+      flushManuscript={async () => true}
+      {...(onDirtyChange ? { onDirtyChange } : {})}
+      {...(onRecovered ? { onRecovered } : {})}
+    />
   );
 }

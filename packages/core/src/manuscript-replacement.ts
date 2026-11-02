@@ -11,9 +11,13 @@ import {
 import { hostname } from "node:os";
 import { isDeepStrictEqual } from "node:util";
 import { dirname, join } from "node:path";
+import { createHash } from "node:crypto";
 import {
   ChapterFileSchema,
+  ChapterFileV2Schema,
+  EditorialStateSchema,
   ManuscriptDocumentSchema,
+  ProjectConfigV3Schema,
   ReplacementJournalSchema,
   type ReplacementJournal,
 } from "@drelwick/project-model";
@@ -32,6 +36,7 @@ import {
   searchChapter,
   type SearchOptions,
 } from "./manuscript-search.js";
+import { commitEditorialTransaction } from "./editorial-transactions.js";
 
 export const REPLACEMENT_JOURNAL = ".manuscript-replace.json";
 const finished = new Set<string>();
@@ -258,6 +263,11 @@ export async function replaceManuscript(
   input: ReplacementInput,
   hooks: ChapterTransactionHooks = {},
 ): Promise<{ matches: number; chapters: number }> {
+  const initial = await openProject(input.projectPath, {
+    rebuildSummaries: true,
+  });
+  if (initial.project.schemaVersion === 3)
+    return replaceEditorialManuscript(input, hooks);
   return commitChapterTransaction(
     input.projectPath,
     async (root, cancelled) => {
@@ -324,6 +334,143 @@ export async function replaceManuscript(
     },
     hooks,
   );
+}
+
+async function replaceEditorialManuscript(
+  input: ReplacementInput,
+  hooks: ChapterTransactionHooks,
+): Promise<{ matches: number; chapters: number }> {
+  const session = await openProject(input.projectPath, {
+    rebuildSummaries: true,
+  });
+  if (session.project.schemaVersion !== 3)
+    throw new ApplicationError(
+      "REPLACEMENT_STALE",
+      "The project changed. Refresh the replacement review.",
+    );
+  const ids = input.chapterId
+    ? [input.chapterId]
+    : session.project.manuscript.order;
+  if (
+    !ids.every((id) => session.project.manuscript.order.includes(id)) ||
+    !equal(
+      ids,
+      input.expected.map((chapter) => chapter.id),
+    )
+  )
+    throw new ApplicationError(
+      "REPLACEMENT_STALE",
+      "The manuscript changed. Refresh the replacement review.",
+    );
+  let matches = 0;
+  const nextChapters: {
+    id: string;
+    path: string;
+    beforeHash: string;
+    chapter: import("@drelwick/project-model").ChapterFileV2;
+  }[] = [];
+  for (const id of ids) {
+    if (hooks.cancelled?.())
+      throw new ApplicationError(
+        "REPLACEMENT_CANCELLED",
+        "Replacement cancelled. Original content was preserved.",
+      );
+    const path = join(input.projectPath, "manuscript", `${id}.json`);
+    const bytes = await readFile(path);
+    const before = ChapterFileV2Schema.parse(
+      JSON.parse(bytes.toString("utf8")) as unknown,
+    );
+    const expected = input.expected.find(
+      (chapter) => chapter.id === id,
+    )?.content;
+    if (!equal(before.content, expected))
+      throw new ApplicationError(
+        "REPLACEMENT_STALE",
+        "The manuscript changed. Refresh the replacement review.",
+      );
+    const found = searchChapter(id, before.content, input.options);
+    matches += found.length;
+    if (!found.length) continue;
+    const content = replaceMatches(
+      id,
+      before.content,
+      input.options,
+      found,
+      input.replacement,
+    );
+    if (equal(content, before.content)) continue;
+    const chapter = ChapterFileV2Schema.parse({
+      ...before,
+      modified: new Date().toISOString(),
+      revision: before.revision + 1,
+      content,
+      review: { schemaVersion: 1, mode: "off", proposed: content, pending: [] },
+    });
+    const safety = await (hooks.snapshot ?? createHistorySnapshot)({
+      projectPath: input.projectPath,
+      chapterId: id,
+      document: before.content,
+      reason: "before-replace",
+    });
+    if (!safety)
+      throw new ApplicationError(
+        "HISTORY_SNAPSHOT_WRITE_FAILED",
+        "Unable to preserve a chapter before replacement.",
+      );
+    nextChapters.push({
+      id,
+      path: `manuscript/${id}.json`,
+      beforeHash: createHash("sha256").update(bytes).digest("hex"),
+      chapter,
+    });
+  }
+  if (!nextChapters.length) return { matches, chapters: 0 };
+  const modified = new Date().toISOString();
+  const editorialPath = session.project.editorialFile;
+  const state = EditorialStateSchema.parse(
+    JSON.parse(
+      await readFile(join(input.projectPath, editorialPath), "utf8"),
+    ) as unknown,
+  );
+  const changedIds = new Set(nextChapters.map(({ id }) => id));
+  const nextState = EditorialStateSchema.parse({
+    ...state,
+    generation: state.generation + 1,
+    anchors: state.anchors.map((anchor) =>
+      anchor.segments.some((segment) => changedIds.has(segment.chapterId))
+        ? { ...anchor, modified, status: "unverified" as const }
+        : anchor,
+    ),
+  });
+  const nextProject = ProjectConfigV3Schema.parse({
+    ...session.project,
+    modified,
+    generation: session.project.generation + 1,
+  });
+  await commitEditorialTransaction({
+    projectPath: input.projectPath,
+    projectId: session.project.projectId,
+    kind: "edit",
+    expectedGeneration: session.project.generation,
+    expectedBefore: Object.fromEntries(
+      nextChapters.map((chapter) => [chapter.path, chapter.beforeHash]),
+    ),
+    changes: [
+      ...nextChapters.map((item) => ({
+        path: item.path,
+        after: Buffer.from(`${JSON.stringify(item.chapter, null, 2)}\n`),
+      })),
+      {
+        path: editorialPath,
+        after: Buffer.from(`${JSON.stringify(nextState, null, 2)}\n`),
+      },
+      {
+        path: "project.json",
+        after: Buffer.from(`${JSON.stringify(nextProject, null, 2)}\n`),
+      },
+    ],
+  });
+  return { matches, chapters: nextChapters.length };
 }
 
 /** Shared owned-lock/journal protocol for semantic replacement and chapter organisation. */

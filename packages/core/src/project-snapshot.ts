@@ -12,6 +12,7 @@ import { MIGRATION_DIRECTORY, migrationError } from "./migration-state.js";
 export async function inspectSnapshot(
   root: string,
   omitRuntime = false,
+  options: { omitEditorialRuntime?: boolean } = {},
 ): Promise<ProjectSnapshot> {
   const rootInfo = await lstat(root);
   if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink())
@@ -22,6 +23,8 @@ export async function inspectSnapshot(
     if (depth > 64) throw migrationError("MIGRATION_BACKUP_FAILED");
     const entries = (await readdir(join(root, relative))).sort();
     for (const name of entries) {
+      if (!relative && options.omitEditorialRuntime && name === ".editorial")
+        continue;
       if (
         !relative &&
         omitRuntime &&

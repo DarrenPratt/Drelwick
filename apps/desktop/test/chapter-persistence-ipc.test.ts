@@ -142,6 +142,87 @@ const document = {
   ],
 };
 
+it("M02 restricts editorial mutations to the trusted active project and exact generation without logging private payloads", async () => {
+  const f = await fixture();
+  const { migrateProjectToEditorialV3 } = await import("@drelwick/core");
+  await migrateProjectToEditorialV3(f.root);
+  const { invoke, event, logger, settleHistory } = setup(f.root);
+  try {
+    const projectId = (await openProject(f.root)).project.projectId;
+    const get = { operation: "get", projectId, chapterId: f.chapterId };
+    expect(await invoke(IPC.EDITORIAL_ACTION, get)).toMatchObject({
+      ok: false,
+      error: { code: "PROJECT_NOT_OPEN" },
+    });
+    await invoke(IPC.PROJECT_OPEN);
+    const before = await readFile(join(f.root, "editorial/state.json"));
+    expect(
+      await invoke(IPC.EDITORIAL_ACTION, get, {
+        ...event,
+        senderFrame: { url: event.senderFrame!.url },
+      } as IpcMainInvokeEvent),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_ACCESS_DENIED" } });
+    expect(
+      await invoke(IPC.EDITORIAL_ACTION, {
+        ...get,
+        projectId: "00000000-0000-4000-8000-000000000099",
+      }),
+    ).toMatchObject({ ok: false, error: { code: "PROJECT_NOT_OPEN" } });
+    expect(
+      await invoke(IPC.EDITORIAL_ACTION, { ...get, projectPath: "../private" }),
+    ).toMatchObject({ ok: false, error: { code: "EDITORIAL_INPUT_INVALID" } });
+    const response = await invoke(IPC.EDITORIAL_ACTION, get);
+    expect(response.ok).toBe(true);
+    if (!response.ok) throw new Error("Expected editorial state");
+    const captured = response.value as {
+      generation: number;
+      expectedFiles: import("@drelwick/shared").EditorialExpectedFiles;
+    };
+    const action = {
+      operation: "create",
+      projectId,
+      chapterId: f.chapterId,
+      operationId: "00000000-0000-4000-8000-000000000098",
+      expectedGeneration: captured.generation + 1,
+      expectedFiles: captured.expectedFiles,
+      from: 1,
+      to: 1,
+      kind: "highlight",
+      colour: "yellow",
+      body: "PRIVATE_EDITORIAL_IPC_CANARY",
+      evidence: {
+        slice: { content: [], openStart: 0, openEnd: 0 },
+        prefix: "",
+        suffix: "",
+      },
+    };
+    expect(await invoke(IPC.EDITORIAL_ACTION, action)).toMatchObject({
+      ok: false,
+      error: { code: "EDITORIAL_STALE" },
+    });
+    expect(
+      await invoke(IPC.EDITORIAL_ACTION, {
+        ...action,
+        expectedGeneration: captured.generation,
+        expectedFiles: { ...captured.expectedFiles, editorial: "a".repeat(64) },
+      }),
+    ).toMatchObject({ ok: false, error: { code: "EDITORIAL_STALE" } });
+    expect(await readFile(join(f.root, "editorial/state.json"))).toEqual(
+      before,
+    );
+    expect(
+      JSON.stringify([
+        logger.debug.mock.calls,
+        logger.info.mock.calls,
+        logger.warn.mock.calls,
+        logger.error.mock.calls,
+      ]),
+    ).not.toContain("PRIVATE_EDITORIAL_IPC_CANARY");
+  } finally {
+    await settleHistory();
+  }
+});
+
 it("restricts print preview to the active trusted project and never logs render failures", async () => {
   const f = await fixture();
   const preview = vi

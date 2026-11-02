@@ -55,7 +55,7 @@ import type {
   HistorySelection,
   HistoryPreview,
 } from "@drelwick/shared";
-import { Editor } from "./components/Editor.js";
+import { Editor, ProjectEditorialArchive } from "./components/Editor.js";
 import { WorkspaceLayout } from "./components/WorkspaceLayout.js";
 import { WorkspaceIcon } from "./components/WorkspaceIcon.js";
 import {
@@ -144,6 +144,10 @@ export function App() {
   }, []);
   const timelineEditor = useRef<TimelineEditorHandle | null>(null);
   const locationEditor = useRef<LocationEditorHandle | null>(null);
+  const editorialDirty = useRef(false);
+  const editorialDirtyChanged = useCallback((dirty: boolean) => {
+    editorialDirty.current = dirty;
+  }, []);
   const [printPreview, setPrintPreview] = useState<PrintPreview | null>(null);
   const [printConfiguration, setPrintConfiguration] =
     useState<PrintConfigurationState | null>(null);
@@ -233,6 +237,10 @@ export function App() {
   const dirty = documentReady && isDocumentDirty(documentState);
   const saving = documentReady && documentState?.pendingSave !== null;
   const savePending = useRef(false);
+  const retrySave = useRef<{
+    snapshot: NonNullable<typeof documentState>;
+    operationId: string;
+  } | null>(null);
   const nextSaveRequest = useRef(0);
   const autosave = useRef<AutosaveCoordinator | null>(null);
   const saveSource = useRef<"autosave" | "manual">("autosave");
@@ -417,9 +425,15 @@ export function App() {
   }, [activeChapterId, projectPath, chapterKey, dispatchDocument]);
 
   const persistDocument = useCallback(async (): Promise<boolean> => {
-    const snapshot = documentRef.current;
-    if (!snapshot || !isDocumentDirty(snapshot)) return true;
+    const current = documentRef.current;
+    if (!current || !isDocumentDirty(current)) return true;
     if (savePending.current) return false;
+    if (!retrySave.current || retrySave.current.snapshot.key !== current.key)
+      retrySave.current = {
+        snapshot: structuredClone(current),
+        operationId: crypto.randomUUID(),
+      };
+    const { snapshot, operationId } = retrySave.current;
     const requestId = ++nextSaveRequest.current;
     savePending.current = true;
     dispatchDocument({
@@ -430,12 +444,42 @@ export function App() {
     });
     setEditorError("");
     try {
-      const result = await window.drelwick.project.saveChapter({
+      const request = {
         chapterId: snapshot.chapterId,
+        operationId,
         document: snapshot.content,
         source: saveSource.current,
-      });
-      if (result.ok && result.value.id === snapshot.chapterId) {
+        editorGeneration: snapshot.editorRevision,
+        ...(snapshot.transactions.every((item) => item.transaction !== null)
+          ? {
+              transactions: snapshot.transactions.map(
+                (item) => item.transaction!,
+              ),
+            }
+          : {}),
+      };
+      let result = await window.drelwick.project.saveChapter(request);
+      // Sidebar refreshes share the privileged operation gate. A rejected busy
+      // request has not written anything, so retry the same captured operation.
+      for (
+        let attempt = 0;
+        !result.ok && result.error.code === "PROJECT_BUSY" && attempt < 10;
+        attempt++
+      ) {
+        await new Promise((resolve) => window.setTimeout(resolve, 50));
+        result = await window.drelwick.project.saveChapter(request);
+      }
+      if (
+        result.ok &&
+        result.value.id === snapshot.chapterId &&
+        (result.value.operationId === undefined ||
+          result.value.operationId === operationId) &&
+        (result.value.editorGeneration === undefined ||
+          result.value.editorGeneration === snapshot.editorRevision)
+      ) {
+        retrySave.current = null;
+        if (current.editorRevision > snapshot.editorRevision)
+          autosave.current?.edited();
         dispatchDocument({
           type: "saved",
           key: snapshot.key,
@@ -444,6 +488,8 @@ export function App() {
         });
         return true;
       } else {
+        if (!result.ok && result.error.code === "EDITORIAL_NOT_COMMITTED")
+          retrySave.current = null;
         dispatchDocument({
           type: "failed",
           key: snapshot.key,
@@ -481,6 +527,7 @@ export function App() {
       if (
         !pending.current &&
         !isDocumentDirty(documentRef.current) &&
+        !editorialDirty.current &&
         !savePending.current
       )
         return;
@@ -504,6 +551,12 @@ export function App() {
 
   useEffect(() => {
     return window.drelwick.onShutdownRequested(async () => {
+      if (editorialDirty.current) {
+        setError(
+          "Save or explicitly discard annotation drafts in the sidebar before closing.",
+        );
+        return false;
+      }
       if (pending.current || chapterLinks.current?.isBusy()) {
         setError("Wait for the current project operation before closing.");
         return false;
@@ -658,6 +711,12 @@ export function App() {
   }, [saveActiveChapter]);
 
   const canLeaveChapter = useCallback(() => {
+    if (editorialDirty.current) {
+      setError(
+        "Save or explicitly discard annotation drafts in the sidebar before switching.",
+      );
+      return false;
+    }
     if (canonEditor.current?.isDirty() || noteEditor.current?.isDirty()) {
       void flushCanonResearch();
       setError(
@@ -699,6 +758,12 @@ export function App() {
   }, [changingDocument, flushCanonResearch]);
 
   async function selectChapter(chapterId: string) {
+    if (editorialDirty.current) {
+      setError(
+        "Save or explicitly discard annotation drafts in the sidebar before changing chapters.",
+      );
+      return;
+    }
     if (
       pending.current ||
       replacing ||
@@ -2218,26 +2283,55 @@ export function App() {
           }
           editor={
             project.chapters.length === 0 ? (
-              <div className="empty-manuscript">
-                <WorkspaceIcon name="book" />
-                <span className="section-label">A NEW BEGINNING</span>
-                <h2>Your story starts here.</h2>
-                <p>
-                  Your project is ready. There are no chapters yet. Create one
-                  to begin writing.
-                </p>
-                <button
-                  onClick={() =>
-                    document.getElementById("new-chapter-title")?.focus()
-                  }
-                >
-                  Name your first chapter
-                </button>
-              </div>
+              <>
+                <div className="empty-manuscript">
+                  <WorkspaceIcon name="book" />
+                  <span className="section-label">A NEW BEGINNING</span>
+                  <h2>Your story starts here.</h2>
+                  <p>
+                    Your project is ready. There are no chapters yet. Create one
+                    to begin writing.
+                  </p>
+                  <button
+                    onClick={() =>
+                      document.getElementById("new-chapter-title")?.focus()
+                    }
+                  >
+                    Name your first chapter
+                  </button>
+                </div>
+                <ProjectEditorialArchive
+                  projectId={project.projectId}
+                  onDirtyChange={editorialDirtyChanged}
+                  onRecovered={(workspace) => {
+                    setProject(workspace);
+                    setActiveChapterId(workspace.chapters[0]?.id ?? null);
+                    setDocumentSession((session) => session + 1);
+                  }}
+                />
+              </>
             ) : (
               <>
                 {documentReady && documentState ? (
                   <Editor
+                    savedRevision={documentState.savedRevision}
+                    onEditorialDirtyChange={editorialDirtyChanged}
+                    onEditorialRecovered={(workspace) => {
+                      setProject(workspace);
+                      setActiveChapterId((current) =>
+                        workspace.chapters.some(
+                          (chapter) => chapter.id === current,
+                        )
+                          ? current
+                          : (workspace.chapters[0]?.id ?? null),
+                      );
+                      setDocumentSession((session) => session + 1);
+                      setSearchRefresh((revision) => revision + 1);
+                      setBookPreview(null);
+                      setProjectMessage(
+                        "Manuscript and annotation draft recovered.",
+                      );
+                    }}
                     onReady={editorReady}
                     projectId={project.projectId}
                     prepareImageImport={async () =>
@@ -2253,11 +2347,12 @@ export function App() {
                     }
                     chapterLabel={`CHAPTER ${String(project.chapters.findIndex((chapter) => chapter.id === activeChapterId) + 1).padStart(2, "0")}`}
                     content={documentState.content}
-                    onChange={(content) => {
+                    onChange={(content, transaction) => {
                       dispatchDocument({
                         type: "edited",
                         key: chapterKey,
                         content,
+                        ...(transaction ? { transaction } : {}),
                       });
                       autosave.current?.edited();
                       if (!activeChapterId) return;

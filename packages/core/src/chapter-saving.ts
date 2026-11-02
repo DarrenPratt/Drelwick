@@ -1,8 +1,15 @@
 import { lstat, mkdir, readFile, realpath, rmdir } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
+import { createHash } from "node:crypto";
 import { ApplicationError, createIsoDate } from "@drelwick/shared";
 import {
   ChapterFileSchema,
+  ProjectConfigV3Schema,
+  parseEditorialJson,
+  ChapterFileV2Schema,
+  EditorialStateSchema,
+  ProjectConfigSchema,
+  type EditorialState,
   ManuscriptDocumentSchema,
 } from "@drelwick/project-model";
 import {
@@ -11,16 +18,37 @@ import {
   writeJsonAtomically,
 } from "./index.js";
 import { createHistorySnapshot, readHistorySnapshot } from "./history.js";
+import {
+  commitEditorialTransaction,
+  readEditorialRequestReceipt,
+} from "./editorial-transactions.js";
+import {
+  replayEditorialEdits,
+  captureEditorialReplaySession,
+  acknowledgeEditorialReplaySession,
+  type EditorialEditorTransaction,
+} from "./editorial-editing.js";
+import {
+  editorialSegmentEvidence,
+  editorialDocumentHash,
+} from "./editorial-bundle.js";
+import { orphanEditorialAnchors } from "./editorial-anchors.js";
 
 export interface SaveChapterInput {
   projectPath: string;
   chapterId: string;
   document: Record<string, unknown>;
+  transactions?: EditorialEditorTransaction[];
+  editorGeneration?: number;
+  operationId?: string;
   restore?: { snapshotId: string; fingerprint: string };
 }
 
 export interface SavedChapter {
   id: string;
+  operationId?: string;
+  generation?: number;
+  editorGeneration?: number;
   modified: string;
   warning?: string;
   restoredContent?: Record<string, unknown>;
@@ -54,6 +82,11 @@ export async function saveChapter(
       "Unable to access project folder.",
     );
   }
+  const project = ProjectConfigSchema.safeParse(
+    JSON.parse(await readFile(join(root, "project.json"), "utf8")) as unknown,
+  );
+  if (project.success && project.data.schemaVersion === 3)
+    return saveEditorialChapter(root, input, document.data);
   const lock = join(root, CHAPTER_CREATION_LOCK);
   try {
     await mkdir(lock);
@@ -188,4 +221,227 @@ export async function saveChapter(
           "The chapter was saved, but its operation lock could not be removed. Inspect the project lock before saving again.";
     }
   }
+}
+
+async function saveEditorialChapter(
+  root: string,
+  input: SaveChapterInput,
+  content: Record<string, unknown>,
+): Promise<SavedChapter> {
+  const requestHash = editorialDocumentHash({
+    chapterId: input.chapterId,
+    document: input.document,
+    transactions: input.transactions ?? null,
+    editorGeneration: input.editorGeneration ?? null,
+    restore: input.restore ?? null,
+  });
+  if (input.operationId) {
+    const project = ProjectConfigV3Schema.parse(
+      parseEditorialJson(await readFile(join(root, "project.json"))),
+    );
+    const prior = await readEditorialRequestReceipt({
+      projectPath: root,
+      projectId: project.projectId,
+      operationId: input.operationId,
+      requestHash,
+      chapterId: input.chapterId,
+    });
+    if (prior?.chapter)
+      return {
+        ...prior.chapter,
+        operationId: prior.operationId,
+        generation: prior.generation,
+        ...(input.editorGeneration !== undefined
+          ? { editorGeneration: input.editorGeneration }
+          : {}),
+      };
+  }
+  const session = await import("./index.js").then(({ openProject }) =>
+    openProject(root, { rebuildSummaries: true }),
+  );
+  if (
+    session.project.schemaVersion !== 3 ||
+    !session.project.manuscript.order.includes(input.chapterId)
+  )
+    throw new ApplicationError(
+      "CHAPTER_NOT_FOUND",
+      "The selected chapter is no longer available.",
+    );
+  const chapterPath = join(root, "manuscript", `${input.chapterId}.json`);
+  const chapterBytes = await readFile(chapterPath);
+  const previous = ChapterFileV2Schema.parse(
+    parseEditorialJson(chapterBytes) as unknown,
+  );
+  if (previous.review.pending.length || previous.review.mode !== "off")
+    throw new ApplicationError(
+      "EDITORIAL_UNSUPPORTED",
+      "Pending revisions require a newer compatible editor.",
+    );
+  let nextContent = content;
+  if (input.restore) {
+    if (JSON.stringify(previous.content) !== JSON.stringify(content))
+      throw new ApplicationError(
+        "HISTORY_CURRENT_CHANGED",
+        "The current chapter changed. Save your edits and refresh Chapter History before restoring.",
+      );
+    const selected = await readHistorySnapshot(
+      root,
+      input.chapterId,
+      input.restore.snapshotId,
+    );
+    if (selected.fingerprint !== input.restore.fingerprint)
+      throw new ApplicationError(
+        "HISTORY_UNAVAILABLE",
+        "The selected snapshot changed. Preview it again before restoring.",
+      );
+    const safety = await createHistorySnapshot({
+      projectPath: root,
+      chapterId: input.chapterId,
+      document: content,
+      reason: "before-replace",
+    });
+    if (!safety)
+      throw new ApplicationError(
+        "HISTORY_SNAPSHOT_WRITE_FAILED",
+        "Unable to preserve current content. Restore was cancelled.",
+      );
+    const verified = await readHistorySnapshot(
+      root,
+      input.chapterId,
+      safety.id,
+    );
+    if (JSON.stringify(verified.snapshot.content) !== JSON.stringify(content))
+      throw new ApplicationError(
+        "HISTORY_SNAPSHOT_WRITE_FAILED",
+        "Unable to verify preserved content. Restore was cancelled.",
+      );
+    nextContent = ManuscriptDocumentSchema.parse(selected.snapshot.content);
+  }
+  const stateBytes = await readFile(join(root, session.project.editorialFile));
+  const state = EditorialStateSchema.parse(
+    parseEditorialJson(stateBytes) as unknown,
+  );
+  if (
+    state.generation !== session.project.generation ||
+    state.projectId !== session.project.projectId
+  )
+    throw new ApplicationError(
+      "EDITORIAL_STALE",
+      "The project changed while saving. Your edits remain unsaved.",
+    );
+  const modified = createIsoDate();
+  const nextChapter = ChapterFileV2Schema.parse({
+    ...previous,
+    modified,
+    revision: previous.revision + 1,
+    content: nextContent,
+    review: {
+      schemaVersion: 1,
+      mode: "off",
+      proposed: nextContent,
+      pending: [],
+    },
+  });
+  const affected = state.anchors.filter((anchor) =>
+    anchor.segments.some((segment) => segment.chapterId === input.chapterId),
+  );
+  const replayKey = `${root}\0${input.chapterId}`;
+  const replaySession = captureEditorialReplaySession(replayKey);
+  const nextState: EditorialState = {
+    ...state,
+    generation: state.generation + 1,
+    anchors: input.restore
+      ? orphanEditorialAnchors(
+          state.anchors,
+          input.chapterId,
+          (anchor, segment) =>
+            editorialSegmentEvidence(previous.content, anchor, segment),
+          "history-restore",
+        )
+      : input.transactions
+        ? replayEditorialEdits({
+            chapterId: input.chapterId,
+            revision: nextChapter.revision,
+            before: previous.content,
+            after: nextContent,
+            anchors: state.anchors,
+            transactions: input.transactions,
+            session: replaySession,
+            state,
+          })
+        : state.anchors.map((anchor) => {
+            if (!affected.some((item) => item.id === anchor.id)) return anchor;
+            return { ...anchor, modified, status: "unverified" };
+          }),
+  };
+  if (replaySession.result) {
+    nextState.annotations = replaySession.result.annotations;
+    nextState.threads = replaySession.result.threads;
+  }
+  const nextProject = {
+    ...session.project,
+    modified,
+    generation: session.project.generation + 1,
+  };
+  const committed = await commitEditorialTransaction({
+    projectPath: root,
+    projectId: session.project.projectId,
+    kind: "edit",
+    ...(input.operationId
+      ? { operationId: input.operationId, requestHash }
+      : {}),
+    ...(input.editorGeneration !== undefined
+      ? { editorGeneration: input.editorGeneration }
+      : {}),
+    expectedGeneration: session.project.generation,
+    expectedBefore: {
+      [`manuscript/${input.chapterId}.json`]: createHash("sha256")
+        .update(chapterBytes)
+        .digest("hex"),
+      [session.project.editorialFile]: createHash("sha256")
+        .update(stateBytes)
+        .digest("hex"),
+    },
+    changes: [
+      {
+        path: `manuscript/${input.chapterId}.json`,
+        after: Buffer.from(`${JSON.stringify(nextChapter, null, 2)}\n`),
+      },
+      {
+        path: session.project.editorialFile,
+        after: Buffer.from(`${JSON.stringify(nextState, null, 2)}\n`),
+      },
+      {
+        path: "project.json",
+        after: Buffer.from(`${JSON.stringify(nextProject, null, 2)}\n`),
+      },
+    ],
+  });
+  if (input.transactions)
+    acknowledgeEditorialReplaySession(replayKey, replaySession);
+  return {
+    id: nextChapter.id,
+    operationId: committed.operationId,
+    generation: committed.generation,
+    ...(input.editorGeneration !== undefined
+      ? { editorGeneration: input.editorGeneration }
+      : {}),
+    modified,
+    ...(committed.warning ? { warning: committed.warning } : {}),
+    ...(affected.length &&
+    (input.restore ||
+      !input.transactions ||
+      nextState.anchors.some(
+        (anchor) =>
+          affected.some((item) => item.id === anchor.id) &&
+          anchor.status === "unverified",
+      ))
+      ? {
+          warning: input.restore
+            ? "Affected annotations were orphaned by the history restore. Their original evidence is preserved; reattach them explicitly."
+            : "Affected annotations are marked unverified and require explicit reattachment.",
+        }
+      : {}),
+    ...(input.restore ? { restoredContent: nextContent } : {}),
+  };
 }
