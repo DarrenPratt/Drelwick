@@ -141,6 +141,11 @@ divergent discussions remain in restore-conflict collections. These snapshots
 are independent of periodic Chapter History and are retained in portable backups.
 See [named manuscript snapshots](docs/manuscript-snapshots.md).
 
+Use **Manuscript snapshots → Compare manuscript revisions** to compare saved
+checkpoints and captured current text without applying changes. Choose an explicit
+accepted/proposed projection; navigate chapter, text and formatting differences.
+See [read-only manuscript comparison](docs/manuscript-comparison.md).
+
 Use **Edit → Find and replace** (**Ctrl+F / Cmd+F**) to search the live chapter or
 whole manuscript. Replace One uses editor undo; Replace All requires an explicit
 scope/count review, flushes pending edits and keeps pre-operation history with

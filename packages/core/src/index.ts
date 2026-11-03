@@ -727,3 +727,4 @@ export * from "./print-preflight.js";
 
 export * from "./export-output.js";
 export * from "./manuscript-snapshots.js";
+export * from "./manuscript-comparison.js";

@@ -2028,3 +2028,42 @@ button svg {
   display: block;
   width: 100%;
 }
+
+.manuscript-comparison {
+  padding-block: 1rem;
+  border-block: 1px solid #98aaa0;
+  overflow-wrap: anywhere;
+}
+.comparison-sources,
+.comparison-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.comparison-sources label {
+  display: block;
+  margin-block: 0.5rem;
+}
+.comparison-sources button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.comparison-sides > section {
+  padding: 0.75rem;
+  border: 1px solid #98aaa0;
+  border-radius: 0.4rem;
+  min-width: 0;
+}
+.comparison-sides h5 {
+  margin-block: 0 0.75rem;
+  font-size: 1rem;
+}
+.manuscript-comparison dd {
+  margin-inline-start: 1rem;
+}
+@media (max-width: 650px) {
+  .comparison-sources,
+  .comparison-sides {
+    grid-template-columns: 1fr;
+  }
+}

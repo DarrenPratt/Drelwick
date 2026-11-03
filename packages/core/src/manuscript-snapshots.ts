@@ -39,6 +39,7 @@ import {
   type SnapshotListing,
   type SnapshotInspection,
   type SnapshotRestorePreview,
+  type ComparisonSourceRequest,
 } from "@drelwick/shared";
 import { openProject } from "./index.js";
 import { boundedRead, readImageAsset, regularPath } from "./image-assets.js";
@@ -66,6 +67,7 @@ import {
 import { readBookPresentation } from "./book-presentation.js";
 import { readPrintConfiguration } from "./print-configuration.js";
 import { readPublication } from "./publication.js";
+import type { ComparisonInput } from "./manuscript-comparison.js";
 
 const fail = (code = "SNAPSHOT_INCOMPLETE") =>
   new ApplicationError(
@@ -300,15 +302,22 @@ async function verifyFiles(
   absent: string[],
 ) {
   for (const file of files) {
-    await regularPath(join(root, file.path));
-    if (
-      (await lstat(join(root, file.path))).size !== file.size ||
-      (await referenceFingerprint(
-        join(root, file.path),
-        MANUSCRIPT_SNAPSHOT_LIMITS.assetBytes,
-      )) !== file.sha256
-    )
-      throw fail("EDITORIAL_STALE");
+    try {
+      await regularPath(join(root, file.path));
+      if (
+        (await lstat(join(root, file.path))).size !== file.size ||
+        (await referenceFingerprint(
+          join(root, file.path),
+          MANUSCRIPT_SNAPSHOT_LIMITS.assetBytes,
+        )) !== file.sha256
+      )
+        throw fail("EDITORIAL_STALE");
+    } catch (error) {
+      const assetId = /^assets\/images\/([a-f0-9-]{36})\//.exec(file.path)?.[1];
+      if (assetId)
+        throw new ManuscriptSnapshotError(`managed image ${assetId}`);
+      throw error;
+    }
   }
   for (const path of absent)
     if (await optional(root, path)) throw fail("EDITORIAL_STALE");
@@ -728,6 +737,86 @@ export async function inspectManuscriptSnapshot(
     await assertEditorialReadable(root);
     const selected = await readSelected(root, projectId, selection, true);
     return inspection(selected);
+  });
+}
+
+/** Read-only, in-memory saved generation. Reuses the snapshot scope and validators,
+ * without creating a named checkpoint, backup, cache or migration. */
+export async function captureComparisonSource(
+  projectPath: string,
+  projectId: string,
+  request: ComparisonSourceRequest,
+): Promise<ComparisonInput> {
+  return withReferenceLock(projectPath, async (root) => {
+    const selected =
+      request.kind === "snapshot"
+        ? await readSelected(root, projectId, request, true)
+        : null;
+    const scope = selected?.scope ?? (await readScope(root, projectId));
+    const sourceRoot = selected ? join(selected.directory, "files") : root;
+    await verifyFiles(sourceRoot, scope.files, scope.absent);
+    await validateSnapshotCollectionInventory(
+      sourceRoot,
+      scope.files.map((file) => file.path),
+    );
+    const assets: Record<string, string> = {};
+    const chapters = scope.chapters.map((chapter) => ({
+      id: chapter.id,
+      title: chapter.title,
+      status: chapter.status,
+      document:
+        request.projection === "accepted"
+          ? chapter.content
+          : chapter.review.proposed,
+    }));
+    // Compare selected prose and public publication/cover assets; private retained
+    // annotation/revision assets remain outside the comparison projection.
+    for (const id of imageIds([
+      chapters.map((chapter) => chapter.document),
+      scope.context,
+    ])) {
+      const original = scope.files.find((file) =>
+        file.path.startsWith(`assets/images/${id}/original.`),
+      );
+      if (!original) throw new ManuscriptSnapshotError(`managed image ${id}`);
+      assets[id] = original.sha256;
+    }
+    return {
+      source: {
+        kind: request.kind,
+        id: selected?.snapshot.id ?? createUuid(),
+        projectId,
+        generation: scope.source.generation,
+        inventoryHash: scope.source.inventoryHash,
+        manifestHash: selected
+          ? request.kind === "snapshot"
+            ? request.manifestHash
+            : null
+          : null,
+        label: selected?.snapshot.label ?? "Captured saved current manuscript",
+        created: selected?.snapshot.created ?? new Date().toISOString(),
+        projection: request.projection,
+      },
+      chapters,
+      metadata: scope.context,
+      assets,
+    };
+  }).catch((error: unknown) => {
+    const issues = (error as { issues?: { path?: unknown[] }[] })?.issues;
+    if (
+      (error instanceof ApplicationError &&
+        /UNSUPPORTED|VERSION/.test(error.code)) ||
+      issues?.some((issue) =>
+        issue.path?.some(
+          (part) => part === "schemaVersion" || part === "review",
+        ),
+      )
+    )
+      throw new ApplicationError(
+        "COMPARISON_UNSUPPORTED_VERSION",
+        "UNSUPPORTED_VERSION: this saved source has no supported read-only comparison adapter.",
+      );
+    throw error;
   });
 }
 function conflictEntries(

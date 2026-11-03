@@ -1,4 +1,9 @@
 import {
+  ComparisonActionSchema,
+  type ComparisonAction,
+} from "./comparison-contracts.js";
+export * from "./comparison-contracts.js";
+import {
   SnapshotActionSchema,
   type SnapshotAction,
 } from "./snapshot-contracts.js";
@@ -146,6 +151,7 @@ export const IPC = {
   CHAPTER_ORGANISE: "chapter:organise",
   EDITORIAL_ACTION: "editorial:action",
   SNAPSHOT_ACTION: "snapshot:action",
+  COMPARISON_ACTION: "comparison:action",
   MANUSCRIPT_REPLACE: "manuscript:replace",
   MANUSCRIPT_CANCEL_REPLACE: "manuscript:cancel-replace",
   IMPORT_INSPECT: "import:inspect",
@@ -483,6 +489,7 @@ export type ProjectOperationResult<T> =
 export const IpcRequestSchemas = {
   [IPC.EDITORIAL_ACTION]: EditorialActionSchema,
   [IPC.SNAPSHOT_ACTION]: SnapshotActionSchema,
+  [IPC.COMPARISON_ACTION]: ComparisonActionSchema,
   [IPC.REFERENCE_EXECUTE]: ReferenceRequestSchema,
   [IPC.PRINT_GET]: z.object({ projectId: z.string().uuid() }).strict(),
   [IPC.PRINT_EXPORT]: PrintExportRequestSchema,
@@ -680,6 +687,9 @@ export interface DrelwickApi {
   onShutdownRequested(callback: () => Promise<boolean>): () => void;
   project: {
     snapshots(action: SnapshotAction): Promise<ProjectOperationResult<unknown>>;
+    comparison(
+      action: ComparisonAction,
+    ): Promise<ProjectOperationResult<unknown>>;
     editorial(
       action: EditorialAction,
     ): Promise<ProjectOperationResult<unknown>>;
