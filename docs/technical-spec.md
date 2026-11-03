@@ -2333,7 +2333,10 @@ snapshots and pending revision review. It specifies stable anchors, companion un
 metadata, explicit review/export choices and recoverable multi-file commits.
 See [proposed versioned schemas](editorial-format.md) and the
 [existing-issue delivery map](planning/169-editorial-delivery.md). No editorial
-runtime feature or project-v3 support is implied by this design.
+runtime feature or project-v3 support is implied by this design alone. See the
+implemented [snapshot workflow](manuscript-snapshots.md) and
+[read-only semantic comparison](manuscript-comparison.md) for current support,
+source/projection tokens, deterministic differences, cancellation and limits.
 
 TipTap/ProseMirror provides editor history.
 

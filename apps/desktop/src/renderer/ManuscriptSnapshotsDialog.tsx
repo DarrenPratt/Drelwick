@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ManuscriptComparison } from "./ManuscriptComparison.js";
 import type {
   ProjectWorkspace,
   SnapshotAction,
@@ -342,6 +343,13 @@ export function ManuscriptSnapshotsDialog({
         Chapter History are excluded. No automatic pruning occurs.
       </p>
       {error && <p role="alert">{error}</p>}
+      {listing && !pendingRequest && !busyUi && (
+        <ManuscriptComparison
+          projectId={projectId}
+          snapshots={listing.snapshots}
+          flush={flush}
+        />
+      )}
       {status && <p role="status">{status}</p>}
       {pendingRequest && (
         <p role="alert">

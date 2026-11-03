@@ -103,6 +103,10 @@ format, not truncation or a paid unlock.
 
 ## Validation and limits
 
+Use **Compare manuscript revisions** in the same dialog for read-only snapshot or
+captured-current differences. See [comparison](manuscript-comparison.md) for
+explicit projections, version labels, navigation, stale views and limits.
+
 Core tests map S01–S05 to exact multi-chapter/asset capture, retained image evidence,
 disk-copy/fsync/publication/commit-marker failures, source mutation, concurrency,
 optional absence, conflict copies, retention and portable archives. Child processes

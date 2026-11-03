@@ -93,6 +93,7 @@ import { exportPrint } from "../print-export.js";
 import { exportEpub } from "../epub-export.js";
 import { preparePrintPreview } from "../print-render.js";
 import { createPrintSurface } from "../print-surface.js";
+import { registerComparisonHandler } from "./comparison-handler.js";
 
 interface HistoryTasks {
   scheduleSnapshot(input: {
@@ -331,6 +332,19 @@ export function registerProjectHandlers(
     );
   };
 
+  let comparisonEpoch = 0;
+  const comparisons = registerComparisonHandler({
+    trusted,
+    session: () =>
+      activeProjectPath && activeProjectId
+        ? {
+            projectPath: activeProjectPath,
+            projectId: activeProjectId,
+            epoch: comparisonEpoch,
+          }
+        : null,
+    settle: (path) => history.settleProject(path),
+  });
   const snapshotPreviews = new Map<
     string,
     {
@@ -1501,6 +1515,8 @@ export function registerProjectHandlers(
           if (grant) imported = undefined;
           location = undefined;
           activeProjectPath = opened.projectPath;
+          comparisonEpoch++;
+          comparisons.clear();
           preparedPrint = undefined;
           activeProjectId = opened.project.projectId;
           editorialEnabled = opened.project.schemaVersion === 3;
@@ -1734,6 +1750,8 @@ export function registerProjectHandlers(
           );
         if (activeProjectPath) await history.closeProject(activeProjectPath);
         activeProjectPath = opened.projectPath;
+        comparisonEpoch++;
+        comparisons.clear();
         preparedPrint = undefined;
         activeProjectId = opened.project.projectId;
         editorialEnabled = opened.project.schemaVersion === 3;
@@ -1803,6 +1821,8 @@ export function registerProjectHandlers(
       try {
         if (activeProjectPath) await history.closeProject(activeProjectPath);
         activeProjectPath = undefined;
+        comparisonEpoch++;
+        comparisons.clear();
         preparedPrint = undefined;
         activeProjectId = undefined;
         editorialEnabled = false;
@@ -1962,6 +1982,8 @@ export function registerProjectHandlers(
         if (activeProjectPath) await history.closeProject(activeProjectPath);
         location = undefined;
         activeProjectPath = created.projectPath;
+        comparisonEpoch++;
+        comparisons.clear();
         preparedPrint = undefined;
         activeProjectId = created.project.projectId;
         editorialEnabled = created.project.schemaVersion === 3;

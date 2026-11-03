@@ -291,7 +291,19 @@ snapshots are implemented. The root Vitest configuration caps workers at four
 to bound disk contention across real fsync/child-process integration suites;
 concurrent writer scenarios still run explicitly inside their owning tests.
 
-## Named manuscript snapshots (#171)
+## Read-only manuscript comparison (#172)
+
+`packages/core/test/manuscript-comparison.test.ts` covers C01–C02 with exact
+deterministic semantic/Unicode goldens, chapter identities, missing/invalid sources,
+cancellation/resource bounds, before/after source byte inventories and the
+300,000-word synthetic novel benchmark. Desktop `manuscript-comparison*.test.ts`
+covers strict frame/session/project IPC, stale tokens, fixed private-safe errors,
+failed flushes, accessible change focus and cancelled late responses. The native
+`tests/e2e/manuscript-comparison.spec.ts` covers offline flush/compare/navigation,
+private-content exclusion and unchanged files. See
+[comparison policy and measured evidence](../docs/manuscript-comparison.md).
+
+## Named manuscript snapshots (#171) validation
 
 `packages/core/test/manuscript-snapshots.test.ts` maps S01–S05 to ordered exact
 bytes, asset closure (including retained deletions), stale/mutating sources,
