@@ -43,6 +43,14 @@ it("retains annotation drafts after failed saves and refresh, and requires expli
     if (!found) throw new Error(`Missing button ${label}`);
     return found;
   };
+  const waitForRefresh = async () => {
+    await vi.waitFor(async () => {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(button("Refresh annotations").disabled).toBe(false);
+    });
+  };
   try {
     await act(async () => {
       root.render(
@@ -54,11 +62,8 @@ it("retains annotation drafts after failed saves and refresh, and requires expli
           onDirtyChange: dirty,
         }),
       );
-      await new Promise((resolve) => setTimeout(resolve, 20));
     });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    });
+    await waitForRefresh();
     const textarea = container.querySelector("textarea")!;
     await act(async () => {
       Object.getOwnPropertyDescriptor(
@@ -78,11 +83,14 @@ it("retains annotation drafts after failed saves and refresh, and requires expli
     expect(textarea.value).toBe("Private unsaved draft");
     expect(container.textContent).toContain("Synthetic save failure");
     await act(async () => button("Refresh annotations").click());
+    await waitForRefresh();
     expect(textarea.value).toBe("Private unsaved draft");
     await act(async () => button("Discard annotation drafts").click());
+    expect(confirm).toHaveBeenCalledTimes(1);
     expect(textarea.value).toBe("Private unsaved draft");
     confirm.mockReturnValue(true);
     await act(async () => button("Discard annotation drafts").click());
+    expect(confirm).toHaveBeenCalledTimes(2);
     expect(textarea.value).toBe("");
     expect(dirty).toHaveBeenLastCalledWith(false);
     api.mockImplementation(async (request) => ({
@@ -100,6 +108,7 @@ it("retains annotation drafts after failed saves and refresh, and requires expli
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await act(async () => button("Add annotation").click());
+    await waitForRefresh();
     expect(textarea.value).toBe("");
     expect(dirty).toHaveBeenLastCalledWith(false);
     expect(container.textContent).toContain("Annotation saved.");
@@ -134,8 +143,8 @@ it("retains annotation drafts after failed saves and refresh, and requires expli
     }));
     await act(async () => {
       button("Retry interrupted annotation save").click();
-      await new Promise((resolve) => setTimeout(resolve, 20));
     });
+    await waitForRefresh();
     const retriedRequest = api.mock.calls
       .filter(([request]) => request.operation === "create")
       .at(-1)![0];
