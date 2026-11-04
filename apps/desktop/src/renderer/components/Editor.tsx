@@ -7,10 +7,17 @@ import {
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import type { JSONContent, Editor as TipTapEditor } from "@tiptap/core";
 import { DOMParser as ProseMirrorDOMParser } from "@tiptap/pm/model";
-import { useEffect, useLayoutEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useRef,
+} from "react";
 import { createManuscriptExtensions } from "./manuscript-extensions.js";
 import { SpellingPanel } from "./SpellingPanel.js";
 import { EditorialSidebar } from "../EditorialSidebar.js";
+import { RevisionPanel } from "../RevisionPanel.js";
 import type { CapturedManuscriptTransaction } from "../document-state.js";
 
 const escapedCharacters: Record<string, string> = {
@@ -106,6 +113,9 @@ export function sanitizePastedHtml(html: string): string {
 }
 
 interface EditorProps {
+  flushReview?(): Promise<boolean>;
+  onReviewSaved?(state: import("@drelwick/core/revisions").RevisionState): void;
+  revisionState?: import("@drelwick/core/revisions").RevisionState;
   savedRevision?: number;
   onEditorialRecovered?(workspace: ProjectWorkspace): void;
   onEditorialDirtyChange?(dirty: boolean): void;
@@ -138,9 +148,36 @@ export function Editor({
   onEditorialFlushReady,
   onEditorialRecovered,
   savedRevision,
+  revisionState,
+  flushReview,
+  onReviewSaved,
 }: EditorProps) {
   const [editorialBusy, setEditorialBusy] = useState(false);
-  const editable = requestedEditable && !editorialBusy;
+  const [revisionBusy, setRevisionBusy] = useState(false);
+  const revisionGuard = useRef(false),
+    sidebarDirty = useRef(false);
+  const revisionGuardChanged = useCallback(
+    (value: boolean) => {
+      revisionGuard.current = value;
+      onEditorialDirtyChange?.(value || sidebarDirty.current);
+    },
+    [onEditorialDirtyChange],
+  );
+  const sidebarDirtyChanged = useCallback(
+    (value: boolean) => {
+      sidebarDirty.current = value;
+      onEditorialDirtyChange?.(value || revisionGuard.current);
+    },
+    [onEditorialDirtyChange],
+  );
+  const guardedEditorialFlush = useCallback(
+    (flush: (() => Promise<boolean>) | null) =>
+      onEditorialFlushReady?.(
+        flush ? async () => !revisionGuard.current && (await flush()) : null,
+      ),
+    [onEditorialFlushReady],
+  );
+  const editable = requestedEditable && !editorialBusy && !revisionBusy;
   const [linkError, setLinkError] = useState<string>();
   const [imageError, setImageError] = useState<string>();
   const [importing, setImporting] = useState(false);
@@ -149,7 +186,7 @@ export function Editor({
     typeof window !== "undefined" &&
     typeof window.drelwick?.project?.editorial === "function";
   const editor = useEditor({
-    extensions: createManuscriptExtensions(projectId),
+    extensions: createManuscriptExtensions(projectId, revisionState),
     content,
     editable,
     immediatelyRender: false,
@@ -528,6 +565,22 @@ export function Editor({
         <EditorContent editor={editor} inert={editorialBusy} />
       </div>
       {editor &&
+        projectId &&
+        chapterId &&
+        flushReview &&
+        onReviewSaved &&
+        typeof window.drelwick?.project?.revisions === "function" && (
+          <RevisionPanel
+            editor={editor}
+            projectId={projectId}
+            chapterId={chapterId}
+            flush={flushReview}
+            onSaved={onReviewSaved}
+            onBusyChange={setRevisionBusy}
+            onGuardChange={revisionGuardChanged}
+          />
+        )}
+      {editor &&
         editorialApiAvailable &&
         projectId &&
         chapterId &&
@@ -539,7 +592,7 @@ export function Editor({
             chapterId={chapterId}
             flushManuscript={prepareImageImport}
             {...(onEditorialFlushReady
-              ? { onFlushReady: onEditorialFlushReady }
+              ? { onFlushReady: guardedEditorialFlush }
               : {})}
             onBusyChange={setEditorialBusy}
             {...(savedRevision !== undefined
@@ -549,7 +602,7 @@ export function Editor({
               ? { onRecovered: onEditorialRecovered }
               : {})}
             {...(onEditorialDirtyChange
-              ? { onDirtyChange: onEditorialDirtyChange }
+              ? { onDirtyChange: sidebarDirtyChanged }
               : {})}
           />
         )}

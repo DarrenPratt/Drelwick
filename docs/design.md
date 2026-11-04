@@ -10,6 +10,17 @@
 
 ---
 
+## Local revision review implementation (#173)
+
+The v0.6 revision workflow is implemented by the chapter-v2 accepted/proposed
+model, strict normalized patches, native editor history companions, #170 atomic
+transactions and #171 before-review safety snapshots. Controls, command policy,
+per-operation export choices, failure behavior and compatibility are documented
+in [local revision review](revision-review.md) and the
+[versioned editorial format](editorial-format.md). See
+[delivery evidence](planning/173-implementation-status.md) for the R/E/F matrix.
+This is local CORE functionality; Community operates offline without Pro.
+
 ## Current product decision — September 2026
 
 Drelwick is a cross-platform, local-first, open-core authoring and publishing application in private development. Community is intended for public release; Pro is planned as a separate private commercial product. The owner selected `AGPL-3.0-only` for Community, with legal review and final licensing approval pending under #53. Contributor/copyright strategy, dual licensing and trademarks require appropriate review before public release. Do not accept external contributions until #54 and the Licensing & Commercial Architecture milestone are complete. See the [central notices](../COPYRIGHT.md) and [release gate](planning/public-release-checklist.md).

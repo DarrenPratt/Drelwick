@@ -134,6 +134,11 @@ Select two adjacent chapters with the merge checkboxes to merge them in reading
 order. Pending edits are saved first; restructuring retains history and uses
 recoverable writes. See [chapter organisation](docs/chapter-organisation.md).
 
+Use **Track changes in this chapter** for explicit local revision tracking.
+Review individual changes or explicitly confirm a chapter-wide accept/reject action.
+Preview and publication ask for accepted/proposed/cancel when changes are pending.
+See [local revision review](docs/revision-review.md).
+
 Use **Manuscript snapshots** in the outline to capture named whole-manuscript
 checkpoints, inspect saved discussions and images, undelete checkpoints, and
 preview an explicit restore with mandatory safety capture. Current-only and

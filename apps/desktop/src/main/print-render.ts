@@ -86,8 +86,14 @@ export async function preparePrintPreview(
   path: string,
   projectId: string,
   factory: () => PrintSurface,
+  chooseProjection?: NonNullable<
+    Parameters<typeof assembleBook>[1]
+  >["chooseProjection"],
 ): Promise<PrintPreview> {
-  const snapshot = await assembleBook(path, { print: true });
+  const snapshot = await assembleBook(path, {
+    print: true,
+    ...(chooseProjection ? { chooseProjection } : {}),
+  });
   if (snapshot.book.projectId !== projectId) throw failed("PROJECT_NOT_OPEN");
   return renderPrintRevision(snapshot, factory);
 }
@@ -218,6 +224,7 @@ export async function renderPrintRevision(
           export: {
             edition,
             sourceRevision: printSourceRevision(snapshot),
+            ...(snapshot.projection ? { projection: snapshot.projection } : {}),
             settings,
             title: snapshot.book.title,
             author: snapshot.book.metadata?.author ?? "",

@@ -2034,6 +2034,39 @@ button svg {
   border-block: 1px solid #98aaa0;
   overflow-wrap: anywhere;
 }
+.revision-pending {
+  background: #e8f4df;
+  border-bottom: 2px dotted #3c6534;
+}
+.revision-deletion {
+  padding-inline: 0.25rem;
+  background: #ffe9e2;
+  border: 1px dashed #8a493b;
+  font-size: 0.85em;
+}
+[aria-label="Revision tracking and review"] pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 20rem;
+  overflow: auto;
+}
+[aria-label="Revision tracking and review"] {
+  flex: 0 1 auto;
+  min-height: 5rem;
+  max-height: 30%;
+  overflow-y: auto;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid #c9c5bc;
+}
+[aria-label="Revision tracking and review"] > h3,
+[aria-label="Revision tracking and review"] > p {
+  margin: 0.25rem 0;
+}
+[aria-label="Revision tracking and review"] dialog {
+  width: min(50rem, 90vw);
+  max-height: 90vh;
+  overflow: auto;
+}
 .comparison-sources,
 .comparison-sides {
   display: grid;

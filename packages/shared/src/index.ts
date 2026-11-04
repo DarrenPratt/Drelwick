@@ -90,6 +90,7 @@ export const ChapterOrganisationRequestSchema = z.discriminatedUnion(
         ...organisationBase,
         operation: z.literal("duplicate"),
         chapterId: z.string().uuid(),
+        projection: z.enum(["accepted", "proposed"]).optional(),
       })
       .strict(),
     z
@@ -152,6 +153,7 @@ export const IPC = {
   EDITORIAL_ACTION: "editorial:action",
   SNAPSHOT_ACTION: "snapshot:action",
   COMPARISON_ACTION: "comparison:action",
+  REVISION_ACTION: "revision:action",
   MANUSCRIPT_REPLACE: "manuscript:replace",
   MANUSCRIPT_CANCEL_REPLACE: "manuscript:cancel-replace",
   IMPORT_INSPECT: "import:inspect",
@@ -385,6 +387,7 @@ export const EditorialActionSchema = z
       .object({
         operation: z.literal("create"),
         ...editorialMutationFields,
+        revisionGroupId: z.string().uuid().optional(),
         projectId: z.string().uuid(),
         chapterId: z.string().uuid(),
         from: z.number().int().nonnegative(),
@@ -490,6 +493,7 @@ export const IpcRequestSchemas = {
   [IPC.EDITORIAL_ACTION]: EditorialActionSchema,
   [IPC.SNAPSHOT_ACTION]: SnapshotActionSchema,
   [IPC.COMPARISON_ACTION]: ComparisonActionSchema,
+  [IPC.REVISION_ACTION]: RevisionActionSchema,
   [IPC.REFERENCE_EXECUTE]: ReferenceRequestSchema,
   [IPC.PRINT_GET]: z.object({ projectId: z.string().uuid() }).strict(),
   [IPC.PRINT_EXPORT]: PrintExportRequestSchema,
@@ -606,7 +610,13 @@ export const IpcRequestSchemas = {
         .max(128)
         .optional(),
     })
-    .strict(),
+    .strict()
+    .refine(
+      (value) =>
+        new TextEncoder().encode(JSON.stringify(value)).byteLength <=
+        8 * 1024 ** 2,
+      "Captured editor bundle exceeds byte limit",
+    ),
   [IPC.CHAPTER_CREATE]: z.object({ title: chapterTitle }),
   [IPC.CHAPTER_RENAME]: z.object({ chapterId, title: chapterTitle }),
   [IPC.CHAPTER_DELETE]: z.object({ chapterId }),
@@ -686,6 +696,7 @@ export interface DrelwickApi {
   ): () => void;
   onShutdownRequested(callback: () => Promise<boolean>): () => void;
   project: {
+    revisions(action: RevisionAction): Promise<ProjectOperationResult<unknown>>;
     snapshots(action: SnapshotAction): Promise<ProjectOperationResult<unknown>>;
     comparison(
       action: ComparisonAction,
@@ -868,6 +879,7 @@ export interface LoadChapterRequest {
 export interface ChapterContent {
   id: string;
   content: Record<string, unknown>;
+  revisionState?: unknown;
 }
 
 export interface SaveChapterRequest {
@@ -890,3 +902,8 @@ export interface ChapterSaveReceipt {
   modified: string;
 }
 export * from "./snapshot-contracts.js";
+import {
+  RevisionActionSchema,
+  type RevisionAction,
+} from "./revision-contracts.js";
+export * from "./revision-contracts.js";

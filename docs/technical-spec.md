@@ -24,6 +24,17 @@ Use immutable UUIDs and manifest ordering; short `chapter-001`/`0f23...` placeho
 
 The v0.1 build plan defines the minimal editor schema (text/paragraphs, bold/italic, undo/redo, scene breaks and block quotes). Later nodes/marks shown here are not all required initially. Extension API design/security/versioning precede public contributions; runtime distribution may remain later work. v0.2 HTML print preview is approximate until pagination is validated against generated output.
 
+## Local revision review implementation (#173)
+
+The v0.6 revision workflow is implemented by the chapter-v2 accepted/proposed
+model, strict normalized patches, native editor history companions, #170 atomic
+transactions and #171 before-review safety snapshots. Controls, command policy,
+per-operation export choices, failure behavior and compatibility are documented
+in [local revision review](revision-review.md) and the
+[versioned editorial format](editorial-format.md). See
+[delivery evidence](planning/173-implementation-status.md) for the R/E/F matrix.
+This is local CORE functionality; Community operates offline without Pro.
+
 # 1. Purpose
 
 Implemented print edition separation (#136) is specified in

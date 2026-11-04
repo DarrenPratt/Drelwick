@@ -90,4 +90,5 @@ Operational documents:
 - [BookEditor recovery review](planning/bookeditor-recovery.md)
 
 - [Named manuscript snapshots, safe restore and retained conflicts](manuscript-snapshots.md)
+- [Local revision tracking and accept/reject review](revision-review.md)
 - [Read-only manuscript revision comparison](manuscript-comparison.md)

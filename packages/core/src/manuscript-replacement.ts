@@ -20,6 +20,7 @@ import {
   ProjectConfigV3Schema,
   ReplacementJournalSchema,
   type ReplacementJournal,
+  decodeEditorialDocument,
 } from "@drelwick/project-model";
 import { ApplicationError, createUuid } from "@drelwick/shared";
 import {
@@ -36,7 +37,15 @@ import {
   searchChapter,
   type SearchOptions,
 } from "./manuscript-search.js";
-import { commitEditorialTransaction } from "./editorial-transactions.js";
+import { commitPreparedEditorialTransaction } from "./editorial-transactions.js";
+import { Transform } from "@tiptap/pm/transform";
+import {
+  normalizeRevision,
+  RevisionStateStep,
+  type RevisionState,
+} from "./revisions.js";
+import { replayEditorialEdits } from "./editorial-editing.js";
+import { captureRevisionReviewSafetyLocked } from "./manuscript-snapshots.js";
 
 export const REPLACEMENT_JOURNAL = ".manuscript-replace.json";
 const finished = new Set<string>();
@@ -253,6 +262,15 @@ export interface ChapterTransactionPlan<T> {
   reason?: "before-replace" | "before-restructure";
 }
 export interface ChapterTransactionHooks {
+  confirmRevisions?: (preview: {
+    chapters: {
+      chapterId: string;
+      title: string;
+      groupIds: string[];
+      original: Record<string, unknown>;
+      proposed: Record<string, unknown>;
+    }[];
+  }) => Promise<boolean>;
   cancelled?: () => boolean;
   beforeWrite?: (index: number) => Promise<void>;
   snapshot?: typeof createHistorySnapshot;
@@ -340,137 +358,310 @@ async function replaceEditorialManuscript(
   input: ReplacementInput,
   hooks: ChapterTransactionHooks,
 ): Promise<{ matches: number; chapters: number }> {
-  const session = await openProject(input.projectPath, {
-    rebuildSummaries: true,
-  });
-  if (session.project.schemaVersion !== 3)
-    throw new ApplicationError(
-      "REPLACEMENT_STALE",
-      "The project changed. Refresh the replacement review.",
-    );
-  const ids = input.chapterId
-    ? [input.chapterId]
-    : session.project.manuscript.order;
-  if (
-    !ids.every((id) => session.project.manuscript.order.includes(id)) ||
-    !equal(
-      ids,
-      input.expected.map((chapter) => chapter.id),
-    )
-  )
-    throw new ApplicationError(
-      "REPLACEMENT_STALE",
-      "The manuscript changed. Refresh the replacement review.",
-    );
-  let matches = 0;
-  const nextChapters: {
-    id: string;
-    path: string;
-    beforeHash: string;
-    chapter: import("@drelwick/project-model").ChapterFileV2;
-  }[] = [];
-  for (const id of ids) {
-    if (hooks.cancelled?.())
-      throw new ApplicationError(
-        "REPLACEMENT_CANCELLED",
-        "Replacement cancelled. Original content was preserved.",
+  const committed = await commitPreparedEditorialTransaction(
+    input.projectPath,
+    async (root) => {
+      const projectBytes = await readFile(join(root, "project.json"));
+      const project = ProjectConfigV3Schema.parse(
+        JSON.parse(projectBytes.toString("utf8")),
       );
-    const path = join(input.projectPath, "manuscript", `${id}.json`);
-    const bytes = await readFile(path);
-    const before = ChapterFileV2Schema.parse(
-      JSON.parse(bytes.toString("utf8")) as unknown,
-    );
-    const expected = input.expected.find(
-      (chapter) => chapter.id === id,
-    )?.content;
-    if (!equal(before.content, expected))
-      throw new ApplicationError(
-        "REPLACEMENT_STALE",
-        "The manuscript changed. Refresh the replacement review.",
+      const ids = input.chapterId
+        ? [input.chapterId]
+        : project.manuscript.order;
+      const stale = () =>
+        new ApplicationError(
+          "REPLACEMENT_STALE",
+          "The manuscript changed. Refresh the replacement review.",
+        );
+      if (
+        !ids.every((id) => project.manuscript.order.includes(id)) ||
+        !equal(
+          ids,
+          input.expected.map((c) => c.id),
+        )
+      )
+        throw stale();
+      const stateBytes = await readFile(join(root, project.editorialFile));
+      const state = EditorialStateSchema.parse(
+        JSON.parse(stateBytes.toString("utf8")),
       );
-    const found = searchChapter(id, before.content, input.options);
-    matches += found.length;
-    if (!found.length) continue;
-    const content = replaceMatches(
-      id,
-      before.content,
-      input.options,
-      found,
-      input.replacement,
-    );
-    if (equal(content, before.content)) continue;
-    const chapter = ChapterFileV2Schema.parse({
-      ...before,
-      modified: new Date().toISOString(),
-      revision: before.revision + 1,
-      content,
-      review: { schemaVersion: 1, mode: "off", proposed: content, pending: [] },
-    });
-    const safety = await (hooks.snapshot ?? createHistorySnapshot)({
-      projectPath: input.projectPath,
-      chapterId: id,
-      document: before.content,
-      reason: "before-replace",
-    });
-    if (!safety)
-      throw new ApplicationError(
-        "HISTORY_SNAPSHOT_WRITE_FAILED",
-        "Unable to preserve a chapter before replacement.",
+      if (
+        state.generation !== project.generation ||
+        state.projectId !== project.projectId
+      )
+        throw stale();
+      const modified = new Date().toISOString(),
+        operationId = createUuid();
+      const hash = (bytes: Buffer) =>
+        createHash("sha256").update(bytes).digest("hex");
+      const plans = [];
+      let matches = 0;
+      for (const id of ids) {
+        if (hooks.cancelled?.())
+          throw new ApplicationError(
+            "REPLACEMENT_CANCELLED",
+            "Replacement cancelled. Original content was preserved.",
+          );
+        const path = `manuscript/${id}.json`;
+        await assertRegularPath(root, path);
+        const bytes = await readFile(join(root, path)),
+          before = ChapterFileV2Schema.parse(
+            JSON.parse(bytes.toString("utf8")),
+          );
+        if (
+          !equal(
+            before.review.proposed,
+            input.expected.find((c) => c.id === id)?.content,
+          )
+        )
+          throw stale();
+        const found = searchChapter(id, before.review.proposed, input.options);
+        if (found.length > 1000 || bytes.length * found.length > 32 * 1024 ** 2)
+          throw new ApplicationError(
+            "EDITORIAL_LIMIT",
+            "This replacement exceeds the bounded revision work limit. Narrow the chapter or query scope; no replacement was applied.",
+          );
+        matches += found.length;
+        if (!found.length) continue;
+        const content = replaceMatches(
+          id,
+          before.review.proposed,
+          input.options,
+          found,
+          input.replacement,
+        );
+        if (equal(content, before.review.proposed)) continue;
+        plans.push({ id, path, bytes, before, content, found });
+      }
+      if (!plans.length)
+        return { transaction: null, result: { matches, chapters: 0 } };
+      // Preview the complete chapter changes before requesting consent. The writer
+      // gate pins this preview; expected hashes are checked again at publication.
+      const collisions = plans.flatMap((p) => {
+        const normalized = normalizeRevision(p.before, p.content, {
+          id: createUuid(),
+          created: modified,
+          authorLabel: null,
+        });
+        return normalized.requiresCombine
+          ? [
+              {
+                chapterId: p.id,
+                title: p.before.title,
+                groupIds: normalized.affectedIds,
+                original: p.before.review.proposed,
+                proposed: p.content,
+              },
+            ]
+          : [];
+      });
+      if (
+        collisions.length &&
+        (!hooks.confirmRevisions ||
+          !(await hooks.confirmRevisions({ chapters: collisions })))
+      )
+        throw new ApplicationError(
+          "REPLACEMENT_CANCELLED",
+          "Replacement cancelled. Review the affected changes before trying again.",
+        );
+      await captureRevisionReviewSafetyLocked(
+        root,
+        project.projectId,
+        operationId,
+        {},
       );
-    nextChapters.push({
-      id,
-      path: `manuscript/${id}.json`,
-      beforeHash: createHash("sha256").update(bytes).digest("hex"),
-      chapter,
-    });
-  }
-  if (!nextChapters.length) return { matches, chapters: 0 };
-  const modified = new Date().toISOString();
-  const editorialPath = session.project.editorialFile;
-  const state = EditorialStateSchema.parse(
-    JSON.parse(
-      await readFile(join(input.projectPath, editorialPath), "utf8"),
-    ) as unknown,
+      let anchors = state.anchors;
+      const decisions: import("@drelwick/project-model").EditorialTransaction["decisions"] =
+        [];
+      const changes = [];
+      for (const p of plans) {
+        let current: RevisionState = {
+          content: p.before.content,
+          review: p.before.review,
+        };
+        const transactions = [];
+        const intermediate = new Map<
+          string,
+          import("@drelwick/project-model").RevisionGroup
+        >();
+        // Each literal match is a separate semantic edit, so disjoint matches do
+        // not absorb unrelated pending evidence between them.
+        for (const match of [...p.found].sort((a, b) => b.from - a.from)) {
+          const beforeDocument = current.review.proposed;
+          const next = replaceMatches(
+            p.id,
+            beforeDocument,
+            input.options,
+            [match],
+            input.replacement,
+          );
+          if (equal(next, beforeDocument)) continue;
+          const id = createUuid(),
+            options = { id, created: modified, authorLabel: null };
+          let plan = normalizeRevision(current, next, options);
+          const consent = collisions.find((c) => c.chapterId === p.id);
+          if (plan.requiresCombine) {
+            const internal =
+              plan.affectedIds.length === 1 &&
+              intermediate.has(plan.affectedIds[0]!);
+            if (internal) {
+              plan = normalizeRevision(current, next, {
+                ...options,
+                continuationId: plan.affectedIds[0]!,
+              });
+            } else {
+              if (
+                !consent ||
+                plan.affectedIds.some(
+                  (id) =>
+                    !consent.groupIds.includes(id) && !intermediate.has(id),
+                )
+              )
+                throw stale();
+              plan = normalizeRevision(current, next, {
+                ...options,
+                tracking: true,
+                combineIds: plan.affectedIds,
+              });
+            }
+          }
+          for (const group of plan.state.review.pending)
+            if (
+              !p.before.review.pending.some(
+                (original) => original.id === group.id,
+              )
+            )
+              intermediate.set(group.id, group);
+          const document = decodeEditorialDocument(beforeDocument),
+            after = decodeEditorialDocument(next);
+          const from = document.content.findDiffStart(after.content),
+            end = document.content.findDiffEnd(after.content);
+          if (from === null || !end) continue;
+          const overlap = Math.max(0, from - Math.min(end.a, end.b));
+          const tr = new Transform(document).replace(
+            from,
+            end.a + overlap,
+            after.slice(from, end.b + overlap),
+          );
+          tr.step(
+            new RevisionStateStep(id, current, plan.state, {
+              kind: "recorded",
+            }),
+          );
+          transactions.push({
+            before: beforeDocument,
+            steps: tr.steps.map(
+              (step) => step.toJSON() as Record<string, unknown>,
+            ),
+          });
+          current = plan.state;
+        }
+        anchors = replayEditorialEdits({
+          chapterId: p.id,
+          revision: p.before.revision + 1,
+          before: p.before.review.proposed,
+          after: current.review.proposed,
+          anchors,
+          state: { ...state, anchors },
+          transactions,
+          chapterOrder: project.manuscript.order,
+        });
+        // Intermediate units belong to this one confirmed Replace All action,
+        // never to an independently displayed pending decision. Retain only
+        // durable source identities in the final supersession ledger.
+        const flatten = (ids: string[], seen = new Set<string>()): string[] =>
+          ids.flatMap((id) => {
+            if (seen.has(id)) throw stale();
+            const transient = intermediate.get(id);
+            return transient
+              ? flatten(transient.supersedes, new Set([...seen, id]))
+              : [id];
+          });
+        current = {
+          ...current,
+          review: {
+            ...current.review,
+            pending: current.review.pending.map((group) => ({
+              ...group,
+              supersedes: [...new Set(flatten(group.supersedes))].sort(
+                (a, b) => {
+                  const left =
+                      p.before.review.pending.find((value) => value.id === a)
+                        ?.created ?? "",
+                    right =
+                      p.before.review.pending.find((value) => value.id === b)
+                        ?.created ?? "";
+                  return left < right ? -1 : left > right ? 1 : a < b ? -1 : 1;
+                },
+              ),
+            })),
+          },
+        };
+        for (const group of p.before.review.pending)
+          if (!current.review.pending.some((value) => value.id === group.id)) {
+            const replacement = current.review.pending.find((value) =>
+              value.supersedes.includes(group.id),
+            );
+            decisions.push({
+              chapterId: p.id,
+              groupId: group.id,
+              action: replacement ? "supersede" : "reject",
+              replacementGroupId: replacement?.id ?? null,
+            });
+          }
+        const chapter = ChapterFileV2Schema.parse({
+          ...p.before,
+          ...current,
+          revision: p.before.revision + 1,
+          modified,
+        });
+        changes.push({
+          path: p.path,
+          after: Buffer.from(`${JSON.stringify(chapter, null, 2)}\n`),
+        });
+      }
+      const bytes = (value: unknown) =>
+        Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
+      changes.push(
+        {
+          path: project.editorialFile,
+          after: bytes({ ...state, generation: state.generation + 1, anchors }),
+        },
+        {
+          path: "project.json",
+          after: bytes({
+            ...project,
+            generation: project.generation + 1,
+            modified,
+          }),
+        },
+      );
+      return {
+        result: { matches, chapters: plans.length },
+        transaction: {
+          projectId: project.projectId,
+          operationId,
+          kind: "edit" as const,
+          expectedGeneration: project.generation,
+          decisions,
+          expectedBefore: {
+            "project.json": hash(projectBytes),
+            [project.editorialFile]: hash(stateBytes),
+            ...Object.fromEntries(plans.map((p) => [p.path, hash(p.bytes)])),
+          },
+          changes,
+          validateInventory: async () => {
+            if (hooks.cancelled?.())
+              throw new ApplicationError(
+                "REPLACEMENT_CANCELLED",
+                "Replacement cancelled. Original content was preserved.",
+              );
+          },
+        },
+      };
+    },
   );
-  const changedIds = new Set(nextChapters.map(({ id }) => id));
-  const nextState = EditorialStateSchema.parse({
-    ...state,
-    generation: state.generation + 1,
-    anchors: state.anchors.map((anchor) =>
-      anchor.segments.some((segment) => changedIds.has(segment.chapterId))
-        ? { ...anchor, modified, status: "unverified" as const }
-        : anchor,
-    ),
-  });
-  const nextProject = ProjectConfigV3Schema.parse({
-    ...session.project,
-    modified,
-    generation: session.project.generation + 1,
-  });
-  await commitEditorialTransaction({
-    projectPath: input.projectPath,
-    projectId: session.project.projectId,
-    kind: "edit",
-    expectedGeneration: session.project.generation,
-    expectedBefore: Object.fromEntries(
-      nextChapters.map((chapter) => [chapter.path, chapter.beforeHash]),
-    ),
-    changes: [
-      ...nextChapters.map((item) => ({
-        path: item.path,
-        after: Buffer.from(`${JSON.stringify(item.chapter, null, 2)}\n`),
-      })),
-      {
-        path: editorialPath,
-        after: Buffer.from(`${JSON.stringify(nextState, null, 2)}\n`),
-      },
-      {
-        path: "project.json",
-        after: Buffer.from(`${JSON.stringify(nextProject, null, 2)}\n`),
-      },
-    ],
-  });
-  return { matches, chapters: nextChapters.length };
+  return committed.result;
 }
 
 /** Shared owned-lock/journal protocol for semantic replacement and chapter organisation. */

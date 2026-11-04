@@ -1,4 +1,5 @@
 import { EditorialHistoryStep } from "@drelwick/core/editorial-history";
+import { RevisionStateStep } from "@drelwick/core/revisions";
 import { Extension, type Editor } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
@@ -27,8 +28,9 @@ export const EditorialDecorations = Extension.create({
       [transaction, ...appendedTransactions].some((item) =>
         item.steps.some(
           (step) =>
-            step instanceof EditorialHistoryStep &&
-            step.direction !== "recorded",
+            (step instanceof EditorialHistoryStep &&
+              step.direction !== "recorded") ||
+            step instanceof RevisionStateStep,
         ),
       )
     )

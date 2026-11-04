@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   decodeEditorialDocument,
+  decodeEditorialSlice,
   isEditorialDocumentBoundary,
   type ChapterFileV2,
   type EditorialState,
@@ -54,6 +55,9 @@ export function validateEditorialBundle(input: {
   const identities = [
     input.projectId,
     ...input.chapterOrder,
+    ...input.chapters.flatMap((chapter) =>
+      chapter.review.pending.map((group) => group.id),
+    ),
     ...input.state.anchors.map((item) => item.id),
     ...input.state.annotations.map((item) => item.id),
     ...input.state.threads.map((item) => item.id),
@@ -62,18 +66,6 @@ export function validateEditorialBundle(input: {
     ),
   ].map((id) => id.toLowerCase());
   if (new Set(identities).size !== identities.length) throw invalid();
-  for (const chapter of input.chapters) {
-    if (
-      chapter.review.pending.length !== 0 ||
-      chapter.review.mode !== "off" ||
-      JSON.stringify(chapter.content) !==
-        JSON.stringify(chapter.review.proposed)
-    )
-      throw new ApplicationError(
-        "EDITORIAL_UNSUPPORTED",
-        "Pending revision data requires a newer compatible editor.",
-      );
-  }
   const documents = new Map(
     input.chapters.map((chapter) => [
       chapter.id,
@@ -88,6 +80,26 @@ export function validateEditorialBundle(input: {
   );
   const order = new Map(input.chapterOrder.map((id, index) => [id, index]));
   for (const anchor of input.state.anchors) {
+    for (const loss of anchor.lost) {
+      if (!loss.reviewTarget) continue;
+      const chapter = chapters.get(loss.evidence.chapterId),
+        target = loss.reviewTarget;
+      const group = chapter?.review.pending.find(
+        (group) => group.id === target.groupId,
+      );
+      if (
+        !chapter ||
+        !group ||
+        target.baseHash !== editorialDocumentHash(chapter.content) ||
+        target.from < group.from ||
+        target.to > group.to ||
+        loss.revisionGroupId !== target.groupId ||
+        !decodeEditorialDocument(chapter.content)
+          .slice(target.from, target.to)
+          .eq(decodeEditorialSlice(loss.evidence.slice))
+      )
+        throw invalid();
+    }
     if (anchor.status === "unverified") continue;
     for (const [index, segment] of anchor.segments.entries()) {
       const previous = anchor.segments[index - 1];

@@ -2,11 +2,13 @@ import { dialog, type BrowserWindow } from "electron";
 import { dirname, join } from "node:path";
 import {
   assembleBook,
+  assertAssembledBookCurrent,
   generateDocx,
   inspectDocxDestination,
   writeDocxAtomically,
 } from "@drelwick/core";
 import { ApplicationError, type DocxExportReceipt } from "@drelwick/shared";
+import { chooseRevisionProjection } from "./revision-projection.js";
 
 /** The snapshot and all paths stay privileged. No extension or network services. */
 export async function exportDocx(
@@ -23,7 +25,19 @@ export async function exportDocx(
       );
   };
   check();
-  const snapshot = await assembleBook(projectPath);
+  let snapshot: Awaited<ReturnType<typeof assembleBook>>;
+  try {
+    snapshot = await assembleBook(projectPath, {
+      chooseProjection: chooseRevisionProjection(window, authorized),
+    });
+  } catch (error) {
+    if (
+      error instanceof ApplicationError &&
+      error.code === "REVISION_PROJECTION_CANCELLED"
+    )
+      return { created: false, revision: "", warnings: [] };
+    throw error;
+  }
   if (snapshot.book.projectId !== projectId)
     throw new ApplicationError(
       "PROJECT_NOT_OPEN",
@@ -87,6 +101,7 @@ export async function exportDocx(
     overwrite,
     checkpoint: async () => {
       check();
+      await assertAssembledBookCurrent(snapshot);
     },
   });
   if (result.cleanupWarning)

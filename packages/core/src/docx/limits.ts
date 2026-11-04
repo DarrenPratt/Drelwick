@@ -26,7 +26,7 @@ export const DOCX_ERRORS = {
   DOCX_UNSUPPORTED:
     "The DOCX contains macros, embedded objects, alternate content, or another structure that cannot be safely recovered. Convert these to ordinary text/images before importing.",
   DOCX_REVISIONS:
-    "The Word document contains tracked changes. Accept or reject revisions in a copy before importing; no revision text was silently selected.",
+    "The Word document contains tracked changes or comments. Resolve revisions and remove comments in a separate source copy before importing; the selected source was preserved and no revision text was silently selected.",
   DOCX_IMAGE:
     "A DOCX image is missing, malformed, or unsupported. Only embedded static PNG/JPEG images can be imported.",
 } as const;

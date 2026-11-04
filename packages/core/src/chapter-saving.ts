@@ -33,8 +33,10 @@ import {
   editorialDocumentHash,
 } from "./editorial-bundle.js";
 import { orphanEditorialAnchors } from "./editorial-anchors.js";
+import { replayRevisionEdits } from "./revision-replay.js";
 
 export interface SaveChapterInput {
+  checkpoint?: (point: string) => Promise<void>;
   projectPath: string;
   chapterId: string;
   document: Record<string, unknown>;
@@ -272,7 +274,7 @@ async function saveEditorialChapter(
   const previous = ChapterFileV2Schema.parse(
     parseEditorialJson(chapterBytes) as unknown,
   );
-  if (previous.review.pending.length || previous.review.mode !== "off")
+  if (input.restore && previous.review.pending.length)
     throw new ApplicationError(
       "EDITORIAL_UNSUPPORTED",
       "Pending revisions require a newer compatible editor.",
@@ -330,23 +332,28 @@ async function saveEditorialChapter(
       "The project changed while saving. Your edits remain unsaved.",
     );
   const modified = createIsoDate();
+  const replayKey = `${root}\0${input.chapterId}`;
+  const replaySession = captureEditorialReplaySession(replayKey);
+  const revisionState = input.restore
+    ? {
+        content: nextContent,
+        review: { ...previous.review, proposed: nextContent, pending: [] },
+      }
+    : replayRevisionEdits(
+        previous,
+        nextContent,
+        input.transactions,
+        replaySession,
+      );
   const nextChapter = ChapterFileV2Schema.parse({
     ...previous,
     modified,
     revision: previous.revision + 1,
-    content: nextContent,
-    review: {
-      schemaVersion: 1,
-      mode: "off",
-      proposed: nextContent,
-      pending: [],
-    },
+    ...revisionState,
   });
   const affected = state.anchors.filter((anchor) =>
     anchor.segments.some((segment) => segment.chapterId === input.chapterId),
   );
-  const replayKey = `${root}\0${input.chapterId}`;
-  const replaySession = captureEditorialReplaySession(replayKey);
   const nextState: EditorialState = {
     ...state,
     generation: state.generation + 1,
@@ -362,12 +369,13 @@ async function saveEditorialChapter(
         ? replayEditorialEdits({
             chapterId: input.chapterId,
             revision: nextChapter.revision,
-            before: previous.content,
+            before: previous.review.proposed,
             after: nextContent,
             anchors: state.anchors,
             transactions: input.transactions,
             session: replaySession,
             state,
+            chapterOrder: session.project.manuscript.order,
           })
         : state.anchors.map((anchor) => {
             if (!affected.some((item) => item.id === anchor.id)) return anchor;
@@ -384,9 +392,52 @@ async function saveEditorialChapter(
     generation: session.project.generation + 1,
   };
   const committed = await commitEditorialTransaction({
+    ...(input.checkpoint ? { checkpoint: input.checkpoint } : {}),
     projectPath: root,
     projectId: session.project.projectId,
     kind: "edit",
+    decisions: (input.transactions ?? []).flatMap((tx) =>
+      tx.steps.flatMap((step) => {
+        if (
+          step["stepType"] !== "drelwickRevisionState" ||
+          step["direction"] !== "forward"
+        )
+          return [];
+        const before = step[
+            "beforeState"
+          ] as import("./revisions.js").RevisionState,
+          after = step["afterState"] as import("./revisions.js").RevisionState;
+        return before.review.pending
+          .filter(
+            (group) =>
+              !after.review.pending.some((value) => value.id === group.id),
+          )
+          .map((group) => {
+            const replacement = after.review.pending.find((value) =>
+              value.supersedes.includes(group.id),
+            );
+            const saved = previous.review.pending.find(
+              (value) => value.id === group.id,
+            );
+            if (
+              !saved ||
+              editorialDocumentHash(saved) !== editorialDocumentHash(group)
+            )
+              throw new ApplicationError(
+                "EDITORIAL_REVIEW_REQUIRED",
+                "Save the pending revision before combining or cancelling it so its exact evidence remains recoverable.",
+              );
+            return {
+              chapterId: input.chapterId,
+              groupId: group.id,
+              action: replacement
+                ? ("supersede" as const)
+                : ("reject" as const),
+              replacementGroupId: replacement?.id ?? null,
+            };
+          });
+      }),
+    ),
     ...(input.operationId
       ? { operationId: input.operationId, requestHash }
       : {}),

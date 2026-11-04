@@ -290,6 +290,23 @@ async function organiseEditorialChapter(
     chapters.set(id, parsed.data);
   }
   const statePath = join(projectPath, session.project.editorialFile);
+  if (
+    (command.operation === "split" || command.operation === "merge") &&
+    [...chapters.values()].some((chapter) => chapter.review.pending.length)
+  )
+    throw new ApplicationError(
+      "EDITORIAL_REVIEW_REQUIRED",
+      "Review pending changes in the affected chapters before splitting or merging. The manuscript was preserved.",
+    );
+  if (
+    command.operation === "duplicate" &&
+    chapters.get(command.chapterId)!.review.pending.length &&
+    !command.projection
+  )
+    throw new ApplicationError(
+      "REVISION_PROJECTION_REQUIRED",
+      "Choose accepted or proposed text explicitly before duplicating a chapter with pending revisions.",
+    );
   const state = EditorialStateSchema.parse(
     JSON.parse(await readFile(statePath, "utf8")) as unknown,
   );
@@ -381,7 +398,12 @@ async function organiseEditorialChapter(
         modified: now,
         revision: 1,
         content: right,
-        review: { schemaVersion: 1, mode: "off", proposed: right, pending: [] },
+        review: {
+          schemaVersion: 1,
+          mode: first.review.mode,
+          proposed: right,
+          pending: [],
+        },
       });
       updates.set(first.id, updated);
       updates.set(newId, continued);
@@ -399,6 +421,10 @@ async function organiseEditorialChapter(
         documentSize(left),
       );
     } else {
+      const content =
+        command.operation === "duplicate" && command.projection === "proposed"
+          ? first.review.proposed
+          : first.content;
       const duplicate = ChapterFileV2Schema.parse({
         ...first,
         id: newId,
@@ -406,10 +432,11 @@ async function organiseEditorialChapter(
         created: now,
         modified: now,
         revision: 1,
+        content,
         review: {
           schemaVersion: 1,
           mode: "off",
-          proposed: first.content,
+          proposed: content,
           pending: [],
         },
       });

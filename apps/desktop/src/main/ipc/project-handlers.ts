@@ -94,6 +94,8 @@ import { exportEpub } from "../epub-export.js";
 import { preparePrintPreview } from "../print-render.js";
 import { createPrintSurface } from "../print-surface.js";
 import { registerComparisonHandler } from "./comparison-handler.js";
+import { registerRevisionHandler } from "./revision-handler.js";
+import { chooseRevisionProjection } from "../revision-projection.js";
 
 interface HistoryTasks {
   scheduleSnapshot(input: {
@@ -333,6 +335,22 @@ export function registerProjectHandlers(
   };
 
   let comparisonEpoch = 0;
+  const revisions = registerRevisionHandler({
+    trusted,
+    session: () =>
+      activeProjectPath && activeProjectId
+        ? {
+            projectPath: activeProjectPath,
+            projectId: activeProjectId,
+            epoch: comparisonEpoch,
+          }
+        : null,
+    busy: () => busy,
+    setBusy: (value) => {
+      busy = value;
+    },
+    settle: (path) => history.settleProject(path),
+  });
   const comparisons = registerComparisonHandler({
     trusted,
     session: () =>
@@ -886,6 +904,7 @@ export function registerProjectHandlers(
         activeProjectPath,
         parsed.data.projectId,
         createPrintSurface,
+        chooseRevisionProjection(getWindow()!, () => Boolean(trusted(event))),
       );
       if (!trusted(event) || activeProjectId !== parsed.data.projectId)
         return failure(
@@ -948,6 +967,7 @@ export function registerProjectHandlers(
       const prepared = await prepareBookPreview(
         activeProjectPath,
         parsed.data.projectId,
+        chooseRevisionProjection(getWindow()!, () => Boolean(trusted(event))),
       );
       const value = presentBookPreview(prepared);
       if (!trusted(event))
@@ -1023,7 +1043,12 @@ export function registerProjectHandlers(
         await history.settleProject(activeProjectPath);
         // Comparison only: never replace the captured preview or mix its chapters
         // with current sources. Reuse the same consistent assembly boundary.
-        const current = await assembleBook(activeProjectPath);
+        const current = await assembleBook(
+          activeProjectPath,
+          preparedPreview.projection
+            ? { projection: preparedPreview.projection }
+            : {},
+        );
         if (!trusted(event))
           return failure(
             "PROJECT_ACCESS_DENIED",
@@ -1517,6 +1542,7 @@ export function registerProjectHandlers(
           activeProjectPath = opened.projectPath;
           comparisonEpoch++;
           comparisons.clear();
+          revisions.clear();
           preparedPrint = undefined;
           activeProjectId = opened.project.projectId;
           editorialEnabled = opened.project.schemaVersion === 3;
@@ -1752,6 +1778,7 @@ export function registerProjectHandlers(
         activeProjectPath = opened.projectPath;
         comparisonEpoch++;
         comparisons.clear();
+        revisions.clear();
         preparedPrint = undefined;
         activeProjectId = opened.project.projectId;
         editorialEnabled = opened.project.schemaVersion === 3;
@@ -1823,6 +1850,7 @@ export function registerProjectHandlers(
         activeProjectPath = undefined;
         comparisonEpoch++;
         comparisons.clear();
+        revisions.clear();
         preparedPrint = undefined;
         activeProjectId = undefined;
         editorialEnabled = false;
@@ -1984,6 +2012,7 @@ export function registerProjectHandlers(
         activeProjectPath = created.projectPath;
         comparisonEpoch++;
         comparisons.clear();
+        revisions.clear();
         preparedPrint = undefined;
         activeProjectId = created.project.projectId;
         editorialEnabled = created.project.schemaVersion === 3;
@@ -2453,7 +2482,46 @@ export function registerProjectHandlers(
       await history.settleProject(activeProjectPath);
       const value = await replaceManuscript(
         { ...parsed.data, projectPath: activeProjectPath },
-        { cancelled: () => cancellation.cancelled },
+        {
+          cancelled: () => cancellation.cancelled,
+          confirmRevisions: async (preview) => {
+            const window = getWindow();
+            if (!window || !trusted(event)) return false;
+            const detail = JSON.stringify(
+              preview.chapters.map((chapter) => ({
+                chapter: chapter.title,
+                affectedRevisionIds: chapter.groupIds,
+                original: chapter.original,
+                proposed: chapter.proposed,
+              })),
+              null,
+              2,
+            );
+            if (detail.length > 16000)
+              throw new ApplicationError(
+                "REPLACEMENT_CANCELLED",
+                "This combine preview is too large for the native review dialog. Review affected pending changes in their chapters first; no replacement was applied.",
+              );
+            const response = await dialog.showMessageBox(window, {
+              type: "question",
+              title: "Combine replacement with pending revisions?",
+              message: `Replacement intersects pending changes in ${preview.chapters.length} chapter(s).`,
+              detail: `Review the captured original/proposed content and semantic formatting below. Superseded evidence will be retained.\n\n${detail}`,
+              buttons: [
+                "Enable tracking and combine",
+                "Review affected changes first",
+                "Cancel",
+              ],
+              defaultId: 2,
+              cancelId: 2,
+            });
+            return (
+              response.response === 0 &&
+              Boolean(trusted(event)) &&
+              !cancellation.cancelled
+            );
+          },
+        },
       );
       return { ok: true, value: ReplacementReceiptSchema.parse(value) };
     } catch (error) {
@@ -2462,6 +2530,8 @@ export function registerProjectHandlers(
         error instanceof ApplicationError &&
         [
           "REPLACEMENT_FAILED",
+          "REPLACEMENT_STALE",
+          "EDITORIAL_LIMIT",
           "REPLACEMENT_CANCELLED",
           "REPLACEMENT_RECOVERY_REQUIRED",
           "PROJECT_BUSY",
@@ -2814,6 +2884,9 @@ export function registerProjectHandlers(
               chapterId: action.chapterId,
               from: action.from,
               to: action.to,
+              ...(action.revisionGroupId
+                ? { revisionGroupId: action.revisionGroupId }
+                : {}),
               kind: action.kind,
               evidence: action.evidence,
               ...(action.colour !== undefined ? { colour: action.colour } : {}),

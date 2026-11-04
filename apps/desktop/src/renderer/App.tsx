@@ -424,6 +424,12 @@ export function App() {
             key: chapterKey,
             chapterId: activeChapterId,
             content: result.value.content as JSONContent,
+            ...(result.value.revisionState
+              ? {
+                  revisionState: result.value
+                    .revisionState as import("@drelwick/core/revisions").RevisionState,
+                }
+              : {}),
           });
         } else
           setEditorError(
@@ -1325,7 +1331,33 @@ export function App() {
         );
         return;
       }
-      const result = await window.drelwick.project.organiseChapter(command);
+      let request = command;
+      if (
+        command.operation === "duplicate" &&
+        typeof window.drelwick.project.revisions === "function"
+      ) {
+        const review = await window.drelwick.project.revisions({
+          operation: "get",
+          projectId: command.projectId,
+          chapterId: command.chapterId,
+        });
+        if (
+          review.ok &&
+          (
+            review.value as {
+              state?: { review?: { pending?: unknown[] } };
+            } | null
+          )?.state?.review?.pending?.length
+        ) {
+          const choice = window.prompt(
+            "Duplicate a chapter with pending revisions: enter accepted or proposed. Cancel keeps the chapter unchanged.",
+            "",
+          );
+          if (choice !== "accepted" && choice !== "proposed") return;
+          request = { ...command, projection: choice };
+        }
+      }
+      const result = await window.drelwick.project.organiseChapter(request);
       if (!result.ok) {
         setError(result.error.message);
         if (result.error.code === "CHAPTER_RECOVERY_REQUIRED")
@@ -2461,6 +2493,19 @@ export function App() {
               <>
                 {documentReady && documentState ? (
                   <Editor
+                    flushReview={flushSnapshotEdits}
+                    onReviewSaved={(state) =>
+                      dispatchDocument({
+                        type: "loaded",
+                        key: chapterKey,
+                        chapterId: documentState.chapterId,
+                        content: state.review.proposed as JSONContent,
+                        revisionState: state,
+                      })
+                    }
+                    {...(documentState.revisionState
+                      ? { revisionState: documentState.revisionState }
+                      : {})}
                     savedRevision={
                       documentState.savedRevision + snapshotRefresh
                     }

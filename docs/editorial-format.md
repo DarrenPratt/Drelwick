@@ -3,7 +3,7 @@
 This is the #169 versioned format contract. [Workflow and failure semantics](editing-revisions.md)
 are normative. The #170 branch implements the local annotation contracts below;
 named snapshots are implemented by #171 and read-only comparison by #172.
-Revision review remains #173.
+The #173 branch implements revision review; see [implementation evidence](planning/173-implementation-status.md).
 
 ## #170 implementation status on the working branch
 
@@ -16,10 +16,34 @@ recover/discard/cancel controls. Backup includes editorial evidence independentl
 of periodic history; publication uses semantic manuscript data only.
 
 Existing project open/create uses v2. The sidebar offers a confirmed upgrade for
-an open chapter. Pending revisions and tracking mode are rejected until #173.
+an open chapter. The #173 implementation accepts validated tracking/pending envelopes; earlier applications reject them without rewriting source files.
 Unsaved keystrokes that never reached durable staging cannot be promised recovered.
 See the [implementation evidence](planning/170-implementation-status.md) for test
 mapping, validation results and platform/durability limits.
+
+## #173 revision implementation
+
+Review-v1 uses the approved strict RevisionGroupV1 fields, canonical SHA-256 base
+hashes, exact slice validation and descending replay. Active groups are sorted,
+disjoint (touching also conflicts), and globally unique. Empty/no-op groups are
+invalid. The materialized proposed document must match replay exactly.
+
+LostSegmentV1 optionally adds `reviewTarget:{groupId,baseHash,from,to}`. This is a
+validated, derived inverse target in the current accepted document, not new original
+evidence. `revisionGroupId` identifies the retained group and must agree with this
+target. Existing loss evidence remains immutable. Disjoint edits map the target;
+combination retargets it through the exact known operation. Reject restores it only
+when the base hash and exact slice match. Accept removes this derived target and
+retains the loss/discussion; explicit reattachment clears it. No quote lookup or
+similarity matching is permitted. Pending groups and these targets survive snapshots
+and backup/restore. Older strict readers reject these fields and nonempty review
+state; there is no silent downgrade or migration of snapshots.
+
+Review/editor save companions use the existing ProseMirror history and #170 replay
+session. `drelwickRevisionState` steps are validated against privileged normalization
+or a known recorded review event; arbitrary renderer-supplied accepted text is not
+trusted. Persistent before/after images and accept/reject/supersede decisions stay
+in TransactionV1. No new journal, database authority or persistent undo stack exists.
 
 ## #171 named snapshot implementation
 

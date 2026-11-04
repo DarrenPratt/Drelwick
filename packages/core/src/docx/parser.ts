@@ -485,13 +485,7 @@ function convert(files: Map<string, Uint8Array>): ImporterResult {
     if (n.name === "w:softHyphen")
       return fieldVisible() ? [textNode("\u00ad", marks)] : [];
     if (n.name === "w:drawing" || n.name === "w:pict") return image(n, part);
-    if (
-      [
-        "w:footnoteReference",
-        "w:endnoteReference",
-        "w:commentReference",
-      ].includes(n.name)
-    ) {
+    if (["w:footnoteReference", "w:endnoteReference"].includes(n.name)) {
       const kind = n.name.slice(2).replace("Reference", "");
       const partName = noteParts.get(`${kind}s`);
       const id = n.attrs["w:id"];
@@ -515,7 +509,7 @@ function convert(files: Map<string, Uint8Array>): ImporterResult {
       usedNotes.add(key);
       warn(
         "DOCX_NOTE",
-        "Note/comment text recovered at its reference; annotation semantics were not retained.",
+        "Note text recovered at its reference; note semantics were not retained.",
         kind,
       );
       const saved = paragraphStyles;
@@ -786,10 +780,15 @@ function convert(files: Map<string, Uint8Array>): ImporterResult {
       )
         fail("DOCX_UNSUPPORTED");
       if (
+        [
+          "w:comment",
+          "w:commentReference",
+          "w:commentRangeStart",
+          "w:commentRangeEnd",
+        ].includes(n.name) ||
         /^w:(?:ins|del|delText|delInstrText|moveFrom|moveTo|.*Change|.*RangeStart|.*RangeEnd)$/.test(
           n.name,
-        ) &&
-        !["w:commentRangeStart", "w:commentRangeEnd"].includes(n.name)
+        )
       )
         fail("DOCX_REVISIONS");
       if (

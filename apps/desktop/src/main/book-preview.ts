@@ -21,6 +21,7 @@ export const BOOK_PREVIEW_CSP =
   "default-src 'none'; script-src 'none'; style-src 'none'; img-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
 
 export interface PreparedBookPreview {
+  projection?: "accepted" | "proposed";
   metadata?: PublicationMetadata;
   projectId: string;
   language: string;
@@ -35,8 +36,14 @@ export interface PreparedBookPreview {
 export async function prepareBookPreview(
   projectPath: string,
   projectId: string,
+  chooseProjection?: NonNullable<
+    Parameters<typeof assembleBook>[1]
+  >["chooseProjection"],
 ): Promise<PreparedBookPreview> {
-  const snapshot = await assembleBook(projectPath);
+  const snapshot = await assembleBook(
+    projectPath,
+    chooseProjection ? { chooseProjection } : {},
+  );
   if (snapshot.book.projectId !== projectId)
     throw new ApplicationError(
       "PROJECT_NOT_OPEN",
@@ -56,6 +63,7 @@ export async function prepareBookPreview(
     },
   });
   return {
+    ...(snapshot.projection ? { projection: snapshot.projection } : {}),
     ...(snapshot.book.metadata ? { metadata: snapshot.book.metadata } : {}),
     projectId,
     language: snapshot.book.language,

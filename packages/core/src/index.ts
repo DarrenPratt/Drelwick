@@ -389,7 +389,11 @@ async function loadProjectFiles(
       summary: CountedChapterSummarySchema.parse({
         ...parsed.data,
         schemaVersion: 1,
-        wordCount: countDocumentWords(parsed.data.content),
+        wordCount: countDocumentWords(
+          parsed.data.schemaVersion === 2
+            ? parsed.data.review.proposed
+            : parsed.data.content,
+        ),
       }),
     });
   }
@@ -728,3 +732,4 @@ export * from "./print-preflight.js";
 export * from "./export-output.js";
 export * from "./manuscript-snapshots.js";
 export * from "./manuscript-comparison.js";
+export * from "./revision-service.js";

@@ -244,7 +244,13 @@ async function deleteEditorialChapter(
     const affected = anchor.segments.filter(
       (segment) => segment.chapterId === input.chapterId,
     );
-    if (!affected.length) return anchor;
+    const retainedLoss = anchor.lost.map((loss) => {
+      if (loss.evidence.chapterId !== input.chapterId) return loss;
+      const retained = { ...loss };
+      delete retained.reviewTarget;
+      return retained;
+    });
+    if (!affected.length) return { ...anchor, lost: retainedLoss };
     const segments = anchor.segments.filter(
       (segment) => segment.chapterId !== input.chapterId,
     );
@@ -254,10 +260,10 @@ async function deleteEditorialChapter(
       status: segments.length ? ("partial" as const) : ("orphaned" as const),
       segments,
       lost: [
-        ...anchor.lost,
+        ...retainedLoss,
         ...affected.map((segment) => ({
           evidence: editorialSegmentEvidence(
-            parsed.data.content,
+            parsed.data.review.proposed,
             anchor,
             segment,
           ),

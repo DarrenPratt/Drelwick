@@ -14,6 +14,8 @@ import {
   useState,
 } from "react";
 import { setEditorialDecorations } from "./components/EditorialDecorations.js";
+import { revisionKey } from "./components/RevisionTracking.js";
+import { decodeEditorialDocument } from "@drelwick/project-model";
 
 interface EditorialAnchor {
   id: string;
@@ -111,6 +113,20 @@ export function EditorialSidebar({
   onRecovered,
 }: EditorialSidebarProps) {
   const sidebar = useRef<HTMLElement>(null);
+  const [retainedGroup, setRetainedGroup] = useState<string | null>(null);
+  useEffect(() => {
+    const handle = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{ chapterId: string; groupId: string }>
+      ).detail;
+      if (detail.chapterId !== chapterId) return;
+      setRetainedGroup(detail.groupId);
+      sidebar.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus();
+    };
+    window.addEventListener("drelwick:comment-retained-revision", handle);
+    return () =>
+      window.removeEventListener("drelwick:comment-retained-revision", handle);
+  }, [chapterId]);
   const refreshGeneration = useRef(0);
   const pendingCommand = useRef<{
     key: string;
@@ -477,6 +493,43 @@ export function EditorialSidebar({
   );
 
   const selectEvidence = useCallback(() => {
+    if (retainedGroup) {
+      const current = revisionKey.getState(editor.state),
+        group = current?.review.pending.find(
+          (g) =>
+            g.id === retainedGroup &&
+            (g.kind === "delete" || g.kind === "replace"),
+        );
+      if (!current || !group)
+        throw new Error(
+          "The retained revision changed. Select it again; your comment draft was retained.",
+        );
+      const document = decodeEditorialDocument(current.content);
+      const context = (text: string, tail: boolean) => {
+        const parts = [
+          ...new Intl.Segmenter("und", { granularity: "grapheme" }).segment(
+            text,
+          ),
+        ].map((part) => part.segment);
+        let selected = tail ? parts.slice(-32) : parts.slice(0, 32);
+        while (selected.join("").length > 256)
+          selected = tail ? selected.slice(1) : selected.slice(0, -1);
+        return selected.join("");
+      };
+      return {
+        revisionGroupId: group.id,
+        from: group.from,
+        to: group.to,
+        evidence: {
+          slice: group.before,
+          prefix: context(document.textBetween(0, group.from, " ", " "), true),
+          suffix: context(
+            document.textBetween(group.to, document.content.size, " ", " "),
+            false,
+          ),
+        },
+      };
+    }
     const selection = editor.state.selection;
     if (selection.empty) throw new Error("Select manuscript text first.");
     const slice = editor.state.doc
@@ -518,7 +571,7 @@ export function EditorialSidebar({
           .join(""),
       },
     };
-  }, [editor]);
+  }, [editor, retainedGroup]);
 
   const add = async () => {
     try {
@@ -950,6 +1003,14 @@ export function EditorialSidebar({
       </button>
       <fieldset disabled={busy || loading || migrationRequired || projectOnly}>
         <legend>Add to selected text</legend>
+        {retainedGroup && (
+          <p role="status">
+            Commenting on retained original revision text.{" "}
+            <button onClick={() => setRetainedGroup(null)}>
+              Use live manuscript selection
+            </button>
+          </p>
+        )}
         <p role="status">
           {hasSelection
             ? "Text selected for annotation."

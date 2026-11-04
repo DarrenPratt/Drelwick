@@ -1,4 +1,5 @@
 import type { JSONContent } from "@tiptap/core";
+import type { RevisionState } from "@drelwick/core/revisions";
 
 export interface CapturedManuscriptTransaction {
   before: JSONContent;
@@ -16,6 +17,7 @@ function boundedTransactions(
 }
 
 export interface DocumentState {
+  revisionState?: RevisionState;
   key: string;
   chapterId: string;
   content: JSONContent;
@@ -31,7 +33,13 @@ export interface DocumentState {
 }
 
 export type DocumentAction =
-  | { type: "loaded"; key: string; chapterId: string; content: JSONContent }
+  | {
+      type: "loaded";
+      key: string;
+      chapterId: string;
+      content: JSONContent;
+      revisionState?: RevisionState;
+    }
   | {
       type: "edited";
       key: string;
@@ -56,6 +64,7 @@ export function documentReducer(
       key: action.key,
       chapterId: action.chapterId,
       content: action.content,
+      ...(action.revisionState ? { revisionState: action.revisionState } : {}),
       editorRevision: 0,
       savedRevision: 0,
       transactions: [],
