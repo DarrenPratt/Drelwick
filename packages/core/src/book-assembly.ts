@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, realpath, rmdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import {
   ChapterFileSchema,
   ChapterFileV2Schema,
@@ -23,6 +23,8 @@ import { readPrintConfiguration } from "./print-configuration.js";
 import type { PrintConfigurationState } from "@drelwick/shared";
 
 export interface AssembledBook {
+  projection?: "accepted" | "proposed";
+  sourceInventory?: Record<string, string>;
   print?: PrintConfigurationState;
   presentation: BookPresentation;
   book: BookRevision;
@@ -39,6 +41,12 @@ const failure = (code: string) =>
 export async function assembleBook(
   projectPath: string,
   options: {
+    projection?: "accepted" | "proposed";
+    chooseProjection?: (scope: {
+      generation: number;
+      count: number;
+      chapters: number;
+    }) => Promise<"accepted" | "proposed" | null>;
     print?: boolean;
     /** Internal deterministic test seam, never exposed over IPC. */
     checkpoint?: (chapterId: string) => Promise<void>;
@@ -52,7 +60,7 @@ export async function assembleBook(
     throw failure("PROJECT_BUSY");
   }
   try {
-    const started = Date.now();
+    let started = Date.now();
     let capturedSize = 0;
     const checkPrintBudget = () => {
       if (
@@ -99,6 +107,35 @@ export async function assembleBook(
     if (publication.bytes)
       captured.set(join(projectPath, PUBLICATION_FILE), publication.bytes);
     const ids = new Set<string>();
+    let projection = options.projection;
+    if (session.project.schemaVersion === 3) {
+      let count = 0,
+        affectedChapters = 0;
+      for (const id of session.project.manuscript.order) {
+        const chapter = ChapterFileV2Schema.parse(
+          JSON.parse(
+            (
+              await capture(join(projectPath, "manuscript", `${id}.json`))
+            ).toString("utf8"),
+          ),
+        );
+        count += chapter.review.pending.length;
+        if (chapter.review.pending.length) affectedChapters++;
+      }
+      if (count && !projection) {
+        if (!options.chooseProjection)
+          throw failure("REVISION_PROJECTION_REQUIRED");
+        const choosing = Date.now();
+        projection =
+          (await options.chooseProjection({
+            generation: session.project.generation,
+            count,
+            chapters: affectedChapters,
+          })) ?? undefined;
+        started += Date.now() - choosing;
+        if (!projection) throw failure("REVISION_PROJECTION_CANCELLED");
+      }
+    }
     for (const id of session.project.manuscript.order) {
       const path = join(projectPath, "manuscript", `${id}.json`);
       try {
@@ -112,7 +149,9 @@ export async function assembleBook(
         ))
           throw error;
       }
-      const rawChapter = JSON.parse((await capture(path)).toString("utf8"));
+      const rawChapter = JSON.parse(
+        (captured.get(path) ?? (await capture(path))).toString("utf8"),
+      );
       const chapter =
         session.project.schemaVersion === 3
           ? ChapterFileV2Schema.safeParse(rawChapter)
@@ -121,7 +160,9 @@ export async function assembleBook(
         throw failure("PROJECT_SCHEMA_INVALID");
       const document = ManuscriptDocumentSchema.safeParse(
         chapter.data.schemaVersion === 2
-          ? chapter.data.review.proposed
+          ? projection === "accepted"
+            ? chapter.data.content
+            : chapter.data.review.proposed
           : chapter.data.content,
       );
       if (!document.success) throw failure("CHAPTER_DOCUMENT_INVALID");
@@ -260,6 +301,21 @@ export async function assembleBook(
     };
     const revision = createHash("sha256")
       .update(JSON.stringify(value))
+      .update(
+        session.project.schemaVersion === 3
+          ? String(session.project.generation)
+          : "",
+      )
+      .update(
+        session.project.schemaVersion === 3
+          ? JSON.stringify(
+              [...captured].map(([path, bytes]) => [
+                relative(projectPath, path).replaceAll("\\", "/"),
+                createHash("sha256").update(bytes).digest("hex"),
+              ]),
+            )
+          : "",
+      )
       .digest("hex");
     const latestPresentation = await readBookPresentation(
       projectPath,
@@ -282,6 +338,13 @@ export async function assembleBook(
     )
       throw failure("BOOK_REVISION_CHANGED");
     return {
+      ...(projection ? { projection } : {}),
+      sourceInventory: Object.fromEntries(
+        [...captured].map(([path, bytes]) => [
+          path,
+          createHash("sha256").update(bytes).digest("hex"),
+        ]),
+      ),
       ...(print ? { print } : {}),
       book: { ...value, revision },
       assets,
@@ -292,5 +355,20 @@ export async function assembleBook(
     throw failure("BOOK_ASSEMBLY_FAILED");
   } finally {
     await rmdir(lock);
+  }
+}
+
+/** A generation/byte-bound output choice cannot survive changed source files. */
+export async function assertAssembledBookCurrent(
+  book: AssembledBook,
+): Promise<void> {
+  for (const [path, hash] of Object.entries(book.sourceInventory ?? {})) {
+    await regularPath(path);
+    if (
+      createHash("sha256")
+        .update(await boundedRead(path, 64 * 1024 ** 2))
+        .digest("hex") !== hash
+    )
+      throw failure("BOOK_REVISION_CHANGED");
   }
 }

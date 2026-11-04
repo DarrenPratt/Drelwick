@@ -656,10 +656,7 @@ it("migrates a complete v2 fixture with a verified backup and reopens as v3", as
     content: [
       {
         type: "paragraph",
-        content: [
-          { type: "text", text: "Find " },
-          { type: "text", text: "star" },
-        ],
+        content: [{ type: "text", text: "Find star" }],
       },
     ],
   });

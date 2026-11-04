@@ -31,6 +31,7 @@ export interface CreateEditorialAnnotationInput {
   chapterId: string;
   from: number;
   to: number;
+  revisionGroupId?: string;
   kind: "comment" | "note" | "highlight";
   colour?: "yellow" | "blue" | "green" | "pink";
   body?: string;
@@ -180,7 +181,24 @@ export async function createEditorialAnnotation(
       "The selected chapter is no longer available.",
     );
   const { from, to } = input;
-  const documentSize = documentNodeSize(parsed.data.content);
+  const retained = input.revisionGroupId
+    ? parsed.data.review.pending.find(
+        (group) =>
+          group.id === input.revisionGroupId &&
+          (group.kind === "delete" || group.kind === "replace") &&
+          group.from === from &&
+          group.to === to,
+      )
+    : undefined;
+  if (input.revisionGroupId && !retained)
+    throw new ApplicationError(
+      "EDITORIAL_EVIDENCE_STALE",
+      "The retained revision changed. Select it again before commenting.",
+    );
+  const targetDocument = retained
+    ? parsed.data.content
+    : parsed.data.review.proposed;
+  const documentSize = documentNodeSize(targetDocument);
   if (
     !Number.isSafeInteger(from) ||
     !Number.isSafeInteger(to) ||
@@ -192,7 +210,7 @@ export async function createEditorialAnnotation(
       "EDITORIAL_RANGE_INVALID",
       "Select a valid manuscript range.",
     );
-  const semanticDocument = decodeEditorialDocument(parsed.data.content);
+  const semanticDocument = decodeEditorialDocument(targetDocument);
   if (
     !isEditorialDocumentBoundary(semanticDocument, from) ||
     !isEditorialDocumentBoundary(semanticDocument, to)
@@ -215,25 +233,47 @@ export async function createEditorialAnnotation(
   const annotationId = createUuid();
   const threadId = createUuid();
   const commentId = createUuid();
-  const hash = editorialDocumentHash(parsed.data.content);
+  const hash = editorialDocumentHash(targetDocument);
   const anchor = EditorialAnchorSchema.parse({
     schemaVersion: 1,
     id: anchorId,
     created: now,
     modified: now,
     deletedAt: null,
-    status: "attached",
-    segments: [
-      {
-        chapterId: input.chapterId,
-        chapterRevision: parsed.data.revision,
-        documentHash: hash,
-        from,
-        to,
-        pointAffinity: "right",
-      },
-    ],
-    lost: [],
+    status: retained ? "orphaned" : "attached",
+    segments: retained
+      ? []
+      : [
+          {
+            chapterId: input.chapterId,
+            chapterRevision: parsed.data.revision,
+            documentHash: hash,
+            from,
+            to,
+            pointAffinity: "right",
+          },
+        ],
+    lost: retained
+      ? [
+          {
+            evidence: {
+              chapterId: input.chapterId,
+              documentHash: hash,
+              from,
+              to,
+              ...input.evidence,
+            },
+            reason: "deleted-text",
+            revisionGroupId: retained.id,
+            reviewTarget: {
+              groupId: retained.id,
+              baseHash: retained.baseHash,
+              from,
+              to,
+            },
+          },
+        ]
+      : [],
     original: {
       chapterId: input.chapterId,
       documentHash: hash,
@@ -547,7 +587,7 @@ export async function reattachEditorialAnchor(
       "PROJECT_SCHEMA_INVALID",
       "The selected chapter is invalid.",
     );
-  const size = documentNodeSize(parsed.data.content);
+  const size = documentNodeSize(parsed.data.review.proposed);
   if (
     !Number.isSafeInteger(input.from) ||
     !Number.isSafeInteger(input.to) ||
@@ -559,7 +599,7 @@ export async function reattachEditorialAnchor(
       "EDITORIAL_RANGE_INVALID",
       "Select a valid manuscript range.",
     );
-  const semanticDocument = decodeEditorialDocument(parsed.data.content);
+  const semanticDocument = decodeEditorialDocument(parsed.data.review.proposed);
   if (
     !isEditorialDocumentBoundary(semanticDocument, input.from) ||
     !isEditorialDocumentBoundary(semanticDocument, input.to)
@@ -586,11 +626,16 @@ export async function reattachEditorialAnchor(
         ...anchor,
         modified: now,
         status: anchor.lost.length ? "partial" : "attached",
+        lost: anchor.lost.map((loss) => {
+          const retained = { ...loss };
+          delete retained.reviewTarget;
+          return retained;
+        }),
         segments: [
           {
             chapterId: input.chapterId,
             chapterRevision: parsed.data.revision,
-            documentHash: editorialDocumentHash(parsed.data.content),
+            documentHash: editorialDocumentHash(parsed.data.review.proposed),
             from: input.from,
             to: input.to,
             pointAffinity: "right",

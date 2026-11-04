@@ -239,7 +239,11 @@ test("timeline keyboard CRUD, stable associations, deleted targets and reopen wo
     await expect(panel).toContainText("Timeline deleted.");
     await panel.getByRole("button", { name: "Restore event" }).click();
     await expect(panel).toContainText("Timeline restored.");
-    await application!.close();
+    // Exercise normal shutdown so pending reference refreshes drain before reopen.
+    // ElectronApplication.close() force-stops a process during an owned disk lock.
+    const closed = application!.waitForEvent("close");
+    await application!.evaluate(({ app }) => app.quit());
+    await closed;
     application = undefined;
     page = await launch();
     await page.getByRole("button", { name: "Timeline", exact: true }).click();

@@ -262,6 +262,7 @@ it("restricts print preview to the active trusted project and never logs render 
       f.root,
       projectId,
       expect.any(Function),
+      expect.any(Function),
     );
     expect(logger.error).not.toHaveBeenCalled();
   } finally {

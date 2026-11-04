@@ -36,7 +36,7 @@ describe("runtime editorial model", () => {
       review: { ...chapterReview, mode: "off", pending: [] },
     };
     expect(ChapterFileV2Schema.safeParse(chapter).success).toBe(true);
-    expect(ChapterFileV2Schema.safeParse(futureChapter).success).toBe(false);
+    expect(ChapterFileV2Schema.safeParse(futureChapter).success).toBe(true);
     expect(
       EditorialStateSchema.safeParse(await read("project/editorial/state.json"))
         .success,

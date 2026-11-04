@@ -2,11 +2,13 @@ import { dialog, type BrowserWindow } from "electron";
 import { dirname, join } from "node:path";
 import {
   assembleBook,
+  assertAssembledBookCurrent,
   generateEpub,
   inspectEpubDestination,
   writeEpubAtomically,
 } from "@drelwick/core";
 import { ApplicationError, type EpubExportReceipt } from "@drelwick/shared";
+import { chooseRevisionProjection } from "./revision-projection.js";
 
 export async function exportEpub(
   window: BrowserWindow,
@@ -22,7 +24,19 @@ export async function exportEpub(
       );
   };
   check();
-  const snapshot = await assembleBook(projectPath);
+  let snapshot: Awaited<ReturnType<typeof assembleBook>>;
+  try {
+    snapshot = await assembleBook(projectPath, {
+      chooseProjection: chooseRevisionProjection(window, authorized),
+    });
+  } catch (error) {
+    if (
+      error instanceof ApplicationError &&
+      error.code === "REVISION_PROJECTION_CANCELLED"
+    )
+      return { created: false, revision: "", warnings: [] };
+    throw error;
+  }
   if (snapshot.book.projectId !== projectId)
     throw new ApplicationError(
       "PROJECT_NOT_OPEN",
@@ -65,7 +79,10 @@ export async function exportEpub(
   check();
   await writeEpubAtomically(destination, output.bytes, {
     overwrite,
-    checkpoint: async () => check(),
+    checkpoint: async () => {
+      check();
+      await assertAssembledBookCurrent(snapshot);
+    },
   });
   receipt.created = true;
   return receipt;

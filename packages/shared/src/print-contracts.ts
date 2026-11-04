@@ -244,6 +244,7 @@ export interface PrintPreview {
   export?: {
     edition?: PrintEdition;
     sourceRevision: string;
+    projection?: "accepted" | "proposed";
     settings: PrintSettings;
     title: string;
     author: string;

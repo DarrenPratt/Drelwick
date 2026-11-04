@@ -195,6 +195,7 @@ test("local annotations support keyboard editing, saved companion undo, tombston
           )!.segments[0]!.from,
       )
       .toBe(original.from);
+    await expect(editor).toBeEditable();
     await page.keyboard.press(`${modifier}+z`);
     await page.keyboard.press(`${modifier}+s`);
     await expect
@@ -202,6 +203,7 @@ test("local annotations support keyboard editing, saved companion undo, tombston
         (await state()).annotations.some((item) => item.id === annotation.id),
       )
       .toBe(false);
+    await expect(editor).toBeEditable();
     await page.keyboard.press(`${modifier}+Shift+z`);
     await page.keyboard.press(`${modifier}+s`);
     await expect

@@ -496,7 +496,7 @@ it("C02 locates a missing immutable snapshot image and preserves unsupported pen
     `${session.chapters[0]!.id}.json`,
   );
   const chapter = JSON.parse(await readFile(chapterPath, "utf8"));
-  chapter.review.mode = "track";
+  chapter.review.schemaVersion = 999;
   const pending = JSON.stringify(chapter);
   await writeFile(chapterPath, pending);
   await expect(

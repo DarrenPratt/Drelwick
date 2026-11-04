@@ -2,7 +2,7 @@ import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { openProject } from "../src/index.js";
+import { openProject, loadChapter } from "../src/index.js";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -35,7 +35,7 @@ it("opens v3 and validates the editorial state against chapter v2", async () => 
   expect(opened.chapters).toHaveLength(1);
 });
 
-it("rejects pending revisions instead of opening a flattened chapter", async () => {
+it("opens validated pending revisions without flattening accepted/proposed source bytes", async () => {
   const root = await mkdtemp(join(tmpdir(), "editorial-pending-"));
   roots.push(root);
   await cp(
@@ -43,9 +43,19 @@ it("rejects pending revisions instead of opening a flattened chapter", async () 
     root,
     { recursive: true },
   );
-  await expect(
-    openProject(root, { rebuildSummaries: true }),
-  ).rejects.toMatchObject({
-    code: "PROJECT_SCHEMA_INVALID",
+  const path = join(
+      root,
+      "manuscript",
+      "00000000-0000-4000-8000-000000000002.json",
+    ),
+    before = await readFile(path);
+  const opened = await openProject(root, { rebuildSummaries: true });
+  expect(opened.chapters[0]!.wordCount).toBe(3);
+  const loaded = await loadChapter({
+    projectPath: root,
+    chapterId: opened.chapters[0]!.id,
   });
+  expect(JSON.stringify(loaded.content)).toContain("red quick fox");
+  expect(loaded.revisionState).toBeDefined();
+  expect(await readFile(path)).toEqual(before);
 });

@@ -7,6 +7,7 @@ import {
   decodeEditorialSlice,
 } from "./editorial-codec.js";
 import { isSafeRelativePath, isIsoDate, isUuid } from "@drelwick/shared";
+import { validateRevisionReview } from "./revision-codec.js";
 
 export const EDITORIAL_LIMITS = {
   componentBytes: 8 * 1024 ** 2,
@@ -113,6 +114,15 @@ export const EditorialLostSegmentSchema = z
       "external-change",
     ]),
     revisionGroupId: uuid.nullable(),
+    reviewTarget: z
+      .strictObject({
+        groupId: uuid,
+        baseHash: hash,
+        from: position,
+        to: position,
+      })
+      .refine((value) => value.from < value.to)
+      .optional(),
   })
   .strict();
 export const EditorialAnchorSchema = z
@@ -296,13 +306,34 @@ function hasInvalidUnicode(value: string): boolean {
   }
   return false;
 }
+export const RevisionGroupV1Schema = z
+  .strictObject({
+    schemaVersion: z.literal(1),
+    id: uuid,
+    kind: z.enum(["insert", "delete", "replace", "format"]),
+    created: time,
+    modified: time,
+    authorLabel: scalarString(256).nullable(),
+    baseHash: hash,
+    from: position,
+    to: position,
+    before: slice,
+    after: slice,
+    supersedes: z.array(uuid).max(1000),
+  })
+  .refine(
+    (value) =>
+      value.from <= value.to &&
+      value.created <= value.modified &&
+      new Set(value.supersedes).size === value.supersedes.length &&
+      !value.supersedes.includes(value.id),
+  );
 export const ReviewV1Schema = z
   .object({
     schemaVersion: z.literal(1),
     mode: z.enum(["off", "track"]),
     proposed: strictDoc,
-    // #170 persists only the empty envelope. #173 owns revision payloads.
-    pending: z.array(z.never()).max(1000),
+    pending: z.array(RevisionGroupV1Schema).max(1000),
   })
   .strict();
 export const ChapterFileV2Schema = ChapterFileSchema.extend({
@@ -329,18 +360,15 @@ export const ChapterFileV2Schema = ChapterFileSchema.extend({
         code: "custom",
         message: "Invalid chapter timestamps",
       });
-    if (value.review.mode !== "off")
-      context.addIssue({
-        code: "custom",
-        path: ["review", "mode"],
-        message: "Revision tracking is not supported by this version",
-      });
-    if (JSON.stringify(value.content) !== JSON.stringify(value.review.proposed))
+    try {
+      validateRevisionReview(value.content, value.review);
+    } catch {
       context.addIssue({
         code: "custom",
         path: ["review", "proposed"],
-        message: "Nonempty revision state is not supported by this version",
+        message: "Invalid revision replay, hash, range or disjointness",
       });
+    }
   });
 export const ProjectConfigV3Schema = ProjectConfigV2Schema.extend({
   schemaVersion: z.literal(3),

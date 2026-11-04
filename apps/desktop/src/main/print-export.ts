@@ -13,6 +13,7 @@ import {
   type PrintExportReceipt,
 } from "@drelwick/shared";
 import { inspectPrintPdf } from "./print-inspection.js";
+import { chooseRevisionProjection } from "./revision-projection.js";
 
 export async function exportPrint(
   window: BrowserWindow,
@@ -40,9 +41,13 @@ export async function exportPrint(
         "The project window changed. Reopen print preview before exporting.",
       );
   };
+  let projection = preview.export?.projection;
   const current = async () => {
     check();
-    const source = await assembleBook(projectPath, { print: true });
+    const source = await assembleBook(projectPath, {
+      print: true,
+      ...(projection ? { projection } : {}),
+    });
     check();
     if (printSourceRevision(source) !== preview.export?.sourceRevision)
       fail(
@@ -55,6 +60,28 @@ export async function exportPrint(
     revision: preview.revision,
     cleanupWarning: false,
   };
+  try {
+    const source = await assembleBook(projectPath, {
+      print: true,
+      chooseProjection: chooseRevisionProjection(window, options.authorized),
+    });
+    projection = source.projection;
+    if (
+      projection !== preview.export?.projection ||
+      printSourceRevision(source) !== preview.export?.sourceRevision
+    )
+      fail(
+        "STALE",
+        "The selected text projection or saved source changed since the preview. Refresh print preview with that projection before exporting.",
+      );
+  } catch (error) {
+    if (
+      error instanceof ApplicationError &&
+      error.code === "REVISION_PROJECTION_CANCELLED"
+    )
+      return receipt;
+    throw error;
+  }
   options.progress("Checking preview revision and preflight");
   await current();
   const findings = [

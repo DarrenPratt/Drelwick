@@ -1,4 +1,9 @@
-import { Step } from "@tiptap/pm/transform";
+import { Step, Mapping } from "@tiptap/pm/transform";
+import {
+  advanceRevisionAnchorTargets,
+  restoreRejectedRevisionAnchors,
+} from "./revision-anchors.js";
+import type { RevisionState } from "./revisions.js";
 import {
   decodeEditorialDocument,
   editorialManuscriptSchema,
@@ -51,6 +56,14 @@ interface CompanionEvent {
   size?: number;
 }
 export interface EditorialReplaySession {
+  revisionTyping?: Map<string, string>;
+  revisionEvents?: Map<
+    string,
+    {
+      before: import("./revisions.js").RevisionState;
+      after: import("./revisions.js").RevisionState;
+    }
+  >;
   events: Map<string, CompanionEvent>;
   modified: Map<string, string>;
   result?: EditorialState;
@@ -226,12 +239,13 @@ export function registerEditorialMetadataEvent(
   document: Record<string, unknown>,
   before: EditorialState,
   after: EditorialState,
+  beforeDocument: Record<string, unknown> = document,
 ): void {
   const session = captureEditorialReplaySession(key);
   if (session.events.has(id)) return;
   retainEvent(session, id, {
     beforeHash: editorialDocumentHash(
-      decodeEditorialDocument(document).toJSON(),
+      decodeEditorialDocument(beforeDocument).toJSON(),
     ),
     afterHash: editorialDocumentHash(
       decodeEditorialDocument(document).toJSON(),
@@ -253,6 +267,7 @@ export function replayEditorialEdits(input: {
   transactions: readonly EditorialEditorTransaction[];
   session?: EditorialReplaySession;
   state?: EditorialState;
+  chapterOrder?: readonly string[];
 }): EditorialAnchor[] {
   const invalid = () =>
     new ApplicationError(
@@ -352,7 +367,47 @@ export function replayEditorialEdits(input: {
     if (!doc.eq(decodeEditorialDocument(transaction.before))) throw invalid();
     let groupBeforeHash = documentHash;
     let groupState = structuredClone(currentState());
+    const transactionMapping = new Mapping(),
+      sourceMaps = new Map<string, Mapping>();
     for (const raw of transaction.steps) {
+      if (raw["stepType"] === "drelwickRevisionState") {
+        if (raw["direction"] === "forward") {
+          const before = raw["beforeState"] as RevisionState,
+            after = raw["afterState"] as RevisionState;
+          const cancelled = before.review.pending
+            .filter(
+              (group) =>
+                !after.review.pending.some(
+                  (value) =>
+                    value.id === group.id ||
+                    value.supersedes.includes(group.id),
+                ),
+            )
+            .map((group) => group.id);
+          if (
+            editorialDocumentHash(before.content) ===
+              editorialDocumentHash(after.content) &&
+            cancelled.length
+          )
+            anchors = restoreRejectedRevisionAnchors(
+              anchors,
+              input.chapterId,
+              input.revision,
+              after,
+              cancelled,
+              input.chapterOrder ?? [input.chapterId],
+            );
+          anchors = advanceRevisionAnchorTargets(
+            anchors,
+            groupState.anchors,
+            input.chapterId,
+            before,
+            after,
+            sourceMaps,
+          );
+        }
+        continue;
+      }
       if (raw["stepType"] === "drelwickEditorialHistory") {
         if (pending) {
           if (documentHash !== pending.beforeHash) throw invalid();
@@ -418,12 +473,15 @@ export function replayEditorialEdits(input: {
       )
         throw invalid();
       const step = Step.fromJSON(editorialManuscriptSchema, raw);
+      sourceMaps.set(sourceHash, new Mapping([...transactionMapping.maps]));
+      sourceMaps.set(documentHash, new Mapping([...transactionMapping.maps]));
       const applied = step.apply(doc);
       if (applied.failed || !applied.doc) throw invalid();
       // Full semantic validation after every step prevents unsupported attributes,
       // invalid marks or dropped data from entering the authoritative bundle.
       const next = decodeEditorialDocument(applied.doc.toJSON());
       const map = step.getMap();
+      transactionMapping.appendMap(map);
       const ranges: Array<{ from: number; to: number }> = [];
       map.forEach((from, to) => {
         if (from < to) ranges.push({ from, to });

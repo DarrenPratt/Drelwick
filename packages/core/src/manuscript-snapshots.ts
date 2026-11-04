@@ -595,6 +595,26 @@ export async function captureNamedSnapshot(
     );
   });
 }
+
+/** Called only while the shared writer gate is held by a review transaction. */
+export async function captureRevisionReviewSafetyLocked(
+  root: string,
+  projectId: string,
+  operationId: string,
+  options: SnapshotOptions = {},
+) {
+  const scope = await readScope(root, projectId);
+  return captureLocked(
+    root,
+    scope,
+    {
+      id: operationId,
+      label: "Before revision review",
+      reason: "before-review",
+    },
+    options,
+  );
+}
 export async function setManuscriptSnapshotDeleted(
   input: {
     projectPath: string;

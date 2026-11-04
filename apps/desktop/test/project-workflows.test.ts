@@ -182,6 +182,7 @@ beforeEach(async () => {
     project: {
       snapshots: vi.fn().mockResolvedValue({ ok: true, value: [] }),
       comparison: vi.fn().mockResolvedValue({ ok: true, value: null }),
+      revisions: vi.fn().mockResolvedValue({ ok: true, value: null }),
       editorial: vi.fn().mockResolvedValue({
         ok: true,
         value: {

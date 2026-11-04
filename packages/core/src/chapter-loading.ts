@@ -18,6 +18,7 @@ export interface LoadChapterInput {
 export interface LoadedChapter {
   id: string;
   content: Record<string, unknown>;
+  revisionState?: unknown;
 }
 
 export async function loadChapter(
@@ -62,7 +63,21 @@ export async function loadChapter(
         "CHAPTER_DOCUMENT_INVALID",
         "The chapter document has an unsupported or invalid structure.",
       );
-    return { id: parsed.data.id, content: parsed.data.content };
+    return {
+      id: parsed.data.id,
+      content:
+        parsed.data.schemaVersion === 2
+          ? parsed.data.review.proposed
+          : parsed.data.content,
+      ...(parsed.data.schemaVersion === 2
+        ? {
+            revisionState: {
+              content: parsed.data.content,
+              review: parsed.data.review,
+            },
+          }
+        : {}),
+    };
   } catch (error) {
     if (error instanceof ApplicationError) throw error;
     throw new ApplicationError(

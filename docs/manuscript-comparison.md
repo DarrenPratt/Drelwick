@@ -29,12 +29,11 @@ project/chapter metadata, selected semantic documents and image hashes are retai
 private discussions and image bytes never enter the comparison result.
 
 The current adapter supports project v3, chapter v2, editorial v1 and snapshot v1,
-with the currently supported empty pending-revision envelopes. Accepted/proposed
-projections are explicit even when equal. Existing validators reject nonempty or
-unsupported review envelopes; #173 must add validated projection/replay coverage
-when it implements pending changes. Comparison does not enable revision mode early
-and #173 is not a prerequisite. Older/newer unsupported sources are reported
-unavailable without migration or false equality.
+including validated pending revisions on the #173 branch. Accepted/proposed
+projections remain explicit, and current/snapshot projection coverage is tested in
+`revision-workflows.test.ts`. Comparison remains read-only and uses the existing
+semantic-grapheme-v1 engine. Older/newer unsupported sources are reported unavailable
+without migration or false equality.
 
 Main owns at most two opaque captured-source handles, scoped to the active project,
 session epoch and authorized main frame. Captures are revalidated before comparison;

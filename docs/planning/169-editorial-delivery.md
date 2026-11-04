@@ -5,6 +5,10 @@ Design owner: #169, CORE. Normative specifications:
 This document allocates missing implementation work to **existing** issues;
 it does not claim those issues are complete or authorize implementation in #169.
 
+The #173 branch's [implementation and executable matrix](173-implementation-status.md)
+records delivery of the revision contracts below, including reuse of merged
+#170/#171 foundations and pending-projection coverage with existing #172 comparison.
+
 ## Existing issue reconciliation
 
 | Issue                     | Existing dependencies retained | Required scope clarified by this design                                                                                                                                                                                                                                                                                                                                                                                                                          |

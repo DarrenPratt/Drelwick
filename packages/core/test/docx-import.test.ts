@@ -300,11 +300,11 @@ it("never fetches an external image and retains alternative text", async () => {
   ]);
   expect(r.warnings.some((w) => w.code === "DOCX_EXTERNAL_IMAGE")).toBe(true);
 });
-it("golden recovery: table cells, notes, comments, fields and text box exact order", async () => {
+it("golden recovery: table cells, notes, fields and text box exact order", async () => {
   const body =
     p("before") +
     `<w:tbl><w:tr><w:tc>${p("cell A")}</w:tc><w:tc>${p("cell B")}</w:tc></w:tr></w:tbl>` +
-    `<w:p><w:r><w:t>reference</w:t><w:footnoteReference w:id="1"/><w:endnoteReference w:id="2"/><w:commentReference w:id="3"/></w:r></w:p>` +
+    `<w:p><w:r><w:t>reference</w:t><w:footnoteReference w:id="1"/><w:endnoteReference w:id="2"/></w:r></w:p>` +
     `<w:p><w:fldSimple w:instr="INCLUDETEXT https://offline.invalid/private"><w:r><w:t>visible result</w:t></w:r></w:fldSimple></w:p>` +
     `<w:p><w:r><w:drawing><w:txbxContent>${p("box text")}</w:txbxContent></w:drawing></w:r></w:p>` +
     p("after");
@@ -312,12 +312,10 @@ it("golden recovery: table cells, notes, comments, fields and text box exact ord
     docx(body, {
       "word/_rels/document.xml.rels": relationships(
         rel("f", "footnotes", "footnotes.xml") +
-          rel("e", "endnotes", "endnotes.xml") +
-          rel("c", "comments", "comments.xml"),
+          rel("e", "endnotes", "endnotes.xml"),
       ),
       "word/footnotes.xml": `<w:footnotes ${namespaces}><w:footnote w:id="1">${p("foot text")}</w:footnote></w:footnotes>`,
       "word/endnotes.xml": `<w:endnotes ${namespaces}><w:endnote w:id="2">${p("end text")}</w:endnote></w:endnotes>`,
-      "word/comments.xml": `<w:comments ${namespaces}><w:comment w:id="3">${p("comment text")}</w:comment></w:comments>`,
     }),
   );
   expect(texts(r.chapters[0]!.content)).toEqual([
@@ -329,8 +327,6 @@ it("golden recovery: table cells, notes, comments, fields and text box exact ord
     "foot text",
     "[endnote]",
     "end text",
-    "[comment]",
-    "comment text",
     "visible result",
     "box text",
     "after",
@@ -338,7 +334,6 @@ it("golden recovery: table cells, notes, comments, fields and text box exact ord
   expect(r.warnings.map((w) => w.code)).toEqual([
     "DOCX_METADATA_DEFAULT",
     "DOCX_TABLE",
-    "DOCX_NOTE",
     "DOCX_NOTE",
     "DOCX_NOTE",
     "DOCX_FIELD",
@@ -864,3 +859,17 @@ it("preserves numbering across paragraph interruptions", async () => {
     "second",
   ]);
 });
+
+it.each([
+  "commentReference",
+  "commentRangeStart",
+  "commentRangeEnd",
+  "comment",
+])(
+  "E04 rejects unresolved DOCX %s without flattening private text",
+  async (kind) => {
+    await expect(
+      parse(docx(`<w:p><w:${kind} w:id="1"/></w:p>`)),
+    ).rejects.toMatchObject({ code: "DOCX_REVISIONS" });
+  },
+);
