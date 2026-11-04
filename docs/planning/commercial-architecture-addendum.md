@@ -33,6 +33,13 @@ comments, annotations, revision review, named snapshots and comparison as CORE.
 Future advanced editorial candidates are observations for post-#203 owner review,
 not approved Pro allocations or prerequisites for #170–#173.
 
+The [#133 publishing/theme boundary](133-publishing-boundaries.md) preserves all
+existing CORE publishing and manual geometry/typography. Custom author themes,
+premium assets, advanced profiles/printing and third-party theme commercial
+allocation are **Undecided — owner review after #203**. Earlier premium-theme/Pro
+shorthand does not allocate them; no Pro implementation or licensing change is
+created by that design.
+
 # Commercial Architecture Milestone
 
 Create an additional GitHub milestone:

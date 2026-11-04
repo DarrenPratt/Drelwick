@@ -136,6 +136,15 @@ settings only. Main authorizes the active trusted frame/project and resolves its
 own path. No arbitrary paths, font files, CSS, HTML or log payloads are accepted.
 Print saves do not write manuscript, publication, theme or ebook configuration.
 
+## Advanced design boundary (#133)
+
+[Custom themes](custom-themes.md) extend presentation conceptually without moving
+geometry into themes. The [independent advanced-publishing assessment](planning/133-publishing-boundaries.md)
+distinguishes full bleed/spreads, hardcover convenience and publisher preflight.
+Existing trim/margins/gutter, typography, editions and basic output/preflight stay
+CORE. New convenience/asset allocation is **Undecided — owner review after #203**.
+The #133 PR implements none of those future capabilities.
+
 ## Scope and evidence
 
 This is CORE and builds/runs without Pro. Basic layouts are not licence-gated.

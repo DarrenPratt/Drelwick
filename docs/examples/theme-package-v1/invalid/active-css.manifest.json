@@ -1,0 +1,92 @@
+{
+  "format": "drelwick-theme",
+  "formatVersion": 1,
+  "schemaVersion": 1,
+  "theme": {
+    "id": "00000000-0000-4000-8000-000000000133",
+    "version": "1.0.0",
+    "name": "Author Serif",
+    "creator": "Synthetic Example Author",
+    "description": "Asset-free design fixture using approved font tokens.",
+    "rights": "unverified"
+  },
+  "compatibility": {
+    "renderer": {
+      "min": 2,
+      "maxExclusive": 3
+    },
+    "presentation": 2,
+    "print": 3,
+    "requires": ["style-v2"]
+  },
+  "style": {
+    "schemaVersion": 2,
+    "base": {
+      "body": {
+        "fontSet": "body",
+        "sizeRem": 1,
+        "lineHeight": 1.5,
+        "alignment": "justify",
+        "indentEm": 1.25,
+        "spacingEm": 0,
+        "css": "background-image:url(https://invalid.example/private);display:none"
+      },
+      "headings": {
+        "fontSet": "body",
+        "weight": 700,
+        "scale": [2, 1.75, 1.5, 1.25, 1.125, 1],
+        "spaceBeforeEm": 1.5,
+        "spaceAfterEm": 0.75
+      },
+      "chapterOpening": {
+        "fontSet": "body",
+        "titleSizeEm": 2,
+        "alignment": "center",
+        "spaceBeforeEm": 3,
+        "spaceAfterEm": 2,
+        "firstParagraph": "flush-first",
+        "ornamentPosition": "below",
+        "ornament": {
+          "variant": "rule",
+          "spacingEm": 1,
+          "widthPercent": 25,
+          "ink": "#333333"
+        }
+      },
+      "sceneBreak": {
+        "variant": "diamond",
+        "spacingEm": 1.5,
+        "widthPercent": 25,
+        "ink": "#333333"
+      },
+      "quote": {
+        "fontSet": "body",
+        "indentEm": 1.5,
+        "spacingEm": 1,
+        "fontStyle": "normal"
+      },
+      "epigraph": {
+        "fontSet": "body",
+        "alignment": "center",
+        "widthPercent": 75,
+        "spacingEm": 1.5,
+        "fontStyle": "italic",
+        "attributionSizeEm": 0.875
+      }
+    },
+    "epub": {},
+    "print": {
+      "bodySizePt": 11,
+      "overrides": {}
+    }
+  },
+  "fontSets": [
+    {
+      "id": "body",
+      "kind": "builtin",
+      "family": "traditional-serif"
+    }
+  ],
+  "assets": [],
+  "licenses": []
+}

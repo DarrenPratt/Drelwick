@@ -42,6 +42,16 @@ repository's TypeScript 5.9 strict checks without suppressing declaration errors
 Node.js types match the supported Node 24 runtime. Tests explicitly import
 `test` and `expect` from `vitest`; no test globals are added to production projects.
 
+## #133 design fixtures
+
+`packages/project-model/test/custom-theme-design-examples.test.ts` checks the
+proposed manifest schema, graph/rights rules, exact sample inventories and known
+ZIP bytes/CRCs. Its helper lives under `test/design`, has no production export and
+does not enable custom themes. See [fixture limits](../docs/examples/theme-package-v1/README.md)
+and the [future runtime/manual matrix](../docs/planning/133-publishing-boundaries.md).
+Passing design examples is not proof of a secure arbitrary-archive importer, font
+sandbox, advanced PDF feature or final product allocation.
+
 ## Workspace conventions
 
 Issue #170's runtime matrix is mapped in the
