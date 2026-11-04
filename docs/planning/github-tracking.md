@@ -282,3 +282,28 @@ All 62 existing issues (#1?#62) are included exactly once. Closed foundation/cla
 Validation re-read the private Project, repository link, item membership and field options. A reversible status change on #62 (Review -> In Progress -> Review) confirmed field updates work. No issue was closed or reopened for that test.
 
 Automatic status transitions, dependency readiness and ongoing label-to-field synchronization are **not assumed**. Maintain Status, Priority and primary Area explicitly during triage; update status after PR review/merge and assess dependencies before marking Ready. Native labels/milestones follow their issues. Project workflow automation can be adopted after its actual behaviour is verified; this setup does not depend on it.
+
+## #133 custom-theme and advanced-publishing follow-ups
+
+The [versioned design and dependency graph](133-publishing-boundaries.md) preserves
+current Community publishing. These are new implementation candidates, not proof
+of delivered functionality or an automatic addition to private v1.0 scope. All use
+`product:undecided`: **Undecided — owner review after #203**. No Pro dependency or
+licensing/visibility change is created. Existing CORE commitments remain unchanged.
+
+| Task | Actual issue                                                                                           | Technical order                                                             |
+| ---- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| CT1  | [#232 Author-theme editing and pinned persistence](https://github.com/DarrenPratt/Drelwick/issues/232) | #133 merged plus existing theme/print/context/snapshot foundations          |
+| CT2  | [#233 Secure local theme import/export](https://github.com/DarrenPratt/Drelwick/issues/233)            | #232; asset-free packages before resource capability activation             |
+| CT3  | [#234 Decorative assets and licensed static fonts](https://github.com/DarrenPratt/Drelwick/issues/234) | #232 + #233; reviewed isolated parser/resource proof                        |
+| AP1  | [#235 Publisher-profile contracts](https://github.com/DarrenPratt/Drelwick/issues/235)                 | #133 merged plus current settings/preflight APIs                            |
+| AP2  | [#236 Full-bleed/spread prototype](https://github.com/DarrenPratt/Drelwick/issues/236)                 | #235 plus existing images/production PDF; reviewed go/no-go before shipping |
+| AP3  | [#237 Hardcover interior convenience](https://github.com/DarrenPratt/Drelwick/issues/237)              | #235 plus current print settings/editions                                   |
+| AP4  | [#238 Advanced profile preflight/reports](https://github.com/DarrenPratt/Drelwick/issues/238)          | #235 plus current inspectors; #236 capability only for bleed claims         |
+
+Created after open/closed issue searches and design/fixture review. Project status
+is Backlog, priority Normal and representative Area set; estimates remain unset.
+No milestone is assigned before technical scope approval. #203 evaluates approved
+implementations or recorded owner deferrals; it is not a reverse prerequisite of
+these issues. #52/#53/#54/#60 remain later owner governance gates. The seven complete
+issue specifications are retained under `docs/planning/133-follow-ups/`.

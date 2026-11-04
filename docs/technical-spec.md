@@ -1618,6 +1618,12 @@ The older conceptual interfaces below describe future orchestration, not separat
 semantic renderers. The implemented version-1 Community theme model, deterministic
 ebook/print CSS and project-side selection are described in [book themes](book-themes.md);
 the later conceptual theme interfaces are future design, not a custom-CSS API.
+The [#133 custom-theme contract](custom-themes.md) proposes typed style/ref versions,
+immutable local packages and resource capture through these same APIs; the
+[package format](theme-package-format.md) is declarative, not a plugin runtime.
+Current production schemas remain unchanged. Separate advanced publishing
+[assessments/boundaries](planning/133-publishing-boundaries.md) preserve CORE output
+and defer unapproved allocation until owner review after #203.
 
 ```typescript
 interface BookRenderer {

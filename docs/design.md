@@ -30,7 +30,7 @@ The dependency direction is always `Drelwick Pro -> Drelwick Community`. Communi
 | Classification | Product scope                                                                                                                                                                                                                                                                                                                                          |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | CORE           | Manuscript editing; project/chapter management; semantic formatting; autosave; recovery; history; basic local DOCX import and manuscript export; portable local backup/restore; basic themes; ebook/print preview; EPUB 3; basic publishable print PDF; open project format; public extension APIs; basic local story bible CRUD/search/chapter links. |
-| PRO            | Potential advanced typography, KDP profiles/preflight, paperback/hardcover validation, automatic gutters, bleed/DPI analysis, advanced headers/page numbering/chapter openings, premium themes, advanced Word layout fidelity if separately designed, professional publishing reports.                                                                 |
+| PRO            | Reserved for future functionality explicitly allocated by the owner; #133 does not allocate custom themes, premium assets or advanced publishing to Pro.                                                                                                                                                                                               |
 | SERVICE        | Optional hosted functionality with continuing operating costs. Basic local authoring never requires it.                                                                                                                                                                                                                                                |
 | ECOSYSTEM      | Third-party themes/plugins/extensions. The Community API they use remains CORE.                                                                                                                                                                                                                                                                        |
 
@@ -551,7 +551,7 @@ Science Fiction
 Minimal
 ```
 
-Users may eventually create custom themes.
+Users may eventually create custom themes. The versioned [#133 design](custom-themes.md), [local package contract](theme-package-format.md) and [publishing boundary/roadmap](planning/133-publishing-boundaries.md) specify that future work; no custom runtime is implemented by the design PR. New custom-theme/advanced-publishing commercial allocation is **Undecided — owner review after #203**. Existing CORE publishing and manual print controls remain unchanged.
 
 ---
 

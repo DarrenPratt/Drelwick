@@ -9,7 +9,7 @@ staged import API and author-facing review workflow are implemented. A shared se
 renderer, isolated saved-book preview and three persisted [Community book themes](docs/book-themes.md)
 are available; local EPUB export, [PDF-backed print preview](docs/print-preview.md)
 and [atomic PDF export with basic preflight](docs/print-export.md) are implemented.
-See the PDF review record for validation and platform limitations. See the [DOCX support matrix](docs/docx-import.md),
+See the PDF review record for validation and platform limitations. Custom author themes and advanced publishing have a [versioned design and follow-up roadmap](docs/custom-themes.md); they are not implemented by that design. See the [DOCX support matrix](docs/docx-import.md),
 [TXT/Markdown/HTML support matrix](docs/text-import.md) and
 [local publishing delivery plan](docs/planning/local-publishing-plan.md).
 

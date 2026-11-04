@@ -1,0 +1,1 @@
+Design fixture only. Permission fields are synthetic test inputs, not a licence grant. Repository notices remain authoritative. No third-party font is bundled.

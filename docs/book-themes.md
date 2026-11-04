@@ -13,6 +13,12 @@ project lock -> assembleBook -> BookRevision + presentation + captured assets
   -> isolated preview wrapper / future ebook or print adapter
 ```
 
+The [#133 custom-theme design](custom-themes.md), [declarative package format](theme-package-format.md)
+and [publishing boundary/roadmap](planning/133-publishing-boundaries.md) describe
+future author-created themes/resources. They do not change the implemented
+built-in model or enable custom packages. Existing CORE behaviour stays available;
+new commercial allocation is **Undecided — owner review after #203**.
+
 ## Model and validation
 
 `BookThemeSchema` in `packages/project-model/src/book-theme.ts` is strict version 1.
