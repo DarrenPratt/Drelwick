@@ -178,3 +178,11 @@ authorization, CSP hash scope, selection failure and unchanged prose. Native Ele
 tests switch all presets offline, compare chapter bytes and exact preview markup,
 simulate generic-only fonts, restart, and exercise #121's privilege/network boundary.
 See [the acceptance audit](book-themes-acceptance.md).
+
+## Reusable matter templates (design)
+
+The [#134 library design](planning/local-matter-templates.md) copies resolved
+semantic pages into a book. Templates carry no styles or theme dependency; the
+destination theme and independent print edition settings render the copies through
+the existing pipeline. Publishing never loads the template library. This is a
+proposed workflow, not an implemented template selector.

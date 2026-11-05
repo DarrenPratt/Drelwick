@@ -3588,3 +3588,11 @@ dependencies
 ```
 
 That would make the project suitable for direct implementation by a developer or coding agent.
+
+## Reusable matter library design (#134)
+
+The [versioned local template specification](planning/local-matter-templates.md)
+defines future CORE schemas/storage, restricted IPC, copy-on-apply and explicit
+update review. It preserves publication v1 and the existing semantic assembly and
+export contracts; the library is never an assembly dependency. Follow-up issues
+separate runtime delivery from this design.

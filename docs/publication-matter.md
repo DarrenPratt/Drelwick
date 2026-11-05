@@ -101,3 +101,13 @@ log metadata or manuscript content.
 Downstream consumers can use publication metadata, ordered semantic documents,
 navigation flags and cover asset identity. EPUB/DOCX export, print configuration,
 templates, parts/volumes/editions and custom publishing remain separate issues.
+
+## Reusable library design (#134)
+
+The [local matter template specification](planning/local-matter-templates.md)
+proposes an application-local library, distinct from the editable starter pages
+already implemented here. Applying a template resolves placeholders into fresh-ID,
+independently editable copies. Later library edits/deletion never change a book;
+missing or corrupt library data cannot block opening or publishing saved pages.
+Optional update review uses separate local provenance, preserving publication v1.
+Runtime library/UI work is tracked separately by that design.
