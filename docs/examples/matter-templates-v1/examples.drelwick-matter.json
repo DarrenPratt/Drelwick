@@ -1,0 +1,468 @@
+{
+  "format": "drelwick-matter",
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "00000000-0000-4000-8000-000000000200",
+      "revisionId": "00000000-0000-4000-8000-000000000300",
+      "name": "Title page",
+      "description": "Synthetic documentation example.",
+      "createdAt": "2026-11-05T12:00:00Z",
+      "updatedAt": "2026-11-05T12:00:00Z",
+      "kind": "page",
+      "pages": [
+        {
+          "id": "00000000-0000-4000-8000-000000000100",
+          "type": "title",
+          "title": "Title page",
+          "placement": "front",
+          "inclusion": {
+            "navigation": false,
+            "ebook": true,
+            "print": true
+          },
+          "document": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Book title"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Selected author"
+                  }
+                ]
+              }
+            ]
+          },
+          "bindings": [
+            {
+              "path": [0, 0],
+              "key": "book.title"
+            },
+            {
+              "path": [1, 0],
+              "key": "identity.name"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000201",
+      "revisionId": "00000000-0000-4000-8000-000000000301",
+      "name": "Copyright",
+      "description": "Synthetic documentation example.",
+      "createdAt": "2026-11-05T12:00:00Z",
+      "updatedAt": "2026-11-05T12:00:00Z",
+      "kind": "page",
+      "pages": [
+        {
+          "id": "00000000-0000-4000-8000-000000000101",
+          "type": "copyright",
+          "title": "Copyright",
+          "placement": "front",
+          "inclusion": {
+            "navigation": false,
+            "ebook": true,
+            "print": true
+          },
+          "document": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Copyright \u00a9 "
+                  },
+                  {
+                    "type": "text",
+                    "text": "2026"
+                  },
+                  {
+                    "type": "text",
+                    "text": " "
+                  },
+                  {
+                    "type": "text",
+                    "text": "Rights holder"
+                  },
+                  {
+                    "type": "text",
+                    "text": "."
+                  }
+                ]
+              }
+            ]
+          },
+          "bindings": [
+            {
+              "path": [0, 1],
+              "key": "input.copyrightYear"
+            },
+            {
+              "path": [0, 3],
+              "key": "input.rightsHolder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000202",
+      "revisionId": "00000000-0000-4000-8000-000000000302",
+      "name": "Dedication",
+      "description": "Synthetic documentation example.",
+      "createdAt": "2026-11-05T12:00:00Z",
+      "updatedAt": "2026-11-05T12:00:00Z",
+      "kind": "page",
+      "pages": [
+        {
+          "id": "00000000-0000-4000-8000-000000000102",
+          "type": "dedication",
+          "title": "Dedication",
+          "placement": "front",
+          "inclusion": {
+            "navigation": false,
+            "ebook": true,
+            "print": true
+          },
+          "document": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "For everyone who encouraged this story."
+                  }
+                ]
+              }
+            ]
+          },
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000203",
+      "revisionId": "00000000-0000-4000-8000-000000000303",
+      "name": "Acknowledgements",
+      "description": "Synthetic documentation example.",
+      "createdAt": "2026-11-05T12:00:00Z",
+      "updatedAt": "2026-11-05T12:00:00Z",
+      "kind": "page",
+      "pages": [
+        {
+          "id": "00000000-0000-4000-8000-000000000103",
+          "type": "acknowledgements",
+          "title": "Acknowledgements",
+          "placement": "back",
+          "inclusion": {
+            "navigation": true,
+            "ebook": true,
+            "print": true
+          },
+          "document": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Thank you to the readers who made this possible."
+                  }
+                ]
+              }
+            ]
+          },
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000204",
+      "revisionId": "00000000-0000-4000-8000-000000000304",
+      "name": "About the author",
+      "description": "Synthetic documentation example.",
+      "createdAt": "2026-11-05T12:00:00Z",
+      "updatedAt": "2026-11-05T12:00:00Z",
+      "kind": "page",
+      "pages": [
+        {
+          "id": "00000000-0000-4000-8000-000000000104",
+          "type": "author",
+          "title": "About the author",
+          "placement": "back",
+          "inclusion": {
+            "navigation": true,
+            "ebook": true,
+            "print": true
+          },
+          "document": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Selected author"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Author biography"
+                  }
+                ]
+              }
+            ]
+          },
+          "bindings": [
+            {
+              "path": [0, 0],
+              "key": "identity.name"
+            },
+            {
+              "path": [1, 0],
+              "key": "identity.biography"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000205",
+      "revisionId": "00000000-0000-4000-8000-000000000305",
+      "name": "Novel front and back matter",
+      "description": "Synthetic documentation example.",
+      "createdAt": "2026-11-05T12:00:00Z",
+      "updatedAt": "2026-11-05T12:00:00Z",
+      "kind": "collection",
+      "pages": [
+        {
+          "id": "00000000-0000-4000-8000-000000000110",
+          "type": "title",
+          "title": "Title page",
+          "placement": "front",
+          "inclusion": {
+            "navigation": false,
+            "ebook": true,
+            "print": true
+          },
+          "document": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Book title"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Selected author"
+                  }
+                ]
+              }
+            ]
+          },
+          "bindings": [
+            {
+              "path": [0, 0],
+              "key": "book.title"
+            },
+            {
+              "path": [1, 0],
+              "key": "identity.name"
+            }
+          ]
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000111",
+          "type": "copyright",
+          "title": "Copyright",
+          "placement": "front",
+          "inclusion": {
+            "navigation": false,
+            "ebook": true,
+            "print": true
+          },
+          "document": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Copyright \u00a9 "
+                  },
+                  {
+                    "type": "text",
+                    "text": "2026"
+                  },
+                  {
+                    "type": "text",
+                    "text": " "
+                  },
+                  {
+                    "type": "text",
+                    "text": "Rights holder"
+                  },
+                  {
+                    "type": "text",
+                    "text": "."
+                  }
+                ]
+              }
+            ]
+          },
+          "bindings": [
+            {
+              "path": [0, 1],
+              "key": "input.copyrightYear"
+            },
+            {
+              "path": [0, 3],
+              "key": "input.rightsHolder"
+            }
+          ]
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000112",
+          "type": "dedication",
+          "title": "Dedication",
+          "placement": "front",
+          "inclusion": {
+            "navigation": false,
+            "ebook": true,
+            "print": true
+          },
+          "document": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "For everyone who encouraged this story."
+                  }
+                ]
+              }
+            ]
+          },
+          "bindings": []
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000113",
+          "type": "acknowledgements",
+          "title": "Acknowledgements",
+          "placement": "back",
+          "inclusion": {
+            "navigation": true,
+            "ebook": true,
+            "print": true
+          },
+          "document": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Thank you to the readers who made this possible."
+                  }
+                ]
+              }
+            ]
+          },
+          "bindings": []
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000114",
+          "type": "author",
+          "title": "About the author",
+          "placement": "back",
+          "inclusion": {
+            "navigation": true,
+            "ebook": true,
+            "print": true
+          },
+          "document": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Selected author"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Author biography"
+                  }
+                ]
+              }
+            ]
+          },
+          "bindings": [
+            {
+              "path": [0, 0],
+              "key": "identity.name"
+            },
+            {
+              "path": [1, 0],
+              "key": "identity.biography"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "identities": [
+    {
+      "id": "00000000-0000-4000-8000-000000000401",
+      "label": "Adventure pen name",
+      "name": "Robin Vale",
+      "biography": "Robin Vale writes imaginary journeys."
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000402",
+      "label": "Mystery pen name",
+      "name": "Alex Reed",
+      "biography": "Alex Reed writes fictional mysteries."
+    }
+  ]
+}

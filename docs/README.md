@@ -50,6 +50,8 @@ Operational documents:
 - [Shared semantic book rendering and preview](book-rendering.md)
 - [Local reflowable ebook simulation and acceptance evidence](ebook-preview.md)
 - [Publication metadata, matter pages and managed covers](publication-matter.md)
+- [Reusable local matter templates (design; #134)](planning/local-matter-templates.md)
+- [Matter template documentation fixtures](examples/matter-templates-v1/README.md)
 - [Community book themes, persistence and target styles](book-themes.md)
 - [Custom theme design v1 (proposed contract; #133)](custom-themes.md)
 - [Declarative local theme package and security policy](theme-package-format.md)
