@@ -26,6 +26,19 @@ checkout, licence change or Community limitation. New commercial allocation is
 prerequisite for #133. Follow-up candidates remain Backlog until reviewed; only
 owner-approved scope or explicit deferrals enters the private-app evaluation.
 
+## Book structure proposal (#135)
+
+The [parts/volumes/edition-selection design](../book-structure.md), [synthetic examples](../examples/book-structure-v1/README.md)
+and [BS1–BS6 specifications](135-book-structure-follow-ups.md) build on verified
+#123 publication matter, #126 EPUB, #136 independent print profiles and current v3
+editorial/recovery implementation. They do not implement runtime hierarchy or a
+general edition manager. BS1–BS4 are CORE; anthology assembly and cross-book copying
+remain Undecided — owner review required. The proposed explicit format gate and
+snapshot/archive integration require implementation before structure enablement.
+Owner review and actual follow-up issue creation remain outstanding: #135 is not yet
+complete. Approved implementation scope or explicit deferrals feeds #203; final
+commercial allocation follows working-app evaluation under the 2 October decision.
+
 ## Story bible design and owner sequencing
 
 The 2 October owner decision places final commercial allocation after the private

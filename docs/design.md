@@ -10,6 +10,18 @@
 
 ---
 
+## Book structure design (#135; proposed)
+
+The [local book structure proposal](book-structure.md) specifies bounded parts and
+volumes, generated openings/numbering, hierarchical navigation and edition-specific
+selection over shared chapters. Existing flat manuscript order and editable publication
+matter remain authoritative. Standard/Large Print profiles and EPUB appearance stay
+independent. This is design work awaiting owner review, not implemented capability.
+The [fixtures](examples/book-structure-v1/README.md) and [BS1–BS6 specifications](planning/135-book-structure-follow-ups.md)
+separate future CORE structure/publishing from unallocated anthology/copying scope.
+#203 evaluates approved working implementations or explicit owner deferrals before
+final commercial allocation. #135 is incomplete until review and agreed issue creation.
+
 ## Local revision review implementation (#173)
 
 The v0.6 revision workflow is implemented by the chapter-v2 accepted/proposed

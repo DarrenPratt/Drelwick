@@ -24,6 +24,20 @@ Use immutable UUIDs and manifest ordering; short `chapter-001`/`0f23...` placeho
 
 The v0.1 build plan defines the minimal editor schema (text/paragraphs, bold/italic, undo/redo, scene breaks and block quotes). Later nodes/marks shown here are not all required initially. Extension API design/security/versioning precede public contributions; runtime distribution may remain later work. v0.2 HTML print preview is approximate until pagination is validated against generated output.
 
+## Proposed structure contract (#135)
+
+[Book structure](book-structure.md) proposes a version-gated additive component,
+immutable group/leaf IDs and exact hierarchical traversal equality with authoritative
+`project.json.manuscript.order`. No production schema is changed here. Explicit enable
+would require a new project format and verified migration backup so older flat writers
+cannot ignore grouping. Current v3 editorial transactions, backup allowlists and
+versioned named snapshots need deliberate extension before enablement. Generated
+opening documents and navigation consume the existing semantic assembly/EPUB/Chromium
+pipeline; EPUB and Standard/Large Print presentation contracts remain independent.
+See [fixtures](examples/book-structure-v1/README.md) and [implementation/review gates](planning/135-book-structure-follow-ups.md).
+Owner approval and follow-up creation remain pending; anthology/copying are separately
+assessed, not implemented or allocated to Pro.
+
 ## Local revision review implementation (#173)
 
 The v0.6 revision workflow is implemented by the chapter-v2 accepted/proposed

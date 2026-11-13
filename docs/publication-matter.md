@@ -102,6 +102,15 @@ Downstream consumers can use publication metadata, ordered semantic documents,
 navigation flags and cover asset identity. EPUB/DOCX export, print configuration,
 templates, parts/volumes/editions and custom publishing remain separate issues.
 
+## Proposed parts and volumes (#135)
+
+The [structure proposal](book-structure.md) keeps these editable pages and
+`publication.json` v1 inclusion flags authoritative. Group openings are generated
+semantic render items, not copied chapter prose or new matter types. Future named
+selection overrides have explicit precedence over base flags, without deletion.
+No runtime structure/edition schema or template library is added by the design.
+See [follow-up specifications and review gates](planning/135-book-structure-follow-ups.md).
+
 ## Reusable library design (#134)
 
 The [local matter template specification](planning/local-matter-templates.md)

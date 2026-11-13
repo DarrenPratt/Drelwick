@@ -18,6 +18,20 @@ This specification does not change repository visibility or licensing decisions.
 recovery mechanisms rather than additional manuscript fields. Future/reserved
 structures are explicitly identified and have no schema defined here.
 
+## Proposed book structure is not part of this format
+
+The [#135 proposal](book-structure.md) and its [documentation fixtures](examples/book-structure-v1/README.md)
+do **not** add `book-structure.json` to the implemented format. They propose an explicit
+future project-v4/descriptor-v3 gate and structure-v1 component; existing loaders,
+archives and snapshot schemas do not support that contract. Never add proposed fields
+to current strict schemas or infer support from the presence of a JSON file. The later
+editorial section in this specification documents implemented opt-in project v3 and
+chapter v2 in addition to the original v2 baseline above; new projects still start v2.
+The proposal preserves authoritative manifest order with exact hierarchy traversal
+equality and unchanged chapter UUIDs. [BS1](planning/135-book-structure-follow-ups.md#bs1--versioned-book-structure-and-safe-migration)
+must update version detection, journals, backups, named snapshots and this public
+contract together before structural projects can be persisted. Owner review is pending.
+
 ## Directory and authority
 
 Paths are relative to the project root. A project has no required directory-name

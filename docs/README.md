@@ -19,6 +19,10 @@ The [local publishing delivery plan](planning/local-publishing-plan.md) updates 
 
 Operational documents:
 
+- [Parts, volumes and edition-specific structure (#135; proposed, owner review pending)](book-structure.md)
+- [Book-structure design fixtures and standalone checks](examples/book-structure-v1/README.md)
+- [BS1–BS6 implementation specifications and #135 acceptance/review gates](planning/135-book-structure-follow-ups.md)
+
 - [Local comments, anchors, revision review and snapshot design (#169)](editing-revisions.md)
 - [Proposed editorial versions, file schemas and compatibility](editorial-format.md)
 - [Editorial implementation contracts, fixture matrix and follow-up reconciliation](planning/169-editorial-delivery.md)
