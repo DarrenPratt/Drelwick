@@ -297,3 +297,11 @@ eligible reference bytes verbatim, refuse unresolved temporary files and require
 explicit review of excluded reference paths. Restore retains unsupported data;
 reference validation reports it read-only independently of manuscript access.
 Unknown reference content must be preserved; no lossy migration is authorized.
+
+## Reusable matter template design (#134)
+
+The [proposed local library](planning/local-matter-templates.md) lives in application
+data outside projects. Resolved applied pages use unchanged `publication.json` v1;
+no binding or provenance fields are added. Optional application-local provenance
+is advisory and may be lost when a book moves machines. Books and portable project
+backups retain complete applied content without requiring the source library.
