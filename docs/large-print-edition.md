@@ -5,6 +5,15 @@ Both use one authoritative manuscript and the existing theme, pagination, PDF
 preview, preflight and export pipeline. EPUB keeps its own presentation theme.
 There are no manuscript copies, alternative renderers or general edition manager.
 
+## Future structure selections (#135; proposed)
+
+The [book structure design](book-structure.md) separates future named content
+selections from these two fixed presentation profiles. Either print profile could
+render an explicitly selected subset of the same chapters; switching profiles
+alone would not change that selection. `print.json` v2 and EPUB presentation remain
+independent. This is a proposed future contract awaiting owner review, with no
+runtime edition manager or manuscript copies introduced here.
+
 ## Using an edition
 
 Open **Book design → Print settings → Print edition**. Switching saves the selected
